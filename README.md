@@ -25,6 +25,17 @@ Skills for [Claude Code](https://claude.ai/code) that leverage browser automatio
 | **ios-workflow-generator** | "generate ios workflows" | Explores iOS app, creates workflow docs |
 | **ios-workflow-executor** | "run ios workflows" | Executes workflows via iOS Simulator MCP |
 
+## Local Development
+
+If you're iterating on these skills locally:
+
+```bash
+# Load local version instead of cached plugin
+claude --plugin-dir /path/to/claude-skills
+```
+
+Don't install the plugin in projects where you're actively developing it—the installed version is cached and won't reflect your local changes until pushed.
+
 ## Requirements
 
 - **Browser skills**: Claude-in-Chrome MCP
