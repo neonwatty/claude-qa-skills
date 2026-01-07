@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "claude-skills",
-      "source": ".",
+      "source": "./",
       "description": "Validation, PR creation, workflow testing, and feature planning skills",
       "version": "1.0.0"
     }
