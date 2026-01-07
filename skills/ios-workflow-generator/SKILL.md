@@ -183,6 +183,88 @@ Options:
 | Wait | Wait for [condition] | Wait for loading indicator to disappear |
 | Scroll | Scroll [direction] to [element/position] | Scroll down to "Settings" row |
 
+## Automation-Friendly Workflow Guidelines
+
+When writing workflows, consider what can and cannot be automated by the iOS Simulator MCP:
+
+### Text Input Limitations
+
+The `ui_type` tool only supports ASCII printable characters. For special text:
+
+**Instead of:**
+```markdown
+- Type "Hello 👋 World" in the message field
+- Type "Café résumé" in the search field
+```
+
+**Write:**
+```markdown
+- Type "Hello World" in the message field
+- Note: Emoji cannot be automated, test manually if needed
+- Type "Cafe resume" in the search field (ASCII only)
+- Note: For accented characters, pre-populate test data
+```
+
+### Mark Non-Automatable Steps
+
+Use `[MANUAL]` tag for steps that require manual verification:
+
+```markdown
+3. Grant camera permission
+   - [MANUAL] Tap "Allow" on system permission dialog
+   - Note: System permission dialogs cannot be automated
+   - Pre-configure: Settings > Privacy > Camera > [App] = On
+
+4. Authenticate with Face ID
+   - [MANUAL] Complete Face ID authentication
+   - Note: Biometric auth requires simulator menu interaction
+```
+
+### Known Automation Limitations
+
+These interactions **cannot** be automated and should include `[MANUAL]` tags or workarounds:
+
+| Limitation | Example | Recommendation |
+|------------|---------|----------------|
+| Permission dialogs | Camera, Location, Notifications | Mark [MANUAL], pre-configure in Settings |
+| System alerts | Battery, Updates, iCloud | Skip or mark [MANUAL] |
+| Biometrics | Face ID, Touch ID | Mark [MANUAL] or use passcode fallback |
+| System UI | Control Center, Notification Center | Mark [MANUAL] |
+| Special characters | Emoji, non-ASCII text | Use ASCII only, pre-populate data |
+| Hardware buttons | Home, Power, Volume | Use Simulator menu or mark [MANUAL] |
+| App Store | Purchases, Reviews | Use sandbox accounts, mark [MANUAL] |
+
+### Include Prerequisites for Automation
+
+When workflows require specific setup:
+
+```markdown
+## Workflow: Photo Capture Flow
+
+**Prerequisites for automation:**
+- Simulator permissions pre-configured: Settings > Privacy > Camera > [App] = On
+- Photos library should contain test images
+- Location services enabled for app
+
+> Tests capturing and saving a new photo.
+
+1. Open camera
+   ...
+```
+
+### Pre-Configuration Checklist
+
+Include this section when workflows need system setup:
+
+```markdown
+**Simulator Setup (one-time):**
+1. Device > Erase All Content and Settings (clean slate)
+2. Launch app once to trigger permission prompts
+3. Grant all required permissions manually
+4. Install test data/photos if needed
+5. Sign into test accounts
+```
+
 **Substep Format:**
 - Use bullet points under numbered steps
 - Include accessibility labels when known

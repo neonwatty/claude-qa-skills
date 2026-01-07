@@ -190,6 +190,68 @@ The iOS Simulator uses pixel coordinates from top-left (0, 0).
 - Elements report their `frame` with x, y, width, height
 - Tap center of element: x + width/2, y + height/2
 
+## Known Limitations
+
+The iOS Simulator automation has the following limitations that cannot be automated:
+
+### Cannot Automate (Must Skip or Flag for Manual Testing)
+
+1. **System Permission Dialogs**
+   - Camera, microphone, photo library access prompts
+   - Location services authorization
+   - Notification permission requests
+   - Contacts, calendar, reminders access
+   - **Workaround:** Pre-authorize permissions in Simulator settings, or flag for manual testing
+
+2. **System Alerts and Sheets**
+   - Low battery warnings
+   - Software update prompts
+   - iCloud sign-in requests
+   - Carrier settings updates
+   - **Workaround:** Skip steps that trigger these, document as manual
+
+3. **Hardware Interactions**
+   - Physical button simulation (home, power, volume) may be limited
+   - Face ID / Touch ID authentication flows
+   - Shake gesture, rotation lock, mute switch
+   - **Workaround:** Use simulator menu for hardware simulation when possible
+
+4. **System UI Elements**
+   - Control Center interactions
+   - Notification Center / Lock Screen
+   - Spotlight search from home screen
+   - App Switcher (multitasking view)
+   - **Workaround:** Document as requiring manual verification
+
+5. **Keyboard Limitations**
+   - `ui_type` only supports ASCII printable characters
+   - Special characters, emoji, and non-Latin scripts cannot be typed
+   - Autocorrect and predictive text interactions
+   - **Workaround:** For special text, use copy/paste or pre-populate data
+
+6. **External Services**
+   - App Store interactions (purchases, reviews)
+   - In-app purchases and payment flows
+   - Sign in with Apple
+   - **Workaround:** Use sandbox/test accounts, flag for manual verification
+
+### Handling Limited Steps
+
+When a workflow step involves a known limitation:
+
+1. **Mark as [MANUAL]:** Note the step requires manual verification
+2. **Pre-configure:** Set up simulator permissions before testing
+3. **Document the Limitation:** Record in findings that the step was skipped due to automation limits
+4. **Continue Testing:** Don't let one limited step block the entire workflow
+
+Example workflow annotation:
+```markdown
+3. Allow camera access
+   - [MANUAL] System permission dialog cannot be automated
+   - Pre-configure: Reset privacy settings in Simulator > Device > Erase All Content and Settings
+   - Or manually tap "Allow" when prompted
+```
+
 ## Guidelines
 
 - **Be methodical:** Execute steps in order, don't skip ahead
@@ -197,6 +259,7 @@ The iOS Simulator uses pixel coordinates from top-left (0, 0).
 - **Be thorough:** Look for visual glitches, animation issues, responsiveness
 - **Be constructive:** Frame issues as opportunities for improvement
 - **Ask if stuck:** If a step is ambiguous or fails, ask the user for guidance
+- **Pre-configure when possible:** Set up simulator state before running workflows
 
 ## Handling Failures
 
