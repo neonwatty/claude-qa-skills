@@ -51,9 +51,52 @@ For each numbered step in the workflow:
    - Any potential improvements or feature ideas?
 5. **Record** your observations before moving to next step
 
-### Phase 4: Generate Report
+### Phase 3.5: Record Findings Incrementally
 
-After completing all steps, write a report to `.claude/plans/ios-workflow-report.md`:
+**CRITICAL:** After completing EACH workflow, immediately write findings to the log file. Do not wait until all workflows are complete.
+
+1. After each workflow completes, append to `.claude/plans/ios-workflow-findings.md`
+2. If the file doesn't exist, create it with a header first
+3. Use the following format for each workflow entry:
+
+```markdown
+---
+### Workflow [N]: [Name]
+**Timestamp:** [ISO datetime]
+**Status:** Passed/Failed/Partial
+
+**Steps Summary:**
+- Step 1: [Pass/Fail] - [brief note]
+- Step 2: [Pass/Fail] - [brief note]
+...
+
+**Issues Found:**
+- [Issue description] (Severity: High/Med/Low)
+
+**UX/Design Notes:**
+- [Observation]
+
+**Technical Problems:**
+- [Problem] (include crash logs if any)
+
+**Feature Ideas:**
+- [Idea]
+
+**Screenshots:** [list of screenshot paths captured]
+```
+
+4. This ensures findings are preserved even if session is interrupted
+5. Continue to next workflow after recording
+
+### Phase 4: Generate Final Report
+
+After completing all workflows (or when user requests), consolidate findings into a summary report:
+
+1. Read `.claude/plans/ios-workflow-findings.md` for all recorded findings
+2. Write consolidated report to `.claude/plans/ios-workflow-report.md`
+3. Include overall statistics, prioritized issues, and recommendations
+
+Report format:
 
 ```markdown
 # iOS Workflow Report
@@ -175,3 +218,12 @@ Swipe Right: x_start=50, y_start=400, x_end=350, y_end=400
 ```
 
 Adjust coordinates based on actual screen size from `ui_describe_all`.
+
+## Session Recovery
+
+If resuming from an interrupted session:
+
+1. Read `.claude/plans/ios-workflow-findings.md` to see which workflows have been completed
+2. Resume from the next uncompleted workflow
+3. Do not re-execute already-passed workflows unless the user specifically requests it
+4. Inform the user which workflows were already completed and where you're resuming from
