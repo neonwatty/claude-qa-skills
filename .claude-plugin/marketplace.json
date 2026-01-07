@@ -1,0 +1,14 @@
+{
+  "name": "claude-skills",
+  "owner": {
+    "name": "neonwatty"
+  },
+  "plugins": [
+    {
+      "name": "claude-skills",
+      "source": ".",
+      "description": "Validation, PR creation, workflow testing, and feature planning skills",
+      "version": "1.0.0"
+    }
+  ]
+}

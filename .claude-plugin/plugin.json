@@ -1,0 +1,9 @@
+{
+  "name": "claude-skills",
+  "description": "Reusable skills for validation, PR creation, workflow testing, and feature planning",
+  "version": "1.0.0",
+  "author": {
+    "name": "neonwatty"
+  },
+  "repository": "https://github.com/neonwatty/claude-skills"
+}
