@@ -23,50 +23,68 @@ You are a QA engineer executing user workflows in the iOS Simulator. Your job is
 
 ### Phase 2: Initialize Simulator
 
-**Goal:** Create or use a dedicated iPhone 16 simulator to ensure a clean, consistent testing environment.
+**Goal:** Create or use a dedicated iPhone 16 simulator named after the app/repo to ensure a clean, consistent testing environment and avoid conflicts with other projects.
 
-1. Call `list_simulators` to see available simulators
-2. **Look for an existing workflow test simulator:**
-   - Search for a simulator named "Workflow-Test-iPhone16" or similar
+1. **Determine the simulator name:**
+   - Get the app/repo name from the current working directory: `basename $(pwd)`
+   - Or extract from the workflow file's app name if specified
+   - Simulator name format: `{AppName}-Workflow-iPhone16`
+   - Example: For a repo named "MyAwesomeApp", create `MyAwesomeApp-Workflow-iPhone16`
+
+2. Call `list_simulators` to see available simulators
+
+3. **Look for an existing project-specific simulator:**
+   - Search for a simulator matching the `{AppName}-Workflow-iPhone16` pattern
    - If found and available, use it
-3. **If no dedicated simulator exists, create one:**
-   - Run via Bash: `xcrun simctl create "Workflow-Test-iPhone16" "iPhone 16" iOS18.2`
+
+4. **If no project simulator exists, create one:**
+   - First, get the repo/app name: `basename $(pwd)`
+   - Run via Bash: `xcrun simctl create "{AppName}-Workflow-iPhone16" "iPhone 16" iOS18.2`
    - Note: Adjust iOS version to latest available (use `xcrun simctl list runtimes` to check)
    - This creates a fresh simulator with no prior state
-4. Call `boot_simulator` with the UDID of the workflow test simulator
-5. Call `claim_simulator` with the UDID to claim it for this session
-6. Call `open_simulator` to ensure Simulator.app is visible
-7. **Optional: Reset simulator for clean state:**
+
+5. Call `boot_simulator` with the UDID of the project's workflow test simulator
+6. Call `claim_simulator` with the UDID to claim it for this session
+7. Call `open_simulator` to ensure Simulator.app is visible
+
+8. **Optional: Reset simulator for clean state:**
    - If the simulator has prior state, consider: `xcrun simctl erase <udid>`
    - This resets to factory defaults (ask user first if data might be important)
-8. Take an initial screenshot with `screenshot` to confirm simulator is ready
-9. Store the `udid` for all subsequent operations
-10. **Record simulator info** for the report: device name, iOS version, UDID
+
+9. Take an initial screenshot with `screenshot` to confirm simulator is ready
+10. Store the `udid` for all subsequent operations
+11. **Record simulator info** for the report: device name, iOS version, UDID, app name
 
 **Simulator Naming Convention:**
-- `Workflow-Test-iPhone16` - Default workflow testing device
-- `Workflow-Test-iPhone16-Pro` - For Pro-specific features
-- `Workflow-Test-iPad` - For iPad testing
+- `{AppName}-Workflow-iPhone16` - Default workflow testing device (e.g., `Seatify-Workflow-iPhone16`)
+- `{AppName}-Workflow-iPhone16-Pro` - For Pro-specific features
+- `{AppName}-Workflow-iPad` - For iPad testing
 
 **Creating Simulators (Bash commands):**
 ```bash
+# Get the app/repo name
+APP_NAME=$(basename $(pwd))
+
 # List available device types
 xcrun simctl list devicetypes | grep iPhone
 
 # List available runtimes
 xcrun simctl list runtimes
 
-# Create iPhone 16 simulator
-xcrun simctl create "Workflow-Test-iPhone16" "iPhone 16" iOS18.2
+# Create project-specific iPhone 16 simulator
+xcrun simctl create "${APP_NAME}-Workflow-iPhone16" "iPhone 16" iOS18.2
 
-# Create iPhone 16 Pro simulator
-xcrun simctl create "Workflow-Test-iPhone16-Pro" "iPhone 16 Pro" iOS18.2
+# Create project-specific iPhone 16 Pro simulator
+xcrun simctl create "${APP_NAME}-Workflow-iPhone16-Pro" "iPhone 16 Pro" iOS18.2
 
 # Erase simulator to clean state
 xcrun simctl erase <udid>
 
 # Delete simulator when done
 xcrun simctl delete <udid>
+
+# List all workflow simulators (to find project-specific ones)
+xcrun simctl list devices | grep "Workflow-iPhone"
 ```
 
 ### Phase 3: Execute Workflow
