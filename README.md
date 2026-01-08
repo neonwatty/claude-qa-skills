@@ -20,7 +20,7 @@ Skills for [Claude Code](https://claude.ai/code) that leverage browser automatio
 | **pr-creator** | "create pr" | Commits, creates PR, monitors CI until green |
 | **feature-interview** | "new feature", "plan a feature" | Deep Q&A about requirements, writes implementation plan |
 | **bug-interview** | "found a bug", "let's work on this bug" | Systematic bug diagnosis, writes investigation plan |
-| **think-through** | "think through", "help me think about" | General-purpose Socratic exploration of any idea or problem |
+| **think-through** | "think through", "help me think about" | Socratic exploration of technical ideas (apps, products, tools) |
 | **browser-workflow-generator** | "generate browser workflows" | Explores codebase, creates user workflow docs |
 | **browser-workflow-executor** | "run browser workflows" | Executes workflows via Chrome MCP |
 | **ios-workflow-generator** | "generate ios workflows" | Explores iOS app, creates workflow docs |
