@@ -46,7 +46,92 @@ For each numbered step in the workflow:
    - Any UI/UX issues? (confusing labels, poor contrast, slow response)
    - Any technical problems? (errors in console, failed requests)
    - Any potential improvements or feature ideas?
-5. **Record** your observations before moving to next step
+5. **Evaluate platform appropriateness** (see Phase 3.25 below)
+6. **Record** your observations before moving to next step
+
+### Phase 3.25: UX Platform Evaluation
+
+For each page/screen encountered during workflow execution, evaluate web platform appropriateness:
+
+#### Quick Checklist (check on every page)
+
+**Navigation:**
+- [ ] Browser back button works correctly
+- [ ] URLs reflect current state (deep-linkable)
+- [ ] No mobile-style bottom tab bar
+- [ ] Navigation works without gestures (click-based)
+
+**Interactions:**
+- [ ] All interactive elements have hover states
+- [ ] Keyboard navigation works (Tab, Enter, Escape)
+- [ ] Focus indicators are visible
+- [ ] No gesture-only interactions for critical features
+
+**Components:**
+- [ ] Uses web-appropriate form components
+- [ ] No iOS-style picker wheels
+- [ ] No Android-style floating action buttons
+- [ ] Modals don't unnecessarily go full-screen
+
+**Responsive/Visual:**
+- [ ] Layout works at different viewport widths
+- [ ] No mobile-only viewport restrictions
+- [ ] Text is readable without zooming
+- [ ] No app-like splash screens
+
+**Accessibility:**
+- [ ] Color is not the only indicator of state
+- [ ] Images have alt text
+- [ ] Form fields have labels
+- [ ] ARIA attributes where needed
+
+#### Reference Comparison Process
+
+When you identify a potential UX issue or something that looks "off":
+
+1. **Identify the page type** (login, dashboard, settings, list/table, detail, etc.)
+
+2. **Search for reference examples** using WebSearch:
+   ```
+   Search: "web app [page type] design Dribbble"
+   OR: "[well-known web app] [page type] screenshot"
+   Examples:
+   - "SaaS dashboard design Dribbble"
+   - "Linear app UI screenshots"
+   - "web app settings page design 2024"
+   - "Notion sidebar navigation"
+   ```
+
+3. **Visit 2-3 reference examples** using navigate and screenshot:
+   - Dribbble shots of similar pages
+   - Live well-known web apps (Linear, Notion, Figma, Vercel)
+   - Design system documentation (Tailwind, Radix, shadcn)
+
+4. **Compare structural patterns** (not exact styling):
+   - Navigation placement and behavior
+   - Component types and interaction patterns
+   - Layout and responsive behavior
+   - Hover/focus states
+
+5. **Document the comparison**:
+   ```markdown
+   **UX Comparison: Dashboard**
+   - Reference apps: Linear, Notion, Vercel
+   - Issue found: App uses bottom tab bar for navigation
+   - Reference pattern: All three use sidebar or top navigation
+   - Recommendation: Move navigation to sidebar or top bar
+   ```
+
+#### When to Trigger Reference Comparison
+
+- When you see mobile-style bottom navigation
+- When hover states are missing on interactive elements
+- When the back button doesn't work as expected
+- When URLs don't reflect the current view
+- When components feel "mobile-native" rather than web-native
+- When keyboard navigation doesn't work
+- When the layout breaks at different screen sizes
+- Any time something looks "off" but you want to validate your instinct
 
 ### Phase 3.5: Record Findings Incrementally
 
@@ -69,6 +154,11 @@ For each numbered step in the workflow:
 
 **Issues Found:**
 - [Issue description] (Severity: High/Med/Low)
+
+**Platform Appropriateness:**
+- Web conventions followed: [Yes/Partially/No]
+- Issues: [List any platform anti-patterns found]
+- Reference comparisons: [Apps/pages compared, if any]
 
 **UX/Design Notes:**
 - [Observation]
@@ -121,6 +211,30 @@ Report format:
 | Issue | Severity | Description |
 |-------|----------|-------------|
 | Issue 1 | High/Med/Low | Details |
+
+## Platform Appropriateness
+
+**Overall Score:** [Good/Needs Work/Poor]
+
+### Web Convention Compliance
+| Check | Status | Notes |
+|-------|--------|-------|
+| Hover states | ✓/✗ | [Details] |
+| Keyboard navigation | ✓/✗ | [Details] |
+| Back button works | ✓/✗ | [Details] |
+| Deep-linkable URLs | ✓/✗ | [Details] |
+| Responsive layout | ✓/✗ | [Details] |
+| Web-native components | ✓/✗ | [Details] |
+
+### Reference Comparisons Made
+| Page | Reference Apps | Finding |
+|------|---------------|---------|
+| [Page name] | [Apps compared] | [What was found] |
+
+### Platform-Specific Issues
+- [Issue]: App uses [anti-pattern] instead of [web convention]
+  - Reference: [How comparable apps handle this]
+  - Recommendation: [What to change]
 
 ## UX/Design Observations
 
