@@ -69,6 +69,39 @@ Based on exploration, identify key user journeys:
 - Offline behavior
 - Permission requests (camera, location, notifications)
 
+### Phase 3.5: Research UX Conventions
+
+For each major screen type identified, research what good UX looks like:
+
+1. **Identify screen types** in your feature inventory (e.g., login screen, settings page, list view, detail view, onboarding flow, search interface)
+
+2. **Search for reference examples** using WebSearch:
+   - Search for 2-3 well-known apps with similar functionality
+   - OR search for 2-3 screens of similar type from design resources
+   - Example searches:
+     - "iOS login screen design Dribbble"
+     - "best iOS settings UI examples"
+     - "iOS list view design patterns 2024"
+     - "[specific app name] iOS screenshots"
+
+3. **Document UX conventions** for each screen type:
+   ```markdown
+   ### Screen: Login Screen
+   **Reference Examples:** Airbnb, Spotify, Instagram
+   **Expected iOS Conventions:**
+   - Large, centered logo or app name
+   - Email/password fields using native iOS text field styling
+   - Social login buttons with standard iOS button height (50pt)
+   - "Forgot Password" as text link, not button
+   - Sign up CTA clearly visible but secondary to login
+   **Anti-patterns to flag:**
+   - Web-style dropdown for country code
+   - Tiny touch targets on social buttons
+   - Hamburger menu visible on login screen
+   ```
+
+4. **Include UX expectations in workflows** so the executor knows what to verify
+
 ### Phase 4: Generate Workflows
 
 For each journey, create a workflow with this structure:
@@ -333,6 +366,63 @@ Include this section when workflows need system setup:
 - Consider notch/Dynamic Island layouts
 - Account for different screen sizes
 
+## iOS Platform UX Anti-Patterns
+
+When generating workflows, include UX verification steps that check for these common anti-patterns where iOS apps incorrectly use web or Android conventions:
+
+### Navigation Anti-Patterns
+| Anti-Pattern | iOS Convention | What to Check |
+|--------------|----------------|---------------|
+| Hamburger menu (☰) | Tab bar at bottom | Primary navigation should use UITabBarController/TabView, not hidden drawer |
+| Floating Action Button (FAB) | Navigation bar buttons | Primary actions belong in top-right nav bar, not floating circle |
+| Breadcrumb navigation | Back button + title | iOS uses single back button with previous screen title |
+| Bottom sheets for navigation | Modal presentations or push | Navigation should push onto stack, not slide up sheets |
+| Nested hamburger menus | Flat tab structure | iOS prefers flat hierarchy with tabs, not deep menu nesting |
+
+### Interaction Anti-Patterns
+| Anti-Pattern | iOS Convention | What to Check |
+|--------------|----------------|---------------|
+| Tiny tap targets (<44pt) | Minimum 44x44pt touch targets | All interactive elements should be easily tappable |
+| Text-only buttons | Styled buttons or icons | Primary actions should have clear button styling |
+| Swipe-only actions | Swipe + visible alternative | Critical actions need visible UI, not just swipe gestures |
+| Long press as primary action | Long press for secondary | Long press should reveal options, not be required |
+| Pull-to-refresh everywhere | Only in scrollable lists | Pull-to-refresh is for list content, not all screens |
+
+### Visual Anti-Patterns
+| Anti-Pattern | iOS Convention | What to Check |
+|--------------|----------------|---------------|
+| Custom form controls | Native UIKit/SwiftUI components | Use native Picker, DatePicker, Toggle, not custom widgets |
+| Web-style dropdowns | iOS Picker wheels or menus | Dropdowns should use native picker presentation |
+| Dense information layout | Generous spacing and hierarchy | iOS favors readability over density |
+| Material Design styling | iOS Human Interface Guidelines | Avoid Android-specific visual patterns |
+| Fixed headers that cover content | iOS navigation bar behavior | Headers should integrate with iOS navigation system |
+
+### Component Anti-Patterns
+| Anti-Pattern | iOS Convention | What to Check |
+|--------------|----------------|---------------|
+| Toast notifications | iOS alerts or banners | Use native alert styles, not Android-style toasts |
+| Snackbars | Action sheets or alerts | Bottom notifications should follow iOS patterns |
+| Cards with heavy shadows | Subtle iOS card styling | iOS uses subtle shadows and rounded corners |
+| Outlined text fields | iOS text field styling | Text fields should match iOS native appearance |
+| Checkboxes | iOS Toggle switches or checkmarks | Use SF Symbols checkmarks or Toggle for boolean states |
+
+### Workflow UX Verification Steps
+
+When writing workflows, include verification steps for platform appropriateness:
+
+```markdown
+## Workflow: [Name]
+
+...
+
+6. Verify iOS platform conventions
+   - Verify primary navigation uses tab bar (not hamburger menu)
+   - Verify interactive elements are at least 44x44pt
+   - Verify forms use native iOS components (Picker, Toggle, etc.)
+   - Verify navigation follows iOS back-button pattern
+   - Verify visual styling follows iOS Human Interface Guidelines
+```
+
 ## Agent Prompts
 
 When launching Explore agents, use prompts like:
@@ -345,3 +435,6 @@ When launching Explore agents, use prompts like:
 
 **State Agent:**
 "Find the data model and user actions in this iOS app. Look for: Core Data/SwiftData models, @State/@StateObject/@Observable usage, network calls (URLSession, async/await), UserDefaults, Keychain usage. Report: list of data entities and actions users can take."
+
+**UX Patterns Agent:**
+"Identify UI patterns used in this iOS app and flag any that deviate from iOS conventions. Look for: navigation patterns (tab bar vs hamburger), button styles, form components, modal presentations, list styles. Report: list of UI patterns used and any that appear to be web or Android conventions instead of iOS native patterns."

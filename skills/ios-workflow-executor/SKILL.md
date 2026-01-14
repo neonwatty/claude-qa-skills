@@ -106,7 +106,82 @@ For each numbered step in the workflow:
    - Any UI/UX issues? (confusing labels, poor contrast, slow response)
    - Any technical problems? (crashes, hangs, visual glitches)
    - Any potential improvements or feature ideas?
-5. **Record** your observations before moving to next step
+5. **Evaluate platform appropriateness** (see Phase 3.25 below)
+6. **Record** your observations before moving to next step
+
+### Phase 3.25: UX Platform Evaluation
+
+For each screen encountered during workflow execution, evaluate iOS platform appropriateness:
+
+#### Quick Checklist (check on every screen)
+
+**Navigation:**
+- [ ] Uses tab bar for primary navigation (not hamburger menu)
+- [ ] Back button follows iOS conventions (chevron + previous title)
+- [ ] No floating action buttons (Android pattern)
+- [ ] No breadcrumb navigation
+
+**Interactions:**
+- [ ] All tap targets are at least 44x44pt
+- [ ] Buttons have clear iOS-style affordances
+- [ ] No swipe-only actions for critical features
+
+**Components:**
+- [ ] Uses native iOS form components (Picker, DatePicker, Toggle)
+- [ ] No web-style dropdown selects
+- [ ] No Material Design styled components
+- [ ] Alerts and action sheets follow iOS patterns
+
+**Visual:**
+- [ ] Spacing and typography follow iOS conventions
+- [ ] No Android-style toast notifications
+- [ ] Cards use subtle iOS styling (not heavy Material shadows)
+
+#### Reference Comparison Process
+
+When you identify a potential UX issue or something that looks "off":
+
+1. **Identify the screen type** (login, settings, list view, detail, etc.)
+
+2. **Search for reference examples** using WebSearch:
+   ```
+   Search: "iOS [screen type] design Dribbble"
+   OR: "[well-known iOS app] [screen type] screenshot"
+   Examples:
+   - "iOS login screen design Dribbble"
+   - "Airbnb iOS app settings screenshot"
+   - "iOS list view design patterns 2024"
+   ```
+
+3. **Visit 2-3 reference examples** using WebFetch or browser to view:
+   - Dribbble shots of similar screens
+   - Screenshots from well-known iOS apps (Airbnb, Spotify, Instagram, Apple apps)
+   - iOS Human Interface Guidelines examples
+
+4. **Compare structural patterns** (not exact styling):
+   - Navigation placement and style
+   - Component types and sizing
+   - Layout and spacing patterns
+   - Interaction patterns
+
+5. **Document the comparison**:
+   ```markdown
+   **UX Comparison: Login Screen**
+   - Reference apps: Spotify, Instagram, Airbnb
+   - Issue found: App uses web-style dropdown for country code
+   - Reference pattern: All three apps use native iOS picker wheel
+   - Recommendation: Replace dropdown with UIPickerView
+   ```
+
+#### When to Trigger Reference Comparison
+
+- When you see a hamburger menu (☰) instead of tab bar
+- When tap targets feel too small
+- When components look "web-like" or "Android-like"
+- When navigation feels unusual for iOS
+- When forms use non-native components
+- When the overall feel doesn't match typical iOS apps
+- Any time something looks "off" but you want to validate your instinct
 
 ### Phase 3.5: Record Findings Incrementally
 
@@ -129,6 +204,11 @@ For each numbered step in the workflow:
 
 **Issues Found:**
 - [Issue description] (Severity: High/Med/Low)
+
+**Platform Appropriateness:**
+- iOS conventions followed: [Yes/Partially/No]
+- Issues: [List any platform anti-patterns found]
+- Reference comparisons: [Apps/screens compared, if any]
 
 **UX/Design Notes:**
 - [Observation]
@@ -182,6 +262,28 @@ Report format:
 | Issue | Severity | Description |
 |-------|----------|-------------|
 | Issue 1 | High/Med/Low | Details |
+
+## Platform Appropriateness
+
+**Overall Score:** [Good/Needs Work/Poor]
+
+### iOS Convention Compliance
+| Check | Status | Notes |
+|-------|--------|-------|
+| Tab bar navigation | ✓/✗ | [Details] |
+| 44pt tap targets | ✓/✗ | [Details] |
+| Native iOS components | ✓/✗ | [Details] |
+| iOS visual styling | ✓/✗ | [Details] |
+
+### Reference Comparisons Made
+| Screen | Reference Apps | Finding |
+|--------|---------------|---------|
+| [Screen name] | [Apps compared] | [What was found] |
+
+### Platform-Specific Issues
+- [Issue]: App uses [anti-pattern] instead of [iOS convention]
+  - Reference: [How comparable apps handle this]
+  - Recommendation: [What to change]
 
 ## UX/Design Observations
 
