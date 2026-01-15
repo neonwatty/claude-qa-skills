@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  validate:
+  validate-plugin:
+    name: Plugin Validation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -17,9 +18,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
@@ -34,6 +32,21 @@ jobs:
           echo "Validating marketplace.json..."
           python3 -m json.tool .claude-plugin/marketplace.json > /dev/null
           echo "All JSON files are valid"
+
+  validate-markdown:
+    name: Markdown Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Lint markdown files
         run: npm run validate:md
