@@ -1,11 +1,38 @@
 ---
 name: ios-workflow-executor
-description: Executes iOS app user workflows from /workflows/ios-workflows.md using iOS Simulator MCP. Use this when the user says "run ios workflows", "execute ios workflows", or "test ios workflows". Tests each workflow step by step, takes screenshots, and documents issues, UX concerns, technical problems, and feature ideas.
+description: Executes web app workflows in Safari on the iOS Simulator from /workflows/ios-workflows.md. Use this when the user says "run ios workflows", "execute ios workflows", or "test ios workflows". Tests each workflow step by step in mobile Safari, captures before/after screenshots, documents issues, and generates HTML reports with visual evidence of fixes.
 ---
 
 # iOS Workflow Executor Skill
 
-You are a QA engineer executing user workflows in the iOS Simulator. Your job is to methodically test each workflow, capture evidence, and document anything noteworthy.
+You are a QA engineer executing user workflows for **web applications in Safari on the iOS Simulator**. Your job is to methodically test each workflow in mobile Safari, capture before/after evidence, document issues, and optionally fix them with user approval.
+
+**Important:** This skill tests web apps (React, Vue, HTML/CSS/JS, etc.) running in Safari on the iOS Simulator. These web apps are intended to become **PWAs or wrapped native apps** (via Capacitor, Tauri, Electron, etc.) and should feel **indistinguishable from native iOS apps**. The UX bar is native iOS quality—if it feels like a web page, that's a bug.
+
+## Execution Modes
+
+This skill operates in two modes:
+
+### Audit Mode (Default Start)
+- Execute workflows and identify issues
+- Capture **BEFORE screenshots** of all issues found
+- Document issues without fixing them
+- Present findings to user for review
+
+### Fix Mode (User-Triggered)
+- User says "fix this issue" or "fix all issues"
+- Make the code changes to fix the issue
+- Capture **AFTER screenshots** showing the fix
+- Generate HTML report with before/after comparison
+
+**Flow:**
+```
+Audit Mode → Find Issues → Capture BEFORE → Present to User
+                                                    ↓
+                                        User: "Fix this issue"
+                                                    ↓
+Fix Mode → Make Changes → Capture AFTER → Generate HTML Report
+```
 
 ## Process
 
@@ -93,55 +120,58 @@ For each numbered step in the workflow:
 
 1. **Announce** the step you're about to execute
 2. **Execute** using the appropriate MCP tool:
-   - "Launch [app]" → `launch_app` with bundle_id
-   - "Install [app]" → `install_app` with app_path
+   - "Open Safari and navigate to [URL]" → `launch_app` with `com.apple.mobilesafari`, then `open_url` or type URL in address bar
    - "Tap [element]" → `ui_describe_all` to find coordinates, then `ui_tap`
    - "Type [text]" → `ui_type`
    - "Swipe [direction]" → `ui_swipe`
    - "Verify [condition]" → `ui_describe_all` or `ui_view` to check
    - "Wait [seconds]" → pause before next action
+   - "Refresh page" → tap Safari refresh button or pull-to-refresh
 3. **Screenshot** after each action using `screenshot`
 4. **Observe** and note:
    - Did it work as expected?
    - Any UI/UX issues? (confusing labels, poor contrast, slow response)
-   - Any technical problems? (crashes, hangs, visual glitches)
+   - Any technical problems? (page errors, slow loading, visual glitches)
+   - Does the web app feel appropriate on iOS Safari?
    - Any potential improvements or feature ideas?
 5. **Evaluate platform appropriateness** (see Phase 3.25 below)
 6. **Record** your observations before moving to next step
 
 ### Phase 3.25: UX Platform Evaluation
 
-For each screen encountered during workflow execution, evaluate iOS platform appropriateness:
+For each page/screen encountered, evaluate whether the **web app feels like a native iOS app** (not just a mobile-friendly website):
 
-#### Quick Checklist (check on every screen)
+#### Quick Checklist (check on every page)
 
-**Navigation:**
+**Navigation (must feel native):**
 - [ ] Uses tab bar for primary navigation (not hamburger menu)
-- [ ] Back button follows iOS conventions (chevron + previous title)
-- [ ] No floating action buttons (Android pattern)
+- [ ] Back navigation feels native (swipe gesture or back button)
 - [ ] No breadcrumb navigation
+- [ ] Modals slide up from bottom like native iOS sheets
 
-**Interactions:**
+**Touch & Interaction:**
 - [ ] All tap targets are at least 44x44pt
-- [ ] Buttons have clear iOS-style affordances
-- [ ] No swipe-only actions for critical features
+- [ ] No hover-dependent interactions
+- [ ] Animations feel native (spring physics, smooth)
+- [ ] Forms work well with the on-screen keyboard
 
-**Components:**
-- [ ] Uses native iOS form components (Picker, DatePicker, Toggle)
-- [ ] No web-style dropdown selects
-- [ ] No Material Design styled components
-- [ ] Alerts and action sheets follow iOS patterns
+**Components (should match native iOS):**
+- [ ] Uses iOS-style pickers, not web dropdowns
+- [ ] Toggle switches, not checkboxes
+- [ ] No Material Design components (FAB, snackbars, etc.)
+- [ ] Action sheets and alerts follow iOS patterns
 
-**Visual:**
-- [ ] Spacing and typography follow iOS conventions
-- [ ] No Android-style toast notifications
-- [ ] Cards use subtle iOS styling (not heavy Material shadows)
+**Visual Design:**
+- [ ] Typography follows iOS conventions (SF Pro feel)
+- [ ] Subtle shadows and rounded corners (not Material elevation)
+- [ ] Safe area insets respected on notched devices
+- [ ] Doesn't look like a "website" - feels like an app
 
 #### Reference Comparison Process
 
-When you identify a potential UX issue or something that looks "off":
+When you identify a potential UX issue or something that doesn't feel native:
 
-1. **Identify the screen type** (login, settings, list view, detail, etc.)
+1. **Identify the screen type** (login, dashboard, settings, list view, detail, etc.)
 
 2. **Search for reference examples** using WebSearch:
    ```
@@ -154,33 +184,34 @@ When you identify a potential UX issue or something that looks "off":
    ```
 
 3. **Visit 2-3 reference examples** using WebFetch or browser to view:
-   - Dribbble shots of similar screens
-   - Screenshots from well-known iOS apps (Airbnb, Spotify, Instagram, Apple apps)
+   - Dribbble shots of similar iOS screens
+   - Screenshots from well-known native iOS apps (Airbnb, Spotify, Instagram, Apple apps)
    - iOS Human Interface Guidelines examples
 
 4. **Compare structural patterns** (not exact styling):
-   - Navigation placement and style
-   - Component types and sizing
-   - Layout and spacing patterns
-   - Interaction patterns
+   - Navigation placement and style (tab bar position, back button)
+   - Component types (iOS pickers vs web dropdowns)
+   - Layout and spacing (iOS generous whitespace)
+   - Animation and transition patterns
 
 5. **Document the comparison**:
    ```markdown
-   **UX Comparison: Login Screen**
-   - Reference apps: Spotify, Instagram, Airbnb
-   - Issue found: App uses web-style dropdown for country code
-   - Reference pattern: All three apps use native iOS picker wheel
-   - Recommendation: Replace dropdown with UIPickerView
+   **UX Comparison: Settings Screen**
+   - Reference apps: iOS Settings, Spotify, Airbnb
+   - Issue found: App uses hamburger menu for navigation
+   - Reference pattern: All three apps use bottom tab bar
+   - Recommendation: Replace hamburger with tab bar navigation
    ```
 
 #### When to Trigger Reference Comparison
 
-- When you see a hamburger menu (☰) instead of tab bar
+- When you see a hamburger menu instead of tab bar
 - When tap targets feel too small
-- When components look "web-like" or "Android-like"
-- When navigation feels unusual for iOS
-- When forms use non-native components
-- When the overall feel doesn't match typical iOS apps
+- When components look "web-like" (dropdowns, checkboxes)
+- When navigation doesn't feel like native iOS
+- When animations feel jerky or non-native
+- When you see Material Design patterns (FAB, elevation shadows, snackbars)
+- When the app feels like a "website" instead of a native app
 - Any time something looks "off" but you want to validate your instinct
 
 ### Phase 3.5: Record Findings Incrementally
@@ -225,86 +256,228 @@ When you identify a potential UX issue or something that looks "off":
 4. This ensures findings are preserved even if session is interrupted
 5. Continue to next workflow after recording
 
-### Phase 4: Generate Final Report
+### Phase 4: Screenshot Management
 
-After completing all workflows (or when user requests), consolidate findings into a summary report:
-
-1. Read `.claude/plans/ios-workflow-findings.md` for all recorded findings
-2. Write consolidated report to `.claude/plans/ios-workflow-report.md`
-3. Include overall statistics, prioritized issues, and recommendations
-
-Report format:
-
-```markdown
-# iOS Workflow Report
-
-**Workflow:** [Name]
-**Date:** [Timestamp]
-**Simulator:** [Device name and iOS version]
-**Status:** [Passed/Failed/Partial]
-
-## Summary
-
-[Brief overview of what was tested and overall result]
-
-## Step-by-Step Results
-
-### Step 1: [Description]
-- **Status:** Pass/Fail
-- **Screenshot:** [filename]
-- **Notes:** [Any observations]
-
-### Step 2: [Description]
-...
-
-## Issues Discovered
-
-| Issue | Severity | Description |
-|-------|----------|-------------|
-| Issue 1 | High/Med/Low | Details |
-
-## Platform Appropriateness
-
-**Overall Score:** [Good/Needs Work/Poor]
-
-### iOS Convention Compliance
-| Check | Status | Notes |
-|-------|--------|-------|
-| Tab bar navigation | ✓/✗ | [Details] |
-| 44pt tap targets | ✓/✗ | [Details] |
-| Native iOS components | ✓/✗ | [Details] |
-| iOS visual styling | ✓/✗ | [Details] |
-
-### Reference Comparisons Made
-| Screen | Reference Apps | Finding |
-|--------|---------------|---------|
-| [Screen name] | [Apps compared] | [What was found] |
-
-### Platform-Specific Issues
-- [Issue]: App uses [anti-pattern] instead of [iOS convention]
-  - Reference: [How comparable apps handle this]
-  - Recommendation: [What to change]
-
-## UX/Design Observations
-
-- Observation 1
-- Observation 2
-
-## Technical Problems
-
-- Problem 1
-- Problem 2
-
-## Potential New Features
-
-- Feature idea 1
-- Feature idea 2
-
-## Recommendations
-
-1. Recommendation 1
-2. Recommendation 2
+**Screenshot Directory Structure:**
 ```
+workflows/
+├── screenshots/
+│   ├── {workflow-name}/
+│   │   ├── before/
+│   │   │   ├── 01-hamburger-menu.png
+│   │   │   ├── 02-fab-button.png
+│   │   │   └── ...
+│   │   └── after/
+│   │       ├── 01-tab-bar-navigation.png
+│   │       ├── 02-no-fab.png
+│   │       └── ...
+│   └── {another-workflow}/
+│       ├── before/
+│       └── after/
+├── ios-workflows.md
+└── ios-changes-report.html
+```
+
+**Screenshot Naming Convention:**
+- `{NN}-{descriptive-name}.png`
+- Examples:
+  - `01-hamburger-menu.png` (before)
+  - `01-tab-bar-navigation.png` (after)
+  - `02-fab-button-visible.png` (before)
+  - `02-fab-removed.png` (after)
+
+**Capturing BEFORE Screenshots:**
+1. When an issue is identified during workflow execution
+2. Take screenshot BEFORE any fix is applied
+3. Save to `workflows/screenshots/{workflow-name}/before/`
+4. Use descriptive filename that identifies the issue
+5. Record the screenshot path in the issue tracking
+
+**Capturing AFTER Screenshots:**
+1. Only after user approves fixing an issue
+2. Make the code changes to fix the issue
+3. Reload/refresh the app in simulator
+4. Take screenshot showing the fix
+5. Save to `workflows/screenshots/{workflow-name}/after/`
+6. Use matching filename pattern to the before screenshot
+
+### Phase 5: Fix Mode Execution
+
+When user triggers fix mode ("fix this issue" or "fix all"):
+
+1. **Confirm which issues to fix:**
+   ```
+   Issues found:
+   1. Hamburger menu (iOS anti-pattern) - BEFORE: 01-hamburger-menu.png
+   2. FAB button (Material Design) - BEFORE: 02-fab-button.png
+   3. Web dropdown (not iOS picker) - BEFORE: 03-web-dropdown.png
+
+   Fix all issues? Or specify which to fix: [1,2,3 / all / specific numbers]
+   ```
+
+2. **For each issue to fix:**
+   - Explore codebase to understand the implementation
+   - Plan the fix (may need to create new components)
+   - Implement the fix
+   - Save all changed files
+   - Reload the app in simulator
+   - Capture AFTER screenshot
+   - Verify the fix visually
+
+3. **Track changes made:**
+   ```
+   Fix #1: Hamburger Menu → iOS Tab Bar
+   Files changed:
+   - src/components/IOSTabBar.tsx (NEW)
+   - src/components/IOSTabBar.css (NEW)
+   - src/components/EventLayout.tsx (MODIFIED)
+   ```
+
+### Phase 6: Generate HTML Report
+
+After fixes are complete, generate an HTML report with embedded before/after images:
+
+**Output:** `workflows/ios-changes-report.html`
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iOS HIG Compliance Report - {App Name}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', sans-serif; line-height: 1.6; color: #1d1d1f; background: #f5f5f7; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
+    h1 { font-size: 2.5rem; font-weight: 600; margin-bottom: 10px; }
+    .subtitle { color: #86868b; font-size: 1.2rem; margin-bottom: 40px; }
+    .summary-card { background: white; border-radius: 18px; padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    .summary-stats { display: flex; gap: 40px; flex-wrap: wrap; }
+    .stat { text-align: center; }
+    .stat-number { font-size: 3rem; font-weight: 700; color: #0071e3; }
+    .stat-label { color: #86868b; font-size: 0.9rem; }
+    .stat-number.success { color: #34c759; }
+    .comparison-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+    .comparison-table th, .comparison-table td { padding: 16px; text-align: left; border-bottom: 1px solid #e5e5e5; }
+    .comparison-table th { background: #f5f5f7; font-weight: 600; }
+    .issue-card { background: white; border-radius: 18px; padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+    .issue-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .issue-title { font-size: 1.5rem; font-weight: 600; }
+    .badge { padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 500; }
+    .badge-fixed { background: #d1f2d9; color: #1d7d3c; }
+    .badge-high { background: #fde8e8; color: #c53030; }
+    .screenshot-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 20px 0; }
+    .screenshot-box { text-align: center; }
+    .screenshot-label { font-weight: 600; margin-bottom: 10px; color: #86868b; }
+    .screenshot-label.before { color: #ff3b30; }
+    .screenshot-label.after { color: #34c759; }
+    .screenshot-box img { max-width: 100%; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
+    .files-changed { background: #f5f5f7; border-radius: 12px; padding: 20px; margin-top: 20px; }
+    .files-changed h4 { margin-bottom: 10px; font-size: 0.95rem; color: #86868b; }
+    .file-list { list-style: none; }
+    .file-list li { padding: 8px 0; font-family: 'SF Mono', monospace; font-size: 0.9rem; }
+    .file-new { color: #34c759; }
+    .file-modified { color: #ff9500; }
+    .why-matters { background: #e8f4fd; border-radius: 12px; padding: 20px; margin-top: 20px; border-left: 4px solid #0071e3; }
+    .why-matters h4 { color: #0071e3; margin-bottom: 10px; }
+    @media (max-width: 768px) {
+      .screenshot-comparison { grid-template-columns: 1fr; }
+      .summary-stats { flex-direction: column; gap: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>iOS HIG Compliance Report</h1>
+    <p class="subtitle">{App Name} • Generated {Date}</p>
+
+    <div class="summary-card">
+      <h2>Executive Summary</h2>
+      <div class="summary-stats">
+        <div class="stat">
+          <div class="stat-number">{Total Issues}</div>
+          <div class="stat-label">Issues Found</div>
+        </div>
+        <div class="stat">
+          <div class="stat-number success">{Fixed Count}</div>
+          <div class="stat-label">Issues Fixed</div>
+        </div>
+        <div class="stat">
+          <div class="stat-number">{Remaining}</div>
+          <div class="stat-label">Remaining</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-card">
+      <h3>Before/After Comparison Table</h3>
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Before</th>
+            <th>After</th>
+            <th>Issue</th>
+            <th>iOS Anti-Pattern</th>
+            <th>iOS-Native Fix</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Rows generated dynamically -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Issue cards generated for each fix -->
+    <div class="issue-card">
+      <div class="issue-header">
+        <h3 class="issue-title">Fix 1: {Issue Name}</h3>
+        <span class="badge badge-fixed">✓ Fixed</span>
+      </div>
+
+      <div class="screenshot-comparison">
+        <div class="screenshot-box">
+          <div class="screenshot-label before">BEFORE</div>
+          <img src="screenshots/{workflow}/before/{filename}.png" alt="Before fix">
+        </div>
+        <div class="screenshot-box">
+          <div class="screenshot-label after">AFTER</div>
+          <img src="screenshots/{workflow}/after/{filename}.png" alt="After fix">
+        </div>
+      </div>
+
+      <div class="why-matters">
+        <h4>Why This Matters for iOS Users</h4>
+        <p>{Explanation of why the original pattern was wrong and why the fix follows iOS conventions}</p>
+      </div>
+
+      <div class="files-changed">
+        <h4>Files Changed</h4>
+        <ul class="file-list">
+          <li class="file-new">+ src/components/NewComponent.tsx (NEW)</li>
+          <li class="file-modified">~ src/components/ExistingFile.tsx (MODIFIED)</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
+```
+
+### Phase 7: Markdown Report (Alternative)
+
+Also generate a markdown version for GitHub/documentation:
+
+**Output:** `workflows/ios-changes-documentation.md`
+
+Use the format from the reference document with:
+- Executive summary
+- Before/after comparison table
+- Detailed changes for each fix
+- Files changed
+- Technical implementation notes
+- Testing verification table
 
 ## MCP Tool Reference
 
@@ -334,13 +507,17 @@ Report format:
 - `install_app({ app_path, udid? })` - Install .app or .ipa
 - `launch_app({ bundle_id, terminate_running?, udid? })` - Launch app by bundle ID
 
-## Common Bundle IDs
+## Key Bundle ID
 
-- Safari: `com.apple.mobilesafari`
-- Settings: `com.apple.Preferences`
-- Photos: `com.apple.mobileslideshow`
-- Messages: `com.apple.MobileSMS`
-- Calendar: `com.apple.mobilecal`
+For testing web apps, you'll primarily use Safari:
+
+- **Safari:** `com.apple.mobilesafari` - Use this to launch Safari and navigate to your web app URL
+
+To open a URL in Safari:
+1. Launch Safari: `launch_app({ bundle_id: "com.apple.mobilesafari" })`
+2. Tap the address bar
+3. Type the URL using `ui_type`
+4. Tap Go or press Enter
 
 ## Coordinate System
 
@@ -351,63 +528,54 @@ The iOS Simulator uses pixel coordinates from top-left (0, 0).
 
 ## Known Limitations
 
-The iOS Simulator automation has the following limitations that cannot be automated:
+When testing web apps in Safari on the iOS Simulator, these limitations apply:
 
 ### Cannot Automate (Must Skip or Flag for Manual Testing)
 
-1. **System Permission Dialogs**
-   - Camera, microphone, photo library access prompts
-   - Location services authorization
-   - Notification permission requests
-   - Contacts, calendar, reminders access
-   - **Workaround:** Pre-authorize permissions in Simulator settings, or flag for manual testing
+1. **Safari-Specific Dialogs**
+   - JavaScript alerts/confirms/prompts
+   - Download prompts
+   - "Add to Home Screen" flow
+   - **Workaround:** Test manually or dismiss dialogs before continuing
 
-2. **System Alerts and Sheets**
-   - Low battery warnings
-   - Software update prompts
-   - iCloud sign-in requests
-   - Carrier settings updates
-   - **Workaround:** Skip steps that trigger these, document as manual
+2. **Web Permission Prompts**
+   - Camera/microphone access via browser
+   - Location access via browser
+   - Notification permissions
+   - **Workaround:** Pre-authorize in Settings or flag for manual testing
 
-3. **Hardware Interactions**
-   - Physical button simulation (home, power, volume) may be limited
-   - Face ID / Touch ID authentication flows
-   - Shake gesture, rotation lock, mute switch
-   - **Workaround:** Use simulator menu for hardware simulation when possible
-
-4. **System UI Elements**
-   - Control Center interactions
-   - Notification Center / Lock Screen
-   - Spotlight search from home screen
-   - App Switcher (multitasking view)
-   - **Workaround:** Document as requiring manual verification
-
-5. **Keyboard Limitations**
+3. **Keyboard Limitations**
    - `ui_type` only supports ASCII printable characters
    - Special characters, emoji, and non-Latin scripts cannot be typed
-   - Autocorrect and predictive text interactions
-   - **Workaround:** For special text, use copy/paste or pre-populate data
+   - Autocorrect interactions
+   - **Workaround:** For special text, pre-populate test data
 
-6. **External Services**
-   - App Store interactions (purchases, reviews)
-   - In-app purchases and payment flows
-   - Sign in with Apple
-   - **Workaround:** Use sandbox/test accounts, flag for manual verification
+4. **Safari UI Interactions**
+   - Bookmarks, Reading List, History
+   - Share sheet from Safari
+   - Safari settings/preferences
+   - **Workaround:** Focus on web app testing, not Safari itself
+
+5. **External Authentication**
+   - OAuth flows that open new windows
+   - Sign in with Apple on web
+   - Third-party login popups
+   - **Workaround:** Use test accounts, flag for manual verification
 
 ### Handling Limited Steps
 
 When a workflow step involves a known limitation:
 
 1. **Mark as [MANUAL]:** Note the step requires manual verification
-2. **Pre-configure:** Set up simulator permissions before testing
+2. **Pre-configure:** Set up test data or permissions before testing
 3. **Document the Limitation:** Record in findings that the step was skipped due to automation limits
 4. **Continue Testing:** Don't let one limited step block the entire workflow
 
 Example workflow annotation:
 ```markdown
-3. Allow camera access
-   - [MANUAL] System permission dialog cannot be automated
-   - Pre-configure: Reset privacy settings in Simulator > Device > Erase All Content and Settings
+3. Allow location access
+   - [MANUAL] Browser location permission cannot be automated
+   - Pre-configure: Grant location access in Settings > Safari > Location
    - Or manually tap "Allow" when prompted
 ```
 
