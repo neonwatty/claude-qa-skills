@@ -1,11 +1,13 @@
 ---
 name: ios-workflow-generator
-description: Generates, creates, or updates iOS workflow files. Use this when the user says "generate ios workflows", "create ios workflows", "update ios workflows", or "iterate on ios workflows". Thoroughly explores the iOS app's codebase to discover all user-facing features, screens, and interactions. Creates comprehensive numbered workflows with substeps that cover the full user experience.
+description: Generates, creates, or updates iOS workflow files for testing web apps in Safari on the iOS Simulator. Use this when the user says "generate ios workflows", "create ios workflows", "update ios workflows", or "iterate on ios workflows". Thoroughly explores the web app's codebase to discover all user-facing features, pages, and interactions. Creates comprehensive numbered workflows with substeps that cover the full user experience when viewed on iOS Safari.
 ---
 
 # iOS Workflow Generator Skill
 
-You are a senior QA engineer tasked with creating comprehensive iOS user workflow documentation. Your job is to deeply explore the iOS application and generate thorough, testable workflows that cover all key user journeys.
+You are a senior QA engineer tasked with creating comprehensive workflow documentation for testing **web applications in Safari on the iOS Simulator**. Your job is to deeply explore the web application codebase and generate thorough, testable workflows that verify the app works correctly and follows iOS UX conventions when viewed on mobile Safari.
+
+**Important:** This skill is for testing web apps (React, Vue, HTML/CSS/JS, etc.) running in Safari on the iOS Simulator. These web apps are intended to become **PWAs or wrapped native apps** (via Capacitor, Tauri, Electron, etc.) and should feel **indistinguishable from native iOS apps**. The UX bar is native iOS quality, not just "mobile-friendly web."
 
 ## Process
 
@@ -22,41 +24,41 @@ You are a senior QA engineer tasked with creating comprehensive iOS user workflo
    - **Refactor:** Reorganize or improve existing workflows
    - **Audit:** Check existing workflows against current app state
 
-### Phase 2: Explore the iOS Application
+### Phase 2: Explore the Web Application
 
-Launch multiple Explore agents in parallel to thoroughly understand the app:
+Launch multiple Explore agents in parallel to thoroughly understand the web app:
 
-**Agent 1: Screens & Navigation**
-- Find all view controllers, SwiftUI views, storyboards
-- Identify navigation patterns (NavigationStack, TabView, sheets, modals)
-- Map out the user flow between screens
-- Find deep links and entry points
+**Agent 1: Pages & Navigation**
+- Find all routes/pages in the app (React Router, Next.js pages, Vue Router, etc.)
+- Identify navigation patterns (tabs, sidebars, menus, modals)
+- Map out the user flow between pages
+- Find the app's entry URL and any deep links
 
 **Agent 2: UI Components & Interactions**
-- Find key interactive components (buttons, forms, lists, gestures)
-- Identify accessibility labels and identifiers
-- Note text fields, pickers, switches, sliders
-- Find custom gestures (swipes, long press, pinch)
+- Find key interactive components (buttons, forms, lists, drag-drop)
+- Identify touch-friendly elements and their sizes
+- Note text inputs, selects, toggles, date pickers
+- Find gesture handlers (swipe, pinch, touch events)
 
 **Agent 3: Data & State**
-- Understand the data model (Core Data, SwiftData, custom)
+- Understand the data model (state management, API calls)
 - Identify user actions and state changes
 - Find network calls and API interactions
-- Note persistence and caching patterns
+- Note persistence (localStorage, cookies, etc.)
 
 Synthesize findings into a feature inventory:
-- List all user-facing screens
-- Group by tab/section of the app
-- Note entry points and navigation paths
+- List all user-facing pages/views
+- Group by section of the app
+- Note the base URL and navigation paths
 
 ### Phase 3: Identify User Journeys
 
 Based on exploration, identify key user journeys:
 
 **Core Journeys** (every user does these):
-- App launch and onboarding
+- Initial page load and onboarding
 - Primary task completion
-- Navigation between main tabs/sections
+- Navigation between main sections
 
 **Feature Journeys** (specific feature usage):
 - Each major feature should have its own workflow
@@ -111,7 +113,7 @@ For each journey, create a workflow with this structure:
 
 > [Brief description of what this workflow tests and why it matters]
 
-**Bundle ID:** [com.company.appname] (if applicable)
+**URL:** [https://localhost:5173/app or production URL]
 
 1. [Top-level step]
    - [Substep with specific detail]
@@ -138,7 +140,8 @@ Structure the document:
 
 > Auto-generated workflow documentation for [App Name]
 > Last updated: [Date]
-> Bundle ID: [com.company.appname]
+> Base URL: [https://localhost:5173/app or production URL]
+> Platform: Web app tested in Safari on iOS Simulator
 
 ## Quick Reference
 
@@ -207,14 +210,14 @@ Options:
 
 | Action | Format | Example |
 |--------|--------|---------|
-| Launch | Launch [app] ([bundle_id]) | Launch MyApp (com.company.myapp) |
+| Open | Open Safari and navigate to [URL] | Open Safari and navigate to http://localhost:5173/ |
 | Tap | Tap [specific element] | Tap the "Save" button |
 | Type | Type "[text]" in [field] | Type "john@email.com" in email field |
 | Swipe | Swipe [direction] on [element/screen] | Swipe left on the list item |
 | Long press | Long press [element] | Long press the photo thumbnail |
-| Verify | Verify [expected state] | Verify success alert appears |
+| Verify | Verify [expected state] | Verify success message appears |
 | Wait | Wait for [condition] | Wait for loading indicator to disappear |
-| Scroll | Scroll [direction] to [element/position] | Scroll down to "Settings" row |
+| Scroll | Scroll [direction] to [element/position] | Scroll down to "Settings" section |
 
 ## Automation-Friendly Workflow Guidelines
 
@@ -308,67 +311,75 @@ Include this section when workflows need system setup:
 ```markdown
 ## Workflow: Create New Item
 
-> Tests the complete flow of creating a new item from the home screen.
+> Tests the complete flow of creating a new item from the home page.
 
-**Bundle ID:** com.company.myapp
+**URL:** http://localhost:5173/
 
-1. Launch the app
-   - Launch MyApp (com.company.myapp)
-   - Wait for home screen to load
-   - Verify tab bar is visible at bottom
+1. Open the app in Safari
+   - Open Safari and navigate to http://localhost:5173/
+   - Wait for home page to load
+   - Verify navigation is visible
 
 2. Navigate to creation flow
    - Tap the "+" button in top-right corner
-   - Verify "New Item" sheet slides up from bottom
+   - Verify "New Item" modal appears
    - Verify form fields are empty
 
 3. Fill in item details
    - Tap the "Title" text field
    - Type "My Test Item"
-   - Tap the "Category" picker
+   - Tap the "Category" dropdown
    - Select "Personal" from the list
-   - Verify picker dismisses
+   - Verify selection is shown
 
 4. Save the item
    - Tap "Save" button
-   - Wait for sheet to dismiss
+   - Wait for modal to close
    - Verify item appears in list
    - Verify item shows "My Test Item" title
 
 5. Verify persistence
-   - Swipe up to close app (background)
-   - Relaunch app
+   - Refresh the page (pull down or reload)
    - Verify "My Test Item" still appears in list
 ```
 
-## iOS-Specific Considerations
+## Native iOS Feel Requirements
 
-**Accessibility:**
-- Prefer accessibility labels/identifiers for targeting elements
-- Note VoiceOver-compatible elements
-- Include accessibility hints when relevant
+Since these web apps will become PWAs or wrapped apps, they must feel **native to iOS**:
 
-**Gestures:**
-- Standard: tap, double-tap, long press
-- Swipes: up, down, left, right (with start/end points if needed)
-- Pinch: in/out for zoom
-- Rotation: for supported views
+**Navigation (must feel like native iOS):**
+- Use tab bars for primary navigation, not hamburger menus
+- Navigation should push/pop like native UINavigationController
+- Back gestures should work naturally
+- Modals should slide up from bottom like native sheets
 
-**System Interactions:**
-- Permission dialogs (Allow/Don't Allow)
-- Share sheet
-- System alerts
-- Keyboard handling (dismiss, next field)
-- App backgrounding/foregrounding
+**Touch & Interaction:**
+- All tap targets must be at least 44x44pt
+- Consider thumb reach zones for primary actions
+- Animations should feel native (spring physics, not CSS ease-in-out)
+- Haptic feedback patterns where appropriate
 
-**Device Variations:**
-- Note if workflow differs on iPhone vs iPad
-- Consider notch/Dynamic Island layouts
-- Account for different screen sizes
+**Components (should match native iOS):**
+- Use iOS-style pickers, not web dropdowns
+- Toggle switches, not checkboxes
+- iOS-style action sheets, not Material Design
+- Native-feeling form inputs
+
+**Visual Design:**
+- Follow iOS Human Interface Guidelines typography
+- Subtle shadows and rounded corners (not Material elevation)
+- SF Pro or system font stack
+- iOS color semantics (system colors, semantic backgrounds)
+
+**Device Considerations:**
+- Safe area insets on notched devices
+- Keyboard avoidance for forms
+- Support both portrait and landscape if needed
+- Test on different iPhone screen sizes (SE, standard, Pro Max)
 
 ## iOS Platform UX Anti-Patterns
 
-When generating workflows, include UX verification steps that check for these common anti-patterns where iOS apps incorrectly use web or Android conventions:
+Since the goal is a **native iOS feel**, check for these anti-patterns that make web apps feel like web apps instead of native iOS apps:
 
 ### Navigation Anti-Patterns
 | Anti-Pattern | iOS Convention | What to Check |
@@ -427,14 +438,14 @@ When writing workflows, include verification steps for platform appropriateness:
 
 When launching Explore agents, use prompts like:
 
-**Screens Agent:**
-"Find all screens and navigation in this iOS app. Look for: UIViewController subclasses, SwiftUI View structs, storyboards, NavigationStack/NavigationView usage, TabView, sheet modifiers, segues. Report: list of all screens with their navigation relationships."
+**Pages Agent:**
+"Find all pages/routes and navigation in this web app. Look for: React Router routes, Next.js pages, Vue Router, navigation components, links, programmatic navigation. Report: list of all pages/routes with their navigation relationships and URLs."
 
 **Components Agent:**
-"Find all interactive UI components in this iOS app. Look for: Button, TextField, Picker, Toggle, List/ForEach with onTap, gesture recognizers, accessibilityLabel/accessibilityIdentifier usage. Report: list of interactive elements grouped by screen with their accessibility identifiers."
+"Find all interactive UI components in this web app. Look for: buttons, form inputs, modals, dropdowns, drag-drop handlers, touch event handlers, click handlers. Report: list of interactive elements grouped by page with their purposes."
 
 **State Agent:**
-"Find the data model and user actions in this iOS app. Look for: Core Data/SwiftData models, @State/@StateObject/@Observable usage, network calls (URLSession, async/await), UserDefaults, Keychain usage. Report: list of data entities and actions users can take."
+"Find the data model and user actions in this web app. Look for: state management (Redux, Zustand, Context), API calls, form submissions, localStorage/sessionStorage usage. Report: list of data entities and actions users can take."
 
 **UX Patterns Agent:**
-"Identify UI patterns used in this iOS app and flag any that deviate from iOS conventions. Look for: navigation patterns (tab bar vs hamburger), button styles, form components, modal presentations, list styles. Report: list of UI patterns used and any that appear to be web or Android conventions instead of iOS native patterns."
+"Identify UI patterns used in this web app and evaluate them for iOS Safari appropriateness. Look for: navigation patterns, touch target sizes, form components, modal presentations, gesture handlers. Report: list of UI patterns and flag any that would look or feel wrong on iOS Safari (too small touch targets, desktop-only patterns, etc.)."
