@@ -29,7 +29,11 @@ Audit Mode → Find Issues → Capture BEFORE → Present to User
                                                     ↓
                                         User: "Fix this issue"
                                                     ↓
-Fix Mode → Make Changes → Capture AFTER → Generate HTML Report
+Fix Mode → Make Changes → Capture AFTER → Local Verification
+                                                    ↓
+                              Run Tests → Fix Failing Tests → Run E2E
+                                                    ↓
+                                    All Pass → Generate HTML Report → Create PR
 ```
 
 ## Process
@@ -358,7 +362,65 @@ When user triggers fix mode ("fix this issue" or "fix all"):
    - src/styles/global.css (MODIFIED)
    ```
 
-### Phase 7: Generate HTML Report
+### Phase 7: Local Verification (REQUIRED before PR)
+
+**CRITICAL:** After making fixes, you MUST verify everything works locally before creating a PR. Do not skip this phase.
+
+1. **Run the test suite:**
+   ```bash
+   # Detect and run appropriate test command
+   npm test          # or yarn test, pnpm test
+   pytest            # for Python projects
+   go test ./...     # for Go projects
+   ```
+
+2. **If tests fail:**
+   - Analyze the failing tests
+   - Determine if failures are related to your changes
+   - Fix the broken tests or update them to reflect new behavior
+   - Re-run tests until all pass
+   - Document what tests were updated and why
+
+3. **Run linting and type checking:**
+   ```bash
+   npm run lint      # or eslint, prettier
+   npm run typecheck # or tsc --noEmit
+   ```
+
+4. **Run end-to-end tests locally:**
+   ```bash
+   # Detect and run E2E test command
+   npm run test:e2e      # common convention
+   npx playwright test   # Playwright
+   npx cypress run       # Cypress
+   ```
+
+5. **If E2E tests fail:**
+   - Analyze the failures (may be related to UI changes you made)
+   - Update E2E tests to reflect the new UI behavior
+   - Re-run until all pass
+   - Document what E2E tests were updated
+
+6. **Verification checklist before proceeding:**
+   - [ ] All unit tests pass
+   - [ ] Linting passes with no errors
+   - [ ] Type checking passes (if applicable)
+   - [ ] All E2E tests pass
+   - [ ] Manual verification in browser confirms fixes work
+
+7. **Document verification results:**
+   ```markdown
+   ## Local Verification Results
+   - Unit tests: ✓ 142 passed
+   - Lint: ✓ No errors
+   - Type check: ✓ No errors
+   - E2E tests: ✓ 28 passed
+   - Tests updated: 3 (ButtonHover.test.tsx, KeyboardNav.test.tsx, e2e/navigation.spec.ts)
+   ```
+
+**Only proceed to HTML report and PR creation after all checks pass.**
+
+### Phase 8: Generate HTML Report
 
 After fixes are complete, generate an HTML report with embedded before/after images:
 
@@ -472,7 +534,7 @@ After fixes are complete, generate an HTML report with embedded before/after ima
 </html>
 ```
 
-### Phase 8: Markdown Report (Alternative)
+### Phase 9: Markdown Report (Alternative)
 
 Also generate a markdown version for GitHub/documentation:
 
@@ -485,6 +547,56 @@ Use the same format structure:
 - Files changed
 - Technical implementation notes
 - Testing verification table
+
+### Phase 10: Create PR and Monitor CI
+
+**Only after local verification passes**, create the PR:
+
+1. **Create a feature branch:**
+   ```bash
+   git checkout -b fix/browser-ux-compliance
+   ```
+
+2. **Stage and commit changes:**
+   ```bash
+   git add .
+   git commit -m "fix: browser UX compliance improvements
+
+   - [List key fixes made]
+   - Updated tests to reflect new behavior
+   - All local tests passing"
+   ```
+
+3. **Push and create PR:**
+   ```bash
+   git push -u origin fix/browser-ux-compliance
+   gh pr create --title "fix: Browser UX compliance improvements" --body "## Summary
+   [Brief description of fixes]
+
+   ## Changes
+   - [List of changes]
+
+   ## Testing
+   - [x] All unit tests pass locally
+   - [x] All E2E tests pass locally
+   - [x] Manual verification complete
+
+   ## Screenshots
+   See workflows/browser-changes-report.html for before/after comparisons"
+   ```
+
+4. **Monitor CI:**
+   - Watch for CI workflow to start
+   - If CI fails, analyze the failure
+   - Fix any CI-specific issues (environment differences, flaky tests)
+   - Push fixes and re-run CI
+   - Do not merge until CI is green
+
+5. **Report PR status to user:**
+   ```
+   PR created: https://github.com/owner/repo/pull/123
+   CI status: Running... (or Passed/Failed)
+   ```
 
 ## MCP Tool Reference
 
