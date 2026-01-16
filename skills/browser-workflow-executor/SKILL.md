@@ -19,7 +19,7 @@ This skill operates in two modes:
 
 ### Fix Mode (User-Triggered)
 - User says "fix this issue" or "fix all issues"
-- Make the code changes to fix the issue
+- Spawn agents to fix issues (one agent per issue)
 - Capture **AFTER screenshots** showing the fix
 - Generate HTML report with before/after comparison
 
@@ -29,11 +29,11 @@ Audit Mode → Find Issues → Capture BEFORE → Present to User
                                                     ↓
                                         User: "Fix this issue"
                                                     ↓
-Fix Mode → Make Changes → Capture AFTER → Local Verification
+Fix Mode → Spawn Fix Agents → Capture AFTER → Verify Locally
                                                     ↓
                               Run Tests → Fix Failing Tests → Run E2E
                                                     ↓
-                                    All Pass → Generate HTML Report → Create PR
+                                    All Pass → Generate Reports → Create PR
 ```
 
 ## Process
@@ -75,94 +75,89 @@ For each numbered step in the workflow:
    - Any UI/UX issues? (confusing labels, poor contrast, slow response)
    - Any technical problems? (errors in console, failed requests)
    - Any potential improvements or feature ideas?
-5. **Evaluate platform appropriateness** (see Phase 3.25 below)
-6. **Record** your observations before moving to next step
+5. **Record** your observations before moving to next step
 
-### Phase 3.25: UX Platform Evaluation
+### Phase 4: UX Platform Evaluation [DELEGATE TO AGENT]
 
-For each page/screen encountered during workflow execution, evaluate web platform appropriateness:
+**Purpose:** Evaluate whether the web app follows web platform conventions. Delegate this research to an agent to save context.
 
-#### Quick Checklist (check on every page)
+**Use the Task tool to spawn an agent:**
 
-**Navigation:**
-- [ ] Browser back button works correctly
-- [ ] URLs reflect current state (deep-linkable)
-- [ ] No mobile-style bottom tab bar
-- [ ] Navigation works without gestures (click-based)
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- model: "haiku" (cost-effective for research)
+- prompt: |
+    You are evaluating a web app for web platform UX compliance.
 
-**Interactions:**
-- [ ] All interactive elements have hover states
-- [ ] Keyboard navigation works (Tab, Enter, Escape)
-- [ ] Focus indicators are visible
-- [ ] No gesture-only interactions for critical features
+    ## Page Being Evaluated
+    [Include current page URL and brief description]
 
-**Components:**
-- [ ] Uses web-appropriate form components
-- [ ] No iOS-style picker wheels
-- [ ] No Android-style floating action buttons
-- [ ] Modals don't unnecessarily go full-screen
+    ## Quick Checklist - Evaluate Each Item
 
-**Responsive/Visual:**
-- [ ] Layout works at different viewport widths
-- [ ] No mobile-only viewport restrictions
-- [ ] Text is readable without zooming
-- [ ] No app-like splash screens
+    **Navigation:**
+    - Browser back button works correctly
+    - URLs reflect current state (deep-linkable)
+    - No mobile-style bottom tab bar
+    - Navigation works without gestures (click-based)
 
-**Accessibility:**
-- [ ] Color is not the only indicator of state
-- [ ] Images have alt text
-- [ ] Form fields have labels
-- [ ] ARIA attributes where needed
+    **Interactions:**
+    - All interactive elements have hover states
+    - Keyboard navigation works (Tab, Enter, Escape)
+    - Focus indicators are visible
+    - No gesture-only interactions for critical features
 
-#### Reference Comparison Process
+    **Components:**
+    - Uses web-appropriate form components
+    - No iOS-style picker wheels
+    - No Android-style floating action buttons
+    - Modals don't unnecessarily go full-screen
 
-When you identify a potential UX issue or something that looks "off":
+    **Responsive/Visual:**
+    - Layout works at different viewport widths
+    - No mobile-only viewport restrictions
+    - Text is readable without zooming
 
-1. **Identify the page type** (login, dashboard, settings, list/table, detail, etc.)
+    **Accessibility:**
+    - Color is not the only indicator of state
+    - Form fields have labels
 
-2. **Search for reference examples** using WebSearch:
-   ```
-   Search: "web app [page type] design Dribbble"
-   OR: "[well-known web app] [page type] screenshot"
-   Examples:
-   - "SaaS dashboard design Dribbble"
-   - "Linear app UI screenshots"
-   - "web app settings page design 2024"
-   - "Notion sidebar navigation"
-   ```
+    ## Reference Comparison
 
-3. **Visit 2-3 reference examples** using navigate and screenshot:
-   - Dribbble shots of similar pages
-   - Live well-known web apps (Linear, Notion, Figma, Vercel)
-   - Design system documentation (Tailwind, Radix, shadcn)
+    Search for reference examples using WebSearch:
+    - "web app [page type] design Dribbble"
+    - "[well-known web app like Linear/Notion/Figma] [page type] screenshot"
 
-4. **Compare structural patterns** (not exact styling):
-   - Navigation placement and behavior
-   - Component types and interaction patterns
-   - Layout and responsive behavior
-   - Hover/focus states
+    Visit 2-3 reference examples and compare:
+    - Navigation placement and behavior
+    - Component types and interaction patterns
+    - Hover/focus states
 
-5. **Document the comparison**:
-   ```markdown
-   **UX Comparison: Dashboard**
-   - Reference apps: Linear, Notion, Vercel
-   - Issue found: App uses bottom tab bar for navigation
-   - Reference pattern: All three use sidebar or top navigation
-   - Recommendation: Move navigation to sidebar or top bar
-   ```
+    ## Return Format
 
-#### When to Trigger Reference Comparison
+    Return a structured report:
+    ```
+    ## UX Platform Evaluation: [Page Name]
 
-- When you see mobile-style bottom navigation
-- When hover states are missing on interactive elements
-- When the back button doesn't work as expected
-- When URLs don't reflect the current view
-- When components feel "mobile-native" rather than web-native
-- When keyboard navigation doesn't work
-- When the layout breaks at different screen sizes
-- Any time something looks "off" but you want to validate your instinct
+    ### Checklist Results
+    | Check | Pass/Fail | Notes |
+    |-------|-----------|-------|
 
-### Phase 3.5: Record Findings Incrementally
+    ### Reference Comparison
+    - Reference apps compared: [list]
+    - Key differences found: [list]
+
+    ### Issues Found
+    - [Issue 1]: [Description] (Severity: High/Med/Low)
+
+    ### Recommendations
+    - [Recommendation 1]
+    ```
+```
+
+**After agent returns:** Incorporate findings into the workflow report and continue.
+
+### Phase 5: Record Findings
 
 **CRITICAL:** After completing EACH workflow, immediately write findings to the log file. Do not wait until all workflows are complete.
 
@@ -204,89 +199,16 @@ When you identify a potential UX issue or something that looks "off":
 4. This ensures findings are preserved even if session is interrupted
 5. Continue to next workflow after recording
 
-### Phase 4: Generate Final Report
+### Phase 6: Generate Audit Report
 
 After completing all workflows (or when user requests), consolidate findings into a summary report:
 
 1. Read `.claude/plans/browser-workflow-findings.md` for all recorded findings
 2. Write consolidated report to `.claude/plans/browser-workflow-report.md`
 3. Include overall statistics, prioritized issues, and recommendations
+4. Present findings to user and await instructions (fix all, fix some, or done)
 
-Report format:
-
-```markdown
-# Browser Workflow Report
-
-**Workflow:** [Name]
-**Date:** [Timestamp]
-**Status:** [Passed/Failed/Partial]
-
-## Summary
-
-[Brief overview of what was tested and overall result]
-
-## Step-by-Step Results
-
-### Step 1: [Description]
-- **Status:** Pass/Fail
-- **Screenshot:** [filename or inline]
-- **Notes:** [Any observations]
-
-### Step 2: [Description]
-...
-
-## Issues Discovered
-
-| Issue | Severity | Description |
-|-------|----------|-------------|
-| Issue 1 | High/Med/Low | Details |
-
-## Platform Appropriateness
-
-**Overall Score:** [Good/Needs Work/Poor]
-
-### Web Convention Compliance
-| Check | Status | Notes |
-|-------|--------|-------|
-| Hover states | ✓/✗ | [Details] |
-| Keyboard navigation | ✓/✗ | [Details] |
-| Back button works | ✓/✗ | [Details] |
-| Deep-linkable URLs | ✓/✗ | [Details] |
-| Responsive layout | ✓/✗ | [Details] |
-| Web-native components | ✓/✗ | [Details] |
-
-### Reference Comparisons Made
-| Page | Reference Apps | Finding |
-|------|---------------|---------|
-| [Page name] | [Apps compared] | [What was found] |
-
-### Platform-Specific Issues
-- [Issue]: App uses [anti-pattern] instead of [web convention]
-  - Reference: [How comparable apps handle this]
-  - Recommendation: [What to change]
-
-## UX/Design Observations
-
-- Observation 1
-- Observation 2
-
-## Technical Problems
-
-- Problem 1 (include console errors if any)
-- Problem 2
-
-## Potential New Features
-
-- Feature idea 1
-- Feature idea 2
-
-## Recommendations
-
-1. Recommendation 1
-2. Recommendation 2
-```
-
-### Phase 5: Screenshot Management
+### Phase 7: Screenshot Management
 
 **Screenshot Directory Structure:**
 ```
@@ -313,8 +235,6 @@ workflows/
 - Examples:
   - `01-hover-states-missing.png` (before)
   - `01-hover-states-added.png` (after)
-  - `02-keyboard-nav-broken.png` (before)
-  - `02-keyboard-nav-fixed.png` (after)
 
 **Capturing BEFORE Screenshots:**
 1. When an issue is identified during workflow execution
@@ -325,13 +245,12 @@ workflows/
 
 **Capturing AFTER Screenshots:**
 1. Only after user approves fixing an issue
-2. Make the code changes to fix the issue
-3. Refresh the browser tab
-4. Take screenshot showing the fix
-5. Save to `workflows/screenshots/{workflow-name}/after/`
-6. Use matching filename pattern to the before screenshot
+2. After fix agent completes, refresh the browser tab
+3. Take screenshot showing the fix
+4. Save to `workflows/screenshots/{workflow-name}/after/`
+5. Use matching filename pattern to the before screenshot
 
-### Phase 6: Fix Mode Execution
+### Phase 8: Fix Mode Execution [DELEGATE TO AGENTS]
 
 When user triggers fix mode ("fix this issue" or "fix all"):
 
@@ -345,210 +264,208 @@ When user triggers fix mode ("fix this issue" or "fix all"):
    Fix all issues? Or specify which to fix: [1,2,3 / all / specific numbers]
    ```
 
-2. **For each issue to fix:**
-   - Explore codebase to understand the implementation
-   - Plan the fix
-   - Implement the fix
-   - Save all changed files
-   - Refresh the browser tab
-   - Capture AFTER screenshot
-   - Verify the fix visually
+2. **Spawn one agent per issue** using the Task tool. For independent issues, spawn agents in parallel (all in a single message):
 
-3. **Track changes made:**
-   ```
-   Fix #1: Missing Hover States → Added CSS hover states
-   Files changed:
-   - src/components/Button.css (MODIFIED)
-   - src/styles/global.css (MODIFIED)
-   ```
+```
+Task tool parameters (for each issue):
+- subagent_type: "general-purpose"
+- model: "sonnet" (needs code modification capability)
+- prompt: |
+    You are fixing a specific UX issue in a web application.
 
-### Phase 7: Local Verification (REQUIRED before PR)
+    ## Issue to Fix
+    **Issue:** [Issue name and description]
+    **Severity:** [High/Med/Low]
+    **Current behavior:** [What's wrong]
+    **Expected behavior:** [What it should do]
+    **Screenshot reference:** [Path to before screenshot]
 
-**CRITICAL:** After making fixes, you MUST verify everything works locally before creating a PR. Do not skip this phase.
+    ## Your Task
 
-1. **Run the test suite:**
-   ```bash
-   # Detect and run appropriate test command
-   npm test          # or yarn test, pnpm test
-   pytest            # for Python projects
-   go test ./...     # for Go projects
-   ```
+    1. **Explore the codebase** to understand the implementation
+       - Use Glob to find relevant files
+       - Use Grep to search for related code
+       - Use Read to examine files
 
-2. **If tests fail:**
-   - Analyze the failing tests
-   - Determine if failures are related to your changes
-   - Fix the broken tests or update them to reflect new behavior
-   - Re-run tests until all pass
-   - Document what tests were updated and why
+    2. **Plan the fix**
+       - Identify which files need changes
+       - Consider side effects
 
-3. **Run linting and type checking:**
-   ```bash
-   npm run lint      # or eslint, prettier
-   npm run typecheck # or tsc --noEmit
-   ```
+    3. **Implement the fix**
+       - Make minimal, focused changes
+       - Follow existing code patterns
+       - Do not refactor unrelated code
 
-4. **Run end-to-end tests locally:**
-   ```bash
-   # Detect and run E2E test command
-   npm run test:e2e      # common convention
-   npx playwright test   # Playwright
-   npx cypress run       # Cypress
-   ```
+    4. **Return a summary:**
+    ```
+    ## Fix Complete: [Issue Name]
 
-5. **If E2E tests fail:**
-   - Analyze the failures (may be related to UI changes you made)
-   - Update E2E tests to reflect the new UI behavior
-   - Re-run until all pass
-   - Document what E2E tests were updated
+    ### Changes Made
+    - [File 1]: [What changed]
+    - [File 2]: [What changed]
 
-6. **Verification checklist before proceeding:**
-   - [ ] All unit tests pass
-   - [ ] Linting passes with no errors
-   - [ ] Type checking passes (if applicable)
-   - [ ] All E2E tests pass
-   - [ ] Manual verification in browser confirms fixes work
+    ### Files Modified
+    - src/components/Button.css (MODIFIED)
+    - src/styles/global.css (MODIFIED)
 
-7. **Document verification results:**
-   ```markdown
-   ## Local Verification Results
-   - Unit tests: ✓ 142 passed
-   - Lint: ✓ No errors
-   - Type check: ✓ No errors
-   - E2E tests: ✓ 28 passed
-   - Tests updated: 3 (ButtonHover.test.tsx, KeyboardNav.test.tsx, e2e/navigation.spec.ts)
-   ```
+    ### Testing Notes
+    - [How to verify the fix works]
+    ```
 
-**Only proceed to HTML report and PR creation after all checks pass.**
-
-### Phase 8: Generate HTML Report
-
-After fixes are complete, generate an HTML report with embedded before/after images:
-
-**Output:** `workflows/browser-changes-report.html`
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Browser UX Compliance Report - {App Name}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #1a1a1a; background: #f5f5f5; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
-    h1 { font-size: 2.5rem; font-weight: 600; margin-bottom: 10px; }
-    .subtitle { color: #666; font-size: 1.2rem; margin-bottom: 40px; }
-    .summary-card { background: white; border-radius: 12px; padding: 30px; margin-bottom: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
-    .summary-stats { display: flex; gap: 40px; flex-wrap: wrap; }
-    .stat { text-align: center; }
-    .stat-number { font-size: 3rem; font-weight: 700; color: #0066cc; }
-    .stat-label { color: #666; font-size: 0.9rem; }
-    .stat-number.success { color: #22c55e; }
-    .comparison-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    .comparison-table th, .comparison-table td { padding: 16px; text-align: left; border-bottom: 1px solid #e5e5e5; }
-    .comparison-table th { background: #f9f9f9; font-weight: 600; }
-    .issue-card { background: white; border-radius: 12px; padding: 30px; margin-bottom: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
-    .issue-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .issue-title { font-size: 1.5rem; font-weight: 600; }
-    .badge { padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 500; }
-    .badge-fixed { background: #dcfce7; color: #166534; }
-    .badge-high { background: #fee2e2; color: #991b1b; }
-    .screenshot-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 20px 0; }
-    .screenshot-box { text-align: center; }
-    .screenshot-label { font-weight: 600; margin-bottom: 10px; color: #666; }
-    .screenshot-label.before { color: #dc2626; }
-    .screenshot-label.after { color: #22c55e; }
-    .screenshot-box img { max-width: 100%; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
-    .files-changed { background: #f9f9f9; border-radius: 8px; padding: 20px; margin-top: 20px; }
-    .files-changed h4 { margin-bottom: 10px; font-size: 0.95rem; color: #666; }
-    .file-list { list-style: none; }
-    .file-list li { padding: 8px 0; font-family: 'Consolas', monospace; font-size: 0.9rem; }
-    .file-new { color: #22c55e; }
-    .file-modified { color: #f59e0b; }
-    .why-matters { background: #eff6ff; border-radius: 8px; padding: 20px; margin-top: 20px; border-left: 4px solid #0066cc; }
-    .why-matters h4 { color: #0066cc; margin-bottom: 10px; }
-    @media (max-width: 768px) {
-      .screenshot-comparison { grid-template-columns: 1fr; }
-      .summary-stats { flex-direction: column; gap: 20px; }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>Browser UX Compliance Report</h1>
-    <p class="subtitle">{App Name} • Generated {Date}</p>
-
-    <div class="summary-card">
-      <h2>Executive Summary</h2>
-      <div class="summary-stats">
-        <div class="stat">
-          <div class="stat-number">{Total Issues}</div>
-          <div class="stat-label">Issues Found</div>
-        </div>
-        <div class="stat">
-          <div class="stat-number success">{Fixed Count}</div>
-          <div class="stat-label">Issues Fixed</div>
-        </div>
-        <div class="stat">
-          <div class="stat-number">{Remaining}</div>
-          <div class="stat-label">Remaining</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Issue cards generated for each fix -->
-    <div class="issue-card">
-      <div class="issue-header">
-        <h3 class="issue-title">Fix 1: {Issue Name}</h3>
-        <span class="badge badge-fixed">✓ Fixed</span>
-      </div>
-
-      <div class="screenshot-comparison">
-        <div class="screenshot-box">
-          <div class="screenshot-label before">BEFORE</div>
-          <img src="screenshots/{workflow}/before/{filename}.png" alt="Before fix">
-        </div>
-        <div class="screenshot-box">
-          <div class="screenshot-label after">AFTER</div>
-          <img src="screenshots/{workflow}/after/{filename}.png" alt="After fix">
-        </div>
-      </div>
-
-      <div class="why-matters">
-        <h4>Why This Matters for Web Users</h4>
-        <p>{Explanation of why the original pattern was problematic and why the fix follows web conventions}</p>
-      </div>
-
-      <div class="files-changed">
-        <h4>Files Changed</h4>
-        <ul class="file-list">
-          <li class="file-new">+ src/components/NewComponent.tsx (NEW)</li>
-          <li class="file-modified">~ src/styles/button.css (MODIFIED)</li>
-        </ul>
-      </div>
-    </div>
-
-  </div>
-</body>
-</html>
+    Do NOT run tests - the main workflow will handle that.
 ```
 
-### Phase 9: Markdown Report (Alternative)
+3. **After all fix agents complete:**
+   - Collect summaries from each agent
+   - Refresh the browser
+   - Capture AFTER screenshots for each fix
+   - Verify fixes visually
+   - Track all changes made
 
-Also generate a markdown version for GitHub/documentation:
+### Phase 9: Local Verification [DELEGATE TO AGENT]
 
-**Output:** `workflows/browser-changes-documentation.md`
+**CRITICAL:** After making fixes, verify everything works locally before creating a PR.
 
-Use the same format structure:
-- Executive summary
-- Before/after comparison table
-- Detailed changes for each fix
-- Files changed
-- Technical implementation notes
-- Testing verification table
+**Use the Task tool to spawn a verification agent:**
 
-### Phase 10: Create PR and Monitor CI
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- model: "sonnet"
+- prompt: |
+    You are verifying that code changes pass all tests.
+
+    ## Context
+    Recent changes were made to fix UX issues. You need to verify the codebase is healthy.
+
+    ## Your Task
+
+    1. **Run the test suite:**
+       ```bash
+       # Detect and run appropriate test command
+       npm test          # or yarn test, pnpm test
+       ```
+
+    2. **If tests fail:**
+       - Analyze the failing tests
+       - Determine if failures are related to recent changes
+       - Fix the broken tests or update them to reflect new behavior
+       - Re-run tests until all pass
+       - Document what tests were updated and why
+
+    3. **Run linting and type checking:**
+       ```bash
+       npm run lint      # or eslint, prettier
+       npm run typecheck # or tsc --noEmit
+       ```
+
+    4. **Run end-to-end tests locally:**
+       ```bash
+       npm run test:e2e      # common convention
+       npx playwright test   # Playwright
+       npx cypress run       # Cypress
+       ```
+
+    5. **If E2E tests fail:**
+       - Analyze the failures (may be related to UI changes)
+       - Update E2E tests to reflect new UI behavior
+       - Re-run until all pass
+       - Document what E2E tests were updated
+
+    6. **Return verification results:**
+    ```
+    ## Local Verification Results
+
+    ### Test Results
+    - Unit tests: ✓/✗ [count] passed, [count] failed
+    - Lint: ✓/✗ [errors if any]
+    - Type check: ✓/✗ [errors if any]
+    - E2E tests: ✓/✗ [count] passed, [count] failed
+
+    ### Tests Updated
+    - [test file 1]: [why updated]
+    - [test file 2]: [why updated]
+
+    ### Status: PASS / FAIL
+    [If FAIL, explain what's still broken]
+    ```
+```
+
+**After agent returns:**
+- If PASS: Proceed to report generation
+- If FAIL: Review failures with user, spawn another agent to fix remaining issues
+
+### Phase 10: Generate HTML Report [DELEGATE TO AGENT]
+
+**Use the Task tool to generate the HTML report:**
+
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- model: "haiku" (simple generation task)
+- prompt: |
+    Generate an HTML report for browser UX compliance fixes.
+
+    ## Data to Include
+
+    **App Name:** [App name]
+    **Date:** [Current date]
+    **Issues Fixed:** [Count]
+    **Issues Remaining:** [Count]
+
+    **Fixes Made:**
+    [For each fix:]
+    - Issue: [Name]
+    - Before screenshot: workflows/screenshots/{workflow}/before/{file}.png
+    - After screenshot: workflows/screenshots/{workflow}/after/{file}.png
+    - Files changed: [List]
+    - Why it matters: [Explanation]
+
+    ## Output
+
+    Write the HTML report to: workflows/browser-changes-report.html
+
+    Use this template structure:
+    - Executive summary with stats
+    - Before/after screenshot comparisons for each fix
+    - Files changed section
+    - "Why this matters" explanations
+
+    Style: Clean, professional, uses system fonts, responsive grid for screenshots.
+
+    Return confirmation when complete.
+```
+
+### Phase 11: Generate Markdown Report [DELEGATE TO AGENT]
+
+**Use the Task tool to generate the Markdown report:**
+
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- model: "haiku"
+- prompt: |
+    Generate a Markdown report for browser UX compliance fixes.
+
+    ## Data to Include
+    [Same data as HTML report]
+
+    ## Output
+
+    Write the Markdown report to: workflows/browser-changes-documentation.md
+
+    Include:
+    - Executive summary
+    - Before/after comparison table
+    - Detailed changes for each fix
+    - Files changed
+    - Technical implementation notes
+    - Testing verification results
+
+    Return confirmation when complete.
+```
+
+### Phase 12: Create PR and Monitor CI
 
 **Only after local verification passes**, create the PR:
 
@@ -663,13 +580,6 @@ When a workflow step involves a known limitation:
 3. **Document the Limitation:** Record in findings that the step was skipped due to automation limits
 4. **Continue Testing:** Don't let one limited step block the entire workflow
 
-Example workflow annotation:
-```markdown
-2. Undo the action
-   - [MANUAL] Press Cmd/Ctrl+Z (keyboard shortcuts cannot be automated)
-   - Alternative: Click Undo button in toolbar if available
-```
-
 ## Guidelines
 
 - **Be methodical:** Execute steps in order, don't skip ahead
@@ -678,6 +588,7 @@ Example workflow annotation:
 - **Be constructive:** Frame issues as opportunities for improvement
 - **Ask if stuck:** If a step is ambiguous or fails, ask the user for guidance
 - **Prefer clicks over keys:** Always use UI buttons instead of keyboard shortcuts when possible
+- **Delegate to agents:** Use agents for research, fixing, verification, and report generation to save context
 
 ## Handling Failures
 

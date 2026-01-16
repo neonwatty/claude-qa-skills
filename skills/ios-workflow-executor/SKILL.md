@@ -21,7 +21,7 @@ This skill operates in two modes:
 
 ### Fix Mode (User-Triggered)
 - User says "fix this issue" or "fix all issues"
-- Make the code changes to fix the issue
+- Spawn agents to fix issues (one agent per issue)
 - Capture **AFTER screenshots** showing the fix
 - Generate HTML report with before/after comparison
 
@@ -31,11 +31,11 @@ Audit Mode → Find Issues → Capture BEFORE → Present to User
                                                     ↓
                                         User: "Fix this issue"
                                                     ↓
-Fix Mode → Make Changes → Capture AFTER → Local Verification
+Fix Mode → Spawn Fix Agents → Capture AFTER → Verify Locally
                                                     ↓
                               Run Tests → Fix Failing Tests → Run E2E
                                                     ↓
-                                    All Pass → Generate HTML Report → Create PR
+                                    All Pass → Generate Reports → Create PR
 ```
 
 ## Process
@@ -138,87 +138,91 @@ For each numbered step in the workflow:
    - Any technical problems? (page errors, slow loading, visual glitches)
    - Does the web app feel appropriate on iOS Safari?
    - Any potential improvements or feature ideas?
-5. **Evaluate platform appropriateness** (see Phase 3.25 below)
-6. **Record** your observations before moving to next step
+5. **Record** your observations before moving to next step
 
-### Phase 3.25: UX Platform Evaluation
+### Phase 4: UX Platform Evaluation [DELEGATE TO AGENT]
 
-For each page/screen encountered, evaluate whether the **web app feels like a native iOS app** (not just a mobile-friendly website):
+**Purpose:** Evaluate whether the web app feels like a native iOS app (not just a mobile-friendly website). Delegate this research to an agent to save context.
 
-#### Quick Checklist (check on every page)
+**Use the Task tool to spawn an agent:**
 
-**Navigation (must feel native):**
-- [ ] Uses tab bar for primary navigation (not hamburger menu)
-- [ ] Back navigation feels native (swipe gesture or back button)
-- [ ] No breadcrumb navigation
-- [ ] Modals slide up from bottom like native iOS sheets
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- model: "haiku" (cost-effective for research)
+- prompt: |
+    You are evaluating a web app for iOS HIG (Human Interface Guidelines) compliance.
+    The app should feel indistinguishable from a native iOS app.
 
-**Touch & Interaction:**
-- [ ] All tap targets are at least 44x44pt
-- [ ] No hover-dependent interactions
-- [ ] Animations feel native (spring physics, smooth)
-- [ ] Forms work well with the on-screen keyboard
+    ## Screen Being Evaluated
+    [Include current screen description and context]
 
-**Components (should match native iOS):**
-- [ ] Uses iOS-style pickers, not web dropdowns
-- [ ] Toggle switches, not checkboxes
-- [ ] No Material Design components (FAB, snackbars, etc.)
-- [ ] Action sheets and alerts follow iOS patterns
+    ## Quick Checklist - Evaluate Each Item
 
-**Visual Design:**
-- [ ] Typography follows iOS conventions (SF Pro feel)
-- [ ] Subtle shadows and rounded corners (not Material elevation)
-- [ ] Safe area insets respected on notched devices
-- [ ] Doesn't look like a "website" - feels like an app
+    **Navigation (must feel native):**
+    - Uses tab bar for primary navigation (not hamburger menu)
+    - Back navigation feels native (swipe gesture or back button)
+    - No breadcrumb navigation
+    - Modals slide up from bottom like native iOS sheets
 
-#### Reference Comparison Process
+    **Touch & Interaction:**
+    - All tap targets are at least 44x44pt
+    - No hover-dependent interactions
+    - Animations feel native (spring physics, smooth)
+    - Forms work well with the on-screen keyboard
 
-When you identify a potential UX issue or something that doesn't feel native:
+    **Components (should match native iOS):**
+    - Uses iOS-style pickers, not web dropdowns
+    - Toggle switches, not checkboxes
+    - No Material Design components (FAB, snackbars, etc.)
+    - Action sheets and alerts follow iOS patterns
 
-1. **Identify the screen type** (login, dashboard, settings, list view, detail, etc.)
+    **Visual Design:**
+    - Typography follows iOS conventions (SF Pro feel)
+    - Subtle shadows and rounded corners (not Material elevation)
+    - Safe area insets respected on notched devices
+    - Doesn't look like a "website" - feels like an app
 
-2. **Search for reference examples** using WebSearch:
-   ```
-   Search: "iOS [screen type] design Dribbble"
-   OR: "[well-known iOS app] [screen type] screenshot"
-   Examples:
-   - "iOS login screen design Dribbble"
-   - "Airbnb iOS app settings screenshot"
-   - "iOS list view design patterns 2024"
-   ```
+    ## Reference Comparison
 
-3. **Visit 2-3 reference examples** using WebFetch or browser to view:
-   - Dribbble shots of similar iOS screens
-   - Screenshots from well-known native iOS apps (Airbnb, Spotify, Instagram, Apple apps)
-   - iOS Human Interface Guidelines examples
+    Search for reference examples using WebSearch:
+    - "iOS [screen type] design Dribbble"
+    - "[well-known iOS app like Airbnb/Spotify/Instagram] [screen type] screenshot"
+    - "iOS Human Interface Guidelines [component]"
 
-4. **Compare structural patterns** (not exact styling):
-   - Navigation placement and style (tab bar position, back button)
-   - Component types (iOS pickers vs web dropdowns)
-   - Layout and spacing (iOS generous whitespace)
-   - Animation and transition patterns
+    Visit 2-3 reference examples and compare:
+    - Navigation placement and style (tab bar position, back button)
+    - Component types (iOS pickers vs web dropdowns)
+    - Layout and spacing (iOS generous whitespace)
+    - Animation and transition patterns
 
-5. **Document the comparison**:
-   ```markdown
-   **UX Comparison: Settings Screen**
-   - Reference apps: iOS Settings, Spotify, Airbnb
-   - Issue found: App uses hamburger menu for navigation
-   - Reference pattern: All three apps use bottom tab bar
-   - Recommendation: Replace hamburger with tab bar navigation
-   ```
+    ## Return Format
 
-#### When to Trigger Reference Comparison
+    Return a structured report:
+    ```
+    ## iOS HIG Evaluation: [Screen Name]
 
-- When you see a hamburger menu instead of tab bar
-- When tap targets feel too small
-- When components look "web-like" (dropdowns, checkboxes)
-- When navigation doesn't feel like native iOS
-- When animations feel jerky or non-native
-- When you see Material Design patterns (FAB, elevation shadows, snackbars)
-- When the app feels like a "website" instead of a native app
-- Any time something looks "off" but you want to validate your instinct
+    ### Checklist Results
+    | Check | Pass/Fail | Notes |
+    |-------|-----------|-------|
 
-### Phase 3.5: Record Findings Incrementally
+    ### Reference Comparison
+    - Reference apps compared: [list]
+    - Key differences found: [list]
+
+    ### Issues Found (iOS Anti-Patterns)
+    - [Issue 1]: [Description] (Severity: High/Med/Low)
+      - Anti-pattern: [What's wrong]
+      - iOS-native alternative: [What it should be]
+
+    ### Recommendations
+    - [Recommendation 1]
+    ```
+```
+
+**After agent returns:** Incorporate findings into the workflow report and continue.
+
+### Phase 5: Record Findings
 
 **CRITICAL:** After completing EACH workflow, immediately write findings to the log file. Do not wait until all workflows are complete.
 
@@ -260,7 +264,16 @@ When you identify a potential UX issue or something that doesn't feel native:
 4. This ensures findings are preserved even if session is interrupted
 5. Continue to next workflow after recording
 
-### Phase 4: Screenshot Management
+### Phase 6: Generate Audit Report
+
+After completing all workflows (or when user requests), consolidate findings into a summary report:
+
+1. Read `.claude/plans/ios-workflow-findings.md` for all recorded findings
+2. Write consolidated report to `.claude/plans/ios-workflow-report.md`
+3. Include overall statistics, prioritized issues, and recommendations
+4. Present findings to user and await instructions (fix all, fix some, or done)
+
+### Phase 7: Screenshot Management
 
 **Screenshot Directory Structure:**
 ```
@@ -299,13 +312,12 @@ workflows/
 
 **Capturing AFTER Screenshots:**
 1. Only after user approves fixing an issue
-2. Make the code changes to fix the issue
-3. Reload/refresh the app in simulator
-4. Take screenshot showing the fix
-5. Save to `workflows/screenshots/{workflow-name}/after/`
-6. Use matching filename pattern to the before screenshot
+2. After fix agent completes, reload/refresh the app in simulator
+3. Take screenshot showing the fix
+4. Save to `workflows/screenshots/{workflow-name}/after/`
+5. Use matching filename pattern to the before screenshot
 
-### Phase 5: Fix Mode Execution
+### Phase 8: Fix Mode Execution [DELEGATE TO AGENTS]
 
 When user triggers fix mode ("fix this issue" or "fix all"):
 
@@ -319,229 +331,219 @@ When user triggers fix mode ("fix this issue" or "fix all"):
    Fix all issues? Or specify which to fix: [1,2,3 / all / specific numbers]
    ```
 
-2. **For each issue to fix:**
-   - Explore codebase to understand the implementation
-   - Plan the fix (may need to create new components)
-   - Implement the fix
-   - Save all changed files
-   - Reload the app in simulator
-   - Capture AFTER screenshot
-   - Verify the fix visually
+2. **Spawn one agent per issue** using the Task tool. For independent issues, spawn agents in parallel (all in a single message):
 
-3. **Track changes made:**
-   ```
-   Fix #1: Hamburger Menu → iOS Tab Bar
-   Files changed:
-   - src/components/IOSTabBar.tsx (NEW)
-   - src/components/IOSTabBar.css (NEW)
-   - src/components/EventLayout.tsx (MODIFIED)
-   ```
+```
+Task tool parameters (for each issue):
+- subagent_type: "general-purpose"
+- model: "sonnet" (needs code modification capability)
+- prompt: |
+    You are fixing a specific iOS UX issue in a web application.
+    The app should feel indistinguishable from a native iOS app.
 
-### Phase 6: Local Verification (REQUIRED before PR)
+    ## Issue to Fix
+    **Issue:** [Issue name and description]
+    **Severity:** [High/Med/Low]
+    **iOS Anti-Pattern:** [What's wrong - e.g., "hamburger menu"]
+    **iOS-Native Solution:** [What it should be - e.g., "bottom tab bar"]
+    **Screenshot reference:** [Path to before screenshot]
 
-**CRITICAL:** After making fixes, you MUST verify everything works locally before creating a PR. Do not skip this phase.
+    ## Your Task
 
-1. **Run the test suite:**
-   ```bash
-   # Detect and run appropriate test command
-   npm test          # or yarn test, pnpm test
-   pytest            # for Python projects
-   go test ./...     # for Go projects
-   ```
+    1. **Explore the codebase** to understand the implementation
+       - Use Glob to find relevant files
+       - Use Grep to search for related code
+       - Use Read to examine files
 
-2. **If tests fail:**
-   - Analyze the failing tests
-   - Determine if failures are related to your changes
-   - Fix the broken tests or update them to reflect new behavior
-   - Re-run tests until all pass
-   - Document what tests were updated and why
+    2. **Plan the fix**
+       - Identify which files need changes
+       - May need to create new iOS-style components
+       - Consider side effects
 
-3. **Run linting and type checking:**
-   ```bash
-   npm run lint      # or eslint, prettier
-   npm run typecheck # or tsc --noEmit
-   ```
+    3. **Implement the fix**
+       - Make minimal, focused changes
+       - Follow existing code patterns
+       - Create iOS-native components if needed
+       - Do not refactor unrelated code
 
-4. **Run end-to-end tests locally:**
-   ```bash
-   # Detect and run E2E test command
-   npm run test:e2e      # common convention
-   npx playwright test   # Playwright
-   npx cypress run       # Cypress
-   ```
+    4. **Return a summary:**
+    ```
+    ## Fix Complete: [Issue Name]
 
-5. **If E2E tests fail:**
-   - Analyze the failures (may be related to UI changes you made)
-   - Update E2E tests to reflect the new UI behavior
-   - Re-run until all pass
-   - Document what E2E tests were updated
+    ### iOS Anti-Pattern Replaced
+    - Before: [What was wrong]
+    - After: [iOS-native solution]
 
-6. **Verification checklist before proceeding:**
-   - [ ] All unit tests pass
-   - [ ] Linting passes with no errors
-   - [ ] Type checking passes (if applicable)
-   - [ ] All E2E tests pass
-   - [ ] Manual verification in simulator confirms fixes work
+    ### Changes Made
+    - [File 1]: [What changed]
+    - [File 2]: [What changed]
 
-7. **Document verification results:**
-   ```markdown
-   ## Local Verification Results
-   - Unit tests: ✓ 142 passed
-   - Lint: ✓ No errors
-   - Type check: ✓ No errors
-   - E2E tests: ✓ 28 passed
-   - Tests updated: 3 (TabBar.test.tsx, Navigation.test.tsx, e2e/ios-navigation.spec.ts)
-   ```
+    ### Files Modified
+    - src/components/IOSTabBar.tsx (NEW)
+    - src/components/Navigation.tsx (MODIFIED)
 
-**Only proceed to HTML report and PR creation after all checks pass.**
+    ### Testing Notes
+    - [How to verify the fix works]
+    ```
 
-### Phase 7: Generate HTML Report
-
-After fixes are complete, generate an HTML report with embedded before/after images:
-
-**Output:** `workflows/ios-changes-report.html`
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>iOS HIG Compliance Report - {App Name}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', sans-serif; line-height: 1.6; color: #1d1d1f; background: #f5f5f7; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
-    h1 { font-size: 2.5rem; font-weight: 600; margin-bottom: 10px; }
-    .subtitle { color: #86868b; font-size: 1.2rem; margin-bottom: 40px; }
-    .summary-card { background: white; border-radius: 18px; padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-    .summary-stats { display: flex; gap: 40px; flex-wrap: wrap; }
-    .stat { text-align: center; }
-    .stat-number { font-size: 3rem; font-weight: 700; color: #0071e3; }
-    .stat-label { color: #86868b; font-size: 0.9rem; }
-    .stat-number.success { color: #34c759; }
-    .comparison-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    .comparison-table th, .comparison-table td { padding: 16px; text-align: left; border-bottom: 1px solid #e5e5e5; }
-    .comparison-table th { background: #f5f5f7; font-weight: 600; }
-    .issue-card { background: white; border-radius: 18px; padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-    .issue-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .issue-title { font-size: 1.5rem; font-weight: 600; }
-    .badge { padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 500; }
-    .badge-fixed { background: #d1f2d9; color: #1d7d3c; }
-    .badge-high { background: #fde8e8; color: #c53030; }
-    .screenshot-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 20px 0; }
-    .screenshot-box { text-align: center; }
-    .screenshot-label { font-weight: 600; margin-bottom: 10px; color: #86868b; }
-    .screenshot-label.before { color: #ff3b30; }
-    .screenshot-label.after { color: #34c759; }
-    .screenshot-box img { max-width: 100%; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); }
-    .files-changed { background: #f5f5f7; border-radius: 12px; padding: 20px; margin-top: 20px; }
-    .files-changed h4 { margin-bottom: 10px; font-size: 0.95rem; color: #86868b; }
-    .file-list { list-style: none; }
-    .file-list li { padding: 8px 0; font-family: 'SF Mono', monospace; font-size: 0.9rem; }
-    .file-new { color: #34c759; }
-    .file-modified { color: #ff9500; }
-    .why-matters { background: #e8f4fd; border-radius: 12px; padding: 20px; margin-top: 20px; border-left: 4px solid #0071e3; }
-    .why-matters h4 { color: #0071e3; margin-bottom: 10px; }
-    @media (max-width: 768px) {
-      .screenshot-comparison { grid-template-columns: 1fr; }
-      .summary-stats { flex-direction: column; gap: 20px; }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>iOS HIG Compliance Report</h1>
-    <p class="subtitle">{App Name} • Generated {Date}</p>
-
-    <div class="summary-card">
-      <h2>Executive Summary</h2>
-      <div class="summary-stats">
-        <div class="stat">
-          <div class="stat-number">{Total Issues}</div>
-          <div class="stat-label">Issues Found</div>
-        </div>
-        <div class="stat">
-          <div class="stat-number success">{Fixed Count}</div>
-          <div class="stat-label">Issues Fixed</div>
-        </div>
-        <div class="stat">
-          <div class="stat-number">{Remaining}</div>
-          <div class="stat-label">Remaining</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="summary-card">
-      <h3>Before/After Comparison Table</h3>
-      <table class="comparison-table">
-        <thead>
-          <tr>
-            <th>Before</th>
-            <th>After</th>
-            <th>Issue</th>
-            <th>iOS Anti-Pattern</th>
-            <th>iOS-Native Fix</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- Rows generated dynamically -->
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Issue cards generated for each fix -->
-    <div class="issue-card">
-      <div class="issue-header">
-        <h3 class="issue-title">Fix 1: {Issue Name}</h3>
-        <span class="badge badge-fixed">✓ Fixed</span>
-      </div>
-
-      <div class="screenshot-comparison">
-        <div class="screenshot-box">
-          <div class="screenshot-label before">BEFORE</div>
-          <img src="screenshots/{workflow}/before/{filename}.png" alt="Before fix">
-        </div>
-        <div class="screenshot-box">
-          <div class="screenshot-label after">AFTER</div>
-          <img src="screenshots/{workflow}/after/{filename}.png" alt="After fix">
-        </div>
-      </div>
-
-      <div class="why-matters">
-        <h4>Why This Matters for iOS Users</h4>
-        <p>{Explanation of why the original pattern was wrong and why the fix follows iOS conventions}</p>
-      </div>
-
-      <div class="files-changed">
-        <h4>Files Changed</h4>
-        <ul class="file-list">
-          <li class="file-new">+ src/components/NewComponent.tsx (NEW)</li>
-          <li class="file-modified">~ src/components/ExistingFile.tsx (MODIFIED)</li>
-        </ul>
-      </div>
-    </div>
-
-  </div>
-</body>
-</html>
+    Do NOT run tests - the main workflow will handle that.
 ```
 
-### Phase 8: Markdown Report (Alternative)
+3. **After all fix agents complete:**
+   - Collect summaries from each agent
+   - Reload the app in simulator
+   - Capture AFTER screenshots for each fix
+   - Verify fixes visually
+   - Track all changes made
 
-Also generate a markdown version for GitHub/documentation:
+### Phase 9: Local Verification [DELEGATE TO AGENT]
 
-**Output:** `workflows/ios-changes-documentation.md`
+**CRITICAL:** After making fixes, verify everything works locally before creating a PR.
 
-Use the format from the reference document with:
-- Executive summary
-- Before/after comparison table
-- Detailed changes for each fix
-- Files changed
-- Technical implementation notes
-- Testing verification table
+**Use the Task tool to spawn a verification agent:**
 
-### Phase 9: Create PR and Monitor CI
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- model: "sonnet"
+- prompt: |
+    You are verifying that code changes pass all tests.
+
+    ## Context
+    Recent changes were made to fix iOS UX issues. You need to verify the codebase is healthy.
+
+    ## Your Task
+
+    1. **Run the test suite:**
+       ```bash
+       # Detect and run appropriate test command
+       npm test          # or yarn test, pnpm test
+       ```
+
+    2. **If tests fail:**
+       - Analyze the failing tests
+       - Determine if failures are related to recent changes
+       - Fix the broken tests or update them to reflect new behavior
+       - Re-run tests until all pass
+       - Document what tests were updated and why
+
+    3. **Run linting and type checking:**
+       ```bash
+       npm run lint      # or eslint, prettier
+       npm run typecheck # or tsc --noEmit
+       ```
+
+    4. **Run end-to-end tests locally:**
+       ```bash
+       npm run test:e2e      # common convention
+       npx playwright test   # Playwright
+       npx cypress run       # Cypress
+       ```
+
+    5. **If E2E tests fail:**
+       - Analyze the failures (may be related to UI changes)
+       - Update E2E tests to reflect new UI behavior
+       - Re-run until all pass
+       - Document what E2E tests were updated
+
+    6. **Return verification results:**
+    ```
+    ## Local Verification Results
+
+    ### Test Results
+    - Unit tests: ✓/✗ [count] passed, [count] failed
+    - Lint: ✓/✗ [errors if any]
+    - Type check: ✓/✗ [errors if any]
+    - E2E tests: ✓/✗ [count] passed, [count] failed
+
+    ### Tests Updated
+    - [test file 1]: [why updated]
+    - [test file 2]: [why updated]
+
+    ### Status: PASS / FAIL
+    [If FAIL, explain what's still broken]
+    ```
+```
+
+**After agent returns:**
+- If PASS: Proceed to report generation
+- If FAIL: Review failures with user, spawn another agent to fix remaining issues
+
+### Phase 10: Generate HTML Report [DELEGATE TO AGENT]
+
+**Use the Task tool to generate the HTML report:**
+
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- model: "haiku" (simple generation task)
+- prompt: |
+    Generate an HTML report for iOS HIG compliance fixes.
+
+    ## Data to Include
+
+    **App Name:** [App name]
+    **Date:** [Current date]
+    **Device:** [Simulator device name and iOS version]
+    **Issues Fixed:** [Count]
+    **Issues Remaining:** [Count]
+
+    **Fixes Made:**
+    [For each fix:]
+    - Issue: [Name]
+    - iOS Anti-Pattern: [What was wrong]
+    - iOS-Native Fix: [What it is now]
+    - Before screenshot: workflows/screenshots/{workflow}/before/{file}.png
+    - After screenshot: workflows/screenshots/{workflow}/after/{file}.png
+    - Files changed: [List]
+    - Why it matters: [Explanation of iOS HIG compliance]
+
+    ## Output
+
+    Write the HTML report to: workflows/ios-changes-report.html
+
+    Use this template structure:
+    - Executive summary with stats
+    - Before/after screenshot comparisons for each fix
+    - iOS anti-pattern → iOS-native fix explanation
+    - Files changed section
+    - "Why this matters for iOS users" explanations
+
+    Style: Clean, professional, Apple-style design (SF Pro fonts feel, iOS blue accents).
+
+    Return confirmation when complete.
+```
+
+### Phase 11: Generate Markdown Report [DELEGATE TO AGENT]
+
+**Use the Task tool to generate the Markdown report:**
+
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- model: "haiku"
+- prompt: |
+    Generate a Markdown report for iOS HIG compliance fixes.
+
+    ## Data to Include
+    [Same data as HTML report]
+
+    ## Output
+
+    Write the Markdown report to: workflows/ios-changes-documentation.md
+
+    Include:
+    - Executive summary
+    - Before/after comparison table with iOS anti-pattern and fix columns
+    - Detailed changes for each fix
+    - Files changed
+    - Technical implementation notes
+    - Testing verification results
+
+    Return confirmation when complete.
+```
+
+### Phase 12: Create PR and Monitor CI
 
 **Only after local verification passes**, create the PR:
 
@@ -683,14 +685,6 @@ When a workflow step involves a known limitation:
 3. **Document the Limitation:** Record in findings that the step was skipped due to automation limits
 4. **Continue Testing:** Don't let one limited step block the entire workflow
 
-Example workflow annotation:
-```markdown
-3. Allow location access
-   - [MANUAL] Browser location permission cannot be automated
-   - Pre-configure: Grant location access in Settings > Safari > Location
-   - Or manually tap "Allow" when prompted
-```
-
 ## Guidelines
 
 - **Be methodical:** Execute steps in order, don't skip ahead
@@ -699,6 +693,7 @@ Example workflow annotation:
 - **Be constructive:** Frame issues as opportunities for improvement
 - **Ask if stuck:** If a step is ambiguous or fails, ask the user for guidance
 - **Pre-configure when possible:** Set up simulator state before running workflows
+- **Delegate to agents:** Use agents for research, fixing, verification, and report generation to save context
 
 ## Handling Failures
 
