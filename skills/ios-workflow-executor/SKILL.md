@@ -149,7 +149,7 @@ For each numbered step in the workflow:
 ```
 Task tool parameters:
 - subagent_type: "general-purpose"
-- model: "haiku" (cost-effective for research)
+- model: "opus" (thorough research and evaluation)
 - prompt: |
     You are evaluating a web app for iOS HIG (Human Interface Guidelines) compliance.
     The app should feel indistinguishable from a native iOS app.
@@ -336,7 +336,7 @@ When user triggers fix mode ("fix this issue" or "fix all"):
 ```
 Task tool parameters (for each issue):
 - subagent_type: "general-purpose"
-- model: "sonnet" (needs code modification capability)
+- model: "opus" (thorough code analysis and modification)
 - prompt: |
     You are fixing a specific iOS UX issue in a web application.
     The app should feel indistinguishable from a native iOS app.
@@ -405,7 +405,7 @@ Task tool parameters (for each issue):
 ```
 Task tool parameters:
 - subagent_type: "general-purpose"
-- model: "sonnet"
+- model: "opus" (thorough test analysis and fixing)
 - prompt: |
     You are verifying that code changes pass all tests.
 
