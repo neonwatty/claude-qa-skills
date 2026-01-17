@@ -550,4 +550,3 @@ When writing workflows, include verification steps for platform appropriateness:
    - Verify layout is responsive (try different viewport widths)
    - Verify URLs are shareable/deep-linkable for important states
 ```
-

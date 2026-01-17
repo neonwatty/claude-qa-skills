@@ -600,4 +600,3 @@ When writing workflows, include verification steps for platform appropriateness:
    - Verify navigation follows iOS back-button pattern
    - Verify visual styling follows iOS Human Interface Guidelines
 ```
-
