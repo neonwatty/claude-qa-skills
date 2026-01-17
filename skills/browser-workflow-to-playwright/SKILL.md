@@ -45,36 +45,77 @@ Use when:
    - Modified workflows → Update
    - Removed workflows → Ask user whether to remove tests
 
-### Phase 3: Explore Codebase for Selectors
+### Phase 3: Explore Codebase for Selectors [DELEGATE TO AGENT]
 
-For each workflow step, explore the codebase to find reliable selectors:
+**Purpose:** For each workflow step, explore the codebase to find reliable selectors. Delegate this to an Explore agent to save context.
 
-**Launch Explore agents to find:**
+**Use the Task tool to spawn an Explore agent:**
 
-1. **Component Selectors**
-   - Search for React/Vue component names mentioned in steps
-   - Find CSS class names (`.btn-primary`, `.modal-header`)
-   - Find data-testid attributes (`[data-testid="submit-btn"]`)
-
-2. **Text-Based Selectors**
-   - Match button text to actual button implementations
-   - Find aria-labels for accessibility selectors
-   - Locate placeholder text for inputs
-
-3. **Structural Selectors**
-   - Identify form structures for input fields
-   - Find modal/dialog patterns
-   - Locate navigation elements
-
-**Selector Priority (best to worst):**
 ```
-1. data-testid="..."     ← Most stable, explicitly for testing
-2. aria-label="..."      ← Accessible and meaningful
-3. role="..." + text     ← Semantic and readable
-4. :has-text("...")      ← Works but fragile if text changes
-5. .class-name           ← Works but fragile if styles change
-6. Complex CSS path      ← Last resort, very fragile
+Task tool parameters:
+- subagent_type: "Explore"
+- model: "sonnet" (balance of speed and thoroughness)
+- prompt: |
+    You are finding reliable Playwright selectors for browser workflow steps.
+
+    ## Workflows to Find Selectors For
+    [Include parsed workflow steps that need selectors]
+
+    ## What to Search For
+
+    For each step, find the BEST available selector using this priority:
+
+    **Selector Priority (best to worst):**
+    1. data-testid="..."     ← Most stable, explicitly for testing
+    2. aria-label="..."      ← Accessible and meaningful
+    3. role="..." + text     ← Semantic and readable
+    4. :has-text("...")      ← Works but fragile if text changes
+    5. .class-name           ← Works but fragile if styles change
+    6. Complex CSS path      ← Last resort, very fragile
+
+    ## Search Strategy
+
+    1. **Component Selectors**
+       - Use Grep to search for React/Vue component names mentioned in steps
+       - Find data-testid attributes: `data-testid=`
+       - Find CSS class names in component files
+
+    2. **Text-Based Selectors**
+       - Match button text to actual button implementations
+       - Find aria-labels: `aria-label=`
+       - Locate placeholder text for inputs
+
+    3. **Structural Selectors**
+       - Identify form structures for input fields
+       - Find modal/dialog patterns
+       - Locate navigation elements
+
+    ## Return Format
+
+    Return a structured mapping:
+    ```
+    ## Selector Mapping
+
+    ### Workflow: [Name]
+
+    | Step | Element Description | Recommended Selector | Confidence | Notes |
+    |------|---------------------|---------------------|------------|-------|
+    | 1.1  | Login button        | [data-testid="login-btn"] | High | Found in LoginForm.tsx:45 |
+    | 1.2  | Email input         | input[name="email"] | High | Found in LoginForm.tsx:23 |
+    | 2.1  | Submit button       | button:has-text("Submit") | Medium | No data-testid, using text |
+
+    ### Ambiguous Selectors (need user input)
+    - Step 3.2 "settings button": Found multiple matches:
+      1. [data-testid="settings-icon"] in Header.tsx
+      2. [data-testid="settings-btn"] in Sidebar.tsx
+      - Recommendation: Ask user which one
+
+    ### Missing Selectors (not found)
+    - Step 4.1 "export dropdown": Could not find element, may need manual inspection
+    ```
 ```
+
+**After agent returns:** Use the selector mapping to generate accurate Playwright test code. For ambiguous selectors, ask the user to choose. For missing selectors, flag for manual verification.
 
 ### Phase 4: Map Actions to Playwright
 
@@ -127,7 +168,70 @@ test.skip('Step N: [description]', async () => {
 });
 ```
 
-### Phase 6: Generate Test File
+### Phase 6: Generate Test File [DELEGATE TO AGENT]
+
+**Purpose:** Generate the Playwright test file from the parsed workflows and selector mapping. Delegate to an agent for focused code generation.
+
+**Use the Task tool to spawn a code generation agent:**
+
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- model: "sonnet" (good balance for code generation)
+- prompt: |
+    You are generating a Playwright E2E test file from browser workflow specifications.
+
+    ## Input Data
+
+    **Workflows:**
+    [Include parsed workflow data with names, steps, substeps]
+
+    **Selector Mapping:**
+    [Include selector mapping from Phase 3 agent]
+
+    **Existing Test File (if updating):**
+    [Include existing test content if this is an update, or "None - new file"]
+
+    ## Your Task
+
+    Generate `e2e/browser-workflows.spec.ts` following this structure:
+
+    1. **File header** with generation timestamp and instructions
+    2. **Imports** from @playwright/test
+    3. **Test.describe block** for each workflow
+    4. **Test.beforeEach** for common setup (navigation)
+    5. **Individual tests** for each step
+    6. **test.skip** for [MANUAL] steps with clear comments
+
+    ## Code Style Requirements
+
+    - Use the recommended selectors from the mapping
+    - Add comments for each substep
+    - Include setup code in tests that need prior state
+    - Mark ambiguous selectors with TODO comments
+    - Follow Playwright best practices
+
+    ## Handle Special Cases
+
+    - [MANUAL] steps → `test.skip()` with explanation
+    - Ambiguous selectors → Use best guess + TODO comment
+    - Missing selectors → Use descriptive text selector + TODO
+    - Steps needing prior state → Add setup within test
+
+    ## Return Format
+
+    Return the complete test file content ready to write.
+    Also return a summary:
+    ```
+    ## Generation Summary
+    - Workflows: [count]
+    - Total tests: [count]
+    - Skipped (manual): [count]
+    - TODOs for review: [count]
+    ```
+```
+
+**After agent returns:** Write the generated test file to `e2e/browser-workflows.spec.ts`. Review any TODOs with the user.
 
 Create `e2e/browser-workflows.spec.ts` with this structure:
 
