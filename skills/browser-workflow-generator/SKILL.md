@@ -190,7 +190,7 @@ Based on exploration, identify key user journeys:
 - Settings/preferences
 - Account/profile management
 
-### Phase 3.5: Research UX Conventions [DELEGATE TO AGENT]
+### Phase 4: Research UX Conventions [DELEGATE TO AGENT]
 
 **Purpose:** For each major screen/page type identified, research what good web UX looks like. Delegate this to an agent to save context.
 
@@ -260,7 +260,7 @@ Task tool parameters:
 
 **After agent returns:** Include UX expectations in workflows so the executor knows what to verify for each page type.
 
-### Phase 4: Generate Workflows
+### Phase 5: Generate Workflows
 
 For each journey, create a workflow with this structure:
 
@@ -284,7 +284,7 @@ For each journey, create a workflow with this structure:
 - Group related actions under numbered steps with substeps
 - Include wait conditions where timing matters
 
-### Phase 5: Organize & Write
+### Phase 6: Organize & Write
 
 Structure the final document:
 
@@ -318,9 +318,9 @@ Structure the final document:
 ...
 ```
 
-**Do not write to file yet - proceed to Phase 6 for user approval first.**
+**Do not write to file yet - proceed to Phase 7 for user approval first.**
 
-### Phase 6: Review with User (REQUIRED)
+### Phase 7: Review with User (REQUIRED)
 
 **This step is mandatory. Do not write the final file without user approval.**
 
