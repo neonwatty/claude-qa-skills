@@ -22,26 +22,151 @@ You are a senior QA engineer tasked with creating comprehensive user workflow do
    - **Refactor:** Reorganize or improve existing workflows
    - **Audit:** Check existing workflows against current app state
 
-### Phase 2: Explore the Application
+### Phase 2: Explore the Application [DELEGATE TO AGENTS]
 
-Launch multiple Explore agents in parallel to thoroughly understand the app:
+**Purpose:** Thoroughly understand the app by launching multiple Explore agents in parallel. This saves context and allows comprehensive codebase exploration.
 
-**Agent 1: Routes & Navigation**
-- Find all routes/pages in the app
-- Identify navigation patterns
-- Map out the user flow between pages
+**Use the Task tool to spawn three agents in parallel (all in a single message):**
 
-**Agent 2: Components & Features**
-- Find key interactive components
-- Identify major features and their UI
-- Note form inputs, buttons, modals, etc.
+```
+Agent 1 - Routes & Navigation:
+Task tool parameters:
+- subagent_type: "Explore"
+- model: "sonnet"
+- prompt: |
+    You are exploring a web application to find all routes and navigation patterns.
 
-**Agent 3: State & Data**
-- Understand the data model
-- Identify CRUD operations users can perform
-- Find state management patterns
+    ## What to Find
 
-Synthesize findings into a feature inventory:
+    1. **All Routes/Pages**
+       - Search for router configuration (React Router, Next.js pages, Vue Router, etc.)
+       - Find all page/view components
+       - Identify URL patterns and parameters
+
+    2. **Navigation Patterns**
+       - Find navigation menus, sidebars, headers
+       - Identify breadcrumbs, tabs, or other nav UI
+       - Map how users move between pages
+
+    3. **Entry Points**
+       - Find the main entry URL
+       - Identify deep links or bookmarkable URLs
+       - Note any authentication-gated routes
+
+    ## Return Format
+
+    ```
+    ## Routes & Navigation Report
+
+    ### All Routes
+    | Route | Component | Purpose | Auth Required |
+    |-------|-----------|---------|---------------|
+
+    ### Navigation Structure
+    - Primary nav: [description]
+    - Secondary nav: [description]
+
+    ### User Flow Map
+    - Home → [possible destinations]
+    - [Page] → [possible destinations]
+    ```
+```
+
+```
+Agent 2 - Components & Features:
+Task tool parameters:
+- subagent_type: "Explore"
+- model: "sonnet"
+- prompt: |
+    You are exploring a web application to find all interactive UI components.
+
+    ## What to Find
+
+    1. **Interactive Components**
+       - Buttons, links, clickable elements
+       - Form inputs (text, select, checkbox, etc.)
+       - Modals, dialogs, drawers
+       - Drag-drop areas, toolbars, menus
+
+    2. **Major Features**
+       - Identify the app's core features
+       - Find feature entry points in the UI
+       - Note feature-specific components
+
+    3. **Component Patterns**
+       - Identify reusable component patterns
+       - Note any component libraries used (MUI, Radix, etc.)
+       - Find data-testid or accessibility attributes
+
+    ## Return Format
+
+    ```
+    ## Components & Features Report
+
+    ### Major Features
+    | Feature | Entry Point | Key Components |
+    |---------|-------------|----------------|
+
+    ### Interactive Components by Page
+    #### [Page Name]
+    - Buttons: [list]
+    - Forms: [list]
+    - Other: [list]
+
+    ### Component Patterns
+    - UI library: [if any]
+    - Common patterns: [list]
+    ```
+```
+
+```
+Agent 3 - State & Data:
+Task tool parameters:
+- subagent_type: "Explore"
+- model: "sonnet"
+- prompt: |
+    You are exploring a web application to understand its data model and user actions.
+
+    ## What to Find
+
+    1. **Data Model**
+       - Find state management (Redux, Zustand, Context, etc.)
+       - Identify main data entities/types
+       - Note data relationships
+
+    2. **User Actions (CRUD)**
+       - What can users create?
+       - What can users read/view?
+       - What can users update/edit?
+       - What can users delete?
+
+    3. **API & Persistence**
+       - Find API call patterns
+       - Identify endpoints used
+       - Note localStorage/sessionStorage usage
+
+    ## Return Format
+
+    ```
+    ## State & Data Report
+
+    ### Data Entities
+    | Entity | Properties | CRUD Operations |
+    |--------|------------|-----------------|
+
+    ### User Actions
+    - Create: [list of things users can create]
+    - Read: [list of things users can view]
+    - Update: [list of things users can modify]
+    - Delete: [list of things users can remove]
+
+    ### API Patterns
+    - Base URL: [if found]
+    - Key endpoints: [list]
+    ```
+```
+
+**After all agents return:** Synthesize findings into a feature inventory:
 - List all user-facing features
 - Group by area/section of the app
 - Note entry points and exit points
@@ -65,41 +190,75 @@ Based on exploration, identify key user journeys:
 - Settings/preferences
 - Account/profile management
 
-### Phase 3.5: Research UX Conventions
+### Phase 3.5: Research UX Conventions [DELEGATE TO AGENT]
 
-For each major screen/page type identified, research what good UX looks like:
+**Purpose:** For each major screen/page type identified, research what good web UX looks like. Delegate this to an agent to save context.
 
-1. **Identify page types** in your feature inventory (e.g., login page, dashboard, settings page, list/table view, detail page, onboarding flow, search results)
+**Use the Task tool to spawn a UX research agent:**
 
-2. **Search for reference examples** using WebSearch:
-   - Search for 2-3 well-known web apps with similar functionality
-   - OR search for 2-3 pages of similar type from design resources
-   - Example searches:
-     - "web app login page design Dribbble"
-     - "best SaaS dashboard UI examples"
-     - "web app settings page design 2024"
-     - "[specific web app name] UI screenshots"
-     - "data table web design patterns"
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- model: "sonnet"
+- prompt: |
+    You are researching web UX conventions for a workflow generator.
 
-3. **Document UX conventions** for each page type:
-   ```markdown
-   ### Page: Dashboard
-   **Reference Examples:** Linear, Notion, Figma
-   **Expected Web Conventions:**
-   - Top navigation bar with logo, search, and user menu
-   - Sidebar for section navigation (collapsible on smaller screens)
-   - Cards or widgets for key metrics
-   - Hover states on all interactive elements
-   - Keyboard shortcuts for power users (with visible hints)
-   - Responsive layout that works from 320px to 2560px+
-   **Anti-patterns to flag:**
-   - Bottom tab bar (mobile pattern)
-   - Pull-to-refresh gesture requirement
-   - No hover states on buttons/links
-   - URLs that don't reflect current view state
-   ```
+    ## Page Types to Research
+    [Include list of page types identified from Phase 2/3, e.g.:]
+    - Login page
+    - Dashboard
+    - Settings page
+    - List/table view
+    - Detail page
+    - Onboarding flow
 
-4. **Include UX expectations in workflows** so the executor knows what to verify
+    ## Your Task
+
+    For each page type:
+
+    1. **Search for reference examples** using WebSearch:
+       - "web app [page type] design Dribbble"
+       - "best SaaS [page type] UI examples"
+       - "[well-known web app] [page type] screenshot"
+
+    2. **Visit 2-3 reference examples** to understand conventions
+
+    3. **Document UX conventions** for each page type
+
+    ## Return Format
+
+    For each page type, return:
+    ```
+    ### Page: [Page Type]
+    **Reference Examples:** [Apps/sites compared]
+    **Expected Web Conventions:**
+    - [Convention 1]
+    - [Convention 2]
+    - [Convention 3]
+    **Anti-patterns to flag:**
+    - [Anti-pattern 1 - why it's wrong for web]
+    - [Anti-pattern 2]
+    ```
+
+    ## Example Output
+
+    ### Page: Dashboard
+    **Reference Examples:** Linear, Notion, Figma
+    **Expected Web Conventions:**
+    - Top navigation bar with logo, search, and user menu
+    - Sidebar for section navigation (collapsible on smaller screens)
+    - Cards or widgets for key metrics
+    - Hover states on all interactive elements
+    - Keyboard shortcuts for power users (with visible hints)
+    - Responsive layout that works from 320px to 2560px+
+    **Anti-patterns to flag:**
+    - Bottom tab bar (mobile pattern)
+    - Pull-to-refresh gesture requirement
+    - No hover states on buttons/links
+    - URLs that don't reflect current view state
+```
+
+**After agent returns:** Include UX expectations in workflows so the executor knows what to verify for each page type.
 
 ### Phase 4: Generate Workflows
 
@@ -392,18 +551,3 @@ When writing workflows, include verification steps for platform appropriateness:
    - Verify URLs are shareable/deep-linkable for important states
 ```
 
-## Agent Prompts
-
-When launching Explore agents, use prompts like:
-
-**Routes Agent:**
-"Find all routes, pages, and navigation in this app. Look for: router configuration, page components, navigation menus, breadcrumbs, URL patterns. Report: list of all accessible pages with their paths and purposes."
-
-**Components Agent:**
-"Find all major interactive UI components. Look for: buttons, forms, modals, dropdowns, drag-drop areas, toolbars, sidebars. Report: list of interactive elements grouped by page/feature with their purposes."
-
-**State Agent:**
-"Find the data model and user actions. Look for: state management (store, context), API calls, CRUD operations, form submissions. Report: list of actions users can take and data they can manipulate."
-
-**UX Patterns Agent:**
-"Identify UI patterns used in this web app and flag any that deviate from web conventions. Look for: navigation patterns, hover states, keyboard accessibility, responsive design, URL handling. Report: list of UI patterns used and any that appear to be mobile-native conventions instead of web-appropriate patterns."
