@@ -199,7 +199,7 @@ Based on exploration, identify key user journeys:
 - Offline behavior
 - Permission requests (camera, location, notifications)
 
-### Phase 3.5: Research UX Conventions [DELEGATE TO AGENT]
+### Phase 4: Research UX Conventions [DELEGATE TO AGENT]
 
 **Purpose:** For each major screen type identified, research what good iOS UX looks like. The app should feel indistinguishable from a native iOS app. Delegate this to an agent to save context.
 
@@ -271,7 +271,7 @@ Task tool parameters:
 
 **After agent returns:** Include iOS UX expectations in workflows so the executor knows what to verify for each screen type.
 
-### Phase 4: Generate Workflows
+### Phase 5: Generate Workflows
 
 For each journey, create a workflow with this structure:
 
@@ -298,7 +298,7 @@ For each journey, create a workflow with this structure:
 - Group related actions under numbered steps with substeps
 - Include wait conditions where animations or loading matters
 
-### Phase 5: Organize & Draft
+### Phase 6: Organize & Draft
 
 Structure the document:
 
@@ -334,9 +334,9 @@ Structure the document:
 ...
 ```
 
-**Do not write to file yet - proceed to Phase 6 for user approval first.**
+**Do not write to file yet - proceed to Phase 7 for user approval first.**
 
-### Phase 6: Review with User (REQUIRED)
+### Phase 7: Review with User (REQUIRED)
 
 **This step is mandatory. Do not write the final file without user approval.**
 
