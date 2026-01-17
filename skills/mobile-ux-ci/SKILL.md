@@ -20,28 +20,142 @@ Use this skill when:
 
 ## Process
 
-### Phase 1: Assess Current Testing Infrastructure
+### Phase 1: Assess Current Testing Infrastructure [DELEGATE TO AGENT]
 
-1. Check if Playwright is already configured:
-   - Look for `playwright.config.ts` or `playwright.config.js`
-   - Check `package.json` for `@playwright/test` dependency
-   - Look for existing E2E tests in `e2e/`, `tests/`, or `__tests__/`
+**Purpose:** Explore the codebase to understand the current testing setup. Delegate this to an Explore agent to save context.
 
-2. Check if mobile testing exists:
-   - Look for mobile viewport projects in Playwright config
-   - Search for existing mobile test files
+**Use the Task tool to spawn an Explore agent:**
 
-3. Ask the user their goal:
-   - **Add to existing**: Add UX pattern tests to existing Playwright setup
-   - **Create new**: Set up Playwright and add UX pattern tests
-   - **Audit only**: Generate a report of current anti-patterns without creating tests
+```
+Task tool parameters:
+- subagent_type: "Explore"
+- model: "sonnet"
+- prompt: |
+    You are assessing a project's testing infrastructure for mobile UX CI tests.
 
-### Phase 2: Understand the App
+    ## What to Find
 
-1. Identify key pages/routes to test
-2. Understand how to enter the app (login, onboarding, etc.)
-3. Look for existing test utilities (`test-utils.ts`, helpers)
-4. Identify the base URL for testing
+    1. **Playwright Configuration**
+       - Search for `playwright.config.ts` or `playwright.config.js`
+       - Check `package.json` for `@playwright/test` dependency
+       - Note the Playwright version if installed
+
+    2. **Existing E2E Tests**
+       - Look in `e2e/`, `tests/`, `__tests__/`, or similar directories
+       - Count existing test files
+       - Note any mobile-specific test files
+
+    3. **Mobile Testing Setup**
+       - Check Playwright config for mobile viewport projects
+       - Search for existing mobile test files (`*mobile*`, `*ios*`)
+       - Look for device emulation settings
+
+    4. **Test Utilities**
+       - Find test helper files (`test-utils.ts`, `helpers.ts`)
+       - Note any existing page object patterns
+       - Find authentication/setup utilities
+
+    ## Return Format
+
+    ```
+    ## Testing Infrastructure Report
+
+    ### Playwright Status
+    - Installed: [Yes/No]
+    - Version: [version or N/A]
+    - Config file: [path or N/A]
+
+    ### Existing Tests
+    - Test directory: [path]
+    - Test file count: [count]
+    - Mobile-specific tests: [count or None]
+
+    ### Mobile Configuration
+    - Mobile viewports configured: [Yes/No]
+    - Device presets: [list or None]
+
+    ### Test Utilities
+    - Helper files: [list or None]
+    - Page objects: [Yes/No]
+    - Auth utilities: [Yes/No]
+
+    ### Recommendation
+    - [Add to existing / Create new / Needs Playwright setup]
+    ```
+```
+
+**After agent returns:** Based on the infrastructure report, ask the user their goal:
+- **Add to existing**: Add UX pattern tests to existing Playwright setup
+- **Create new**: Set up Playwright and add UX pattern tests
+- **Audit only**: Generate a report of current anti-patterns without creating tests
+
+### Phase 2: Understand the App [DELEGATE TO AGENT]
+
+**Purpose:** Explore the app's structure to identify what pages/routes need UX pattern testing. Delegate this to an Explore agent to save context.
+
+**Use the Task tool to spawn an Explore agent:**
+
+```
+Task tool parameters:
+- subagent_type: "Explore"
+- model: "sonnet"
+- prompt: |
+    You are exploring a web application to identify pages that need mobile UX testing.
+
+    ## What to Find
+
+    1. **Routes and Pages**
+       - Find all routes (React Router, Next.js pages, Vue Router, etc.)
+       - List all user-facing pages
+       - Note the base URL (likely localhost:5173 or similar)
+
+    2. **Entry Points**
+       - How does a user enter the app? (login, onboarding, direct access)
+       - Is authentication required?
+       - What's the first page users see?
+
+    3. **Key Screens to Test**
+       - Navigation screens (where nav patterns matter most)
+       - Form screens (where touch targets matter)
+       - List/table screens (where scrolling matters)
+       - Modal/dialog screens (where presentation matters)
+
+    4. **Existing Test Patterns**
+       - Look for test utilities already mentioned in Phase 1
+       - Find any app-specific selectors (data-testid patterns)
+       - Note authentication helpers if they exist
+
+    ## Return Format
+
+    ```
+    ## App Structure Report
+
+    ### Base URL
+    - Development: [URL]
+
+    ### Entry Flow
+    - Auth required: [Yes/No]
+    - Entry point: [page/route]
+    - First user screen: [page name]
+
+    ### Pages to Test (prioritized)
+    | Page | Route | Why Test |
+    |------|-------|----------|
+    | Home | / | Primary navigation visible |
+    | Dashboard | /dashboard | Contains lists, buttons |
+    | Settings | /settings | Form inputs, toggles |
+
+    ### Navigation Pattern
+    - Primary nav type: [tab bar / sidebar / hamburger / etc.]
+    - Location: [top / bottom / left]
+
+    ### Selector Patterns
+    - data-testid usage: [Yes/No]
+    - Common patterns: [list]
+    ```
+```
+
+**After agent returns:** Use the app structure report to determine which pages to include in the UX pattern tests and how to set up test navigation.
 
 ### Phase 3: Generate UX Pattern Tests
 
