@@ -7,6 +7,28 @@ description: Executes browser-based user workflows from /workflows/browser-workf
 
 You are a QA engineer executing user workflows in a real browser. Your job is to methodically test each workflow, capture before/after evidence, document issues, and optionally fix them with user approval.
 
+## Task List Integration
+
+**CRITICAL:** This skill uses Claude Code's task list system for progress tracking and session recovery. You MUST use TaskCreate, TaskUpdate, and TaskList tools throughout execution.
+
+### Why Task Lists Matter Here
+- **Progress visibility:** User sees "3/8 workflows completed, 5 issues found"
+- **Session recovery:** If interrupted, resume from exact workflow/step
+- **Parallel fix coordination:** Track multiple fix agents working simultaneously
+- **Issue tracking:** Each issue becomes a trackable task with status
+
+### Task Hierarchy
+```
+[Workflow Task] "Execute: User Login Flow"
+  └── [Issue Task] "Issue: Missing hover states on submit button"
+  └── [Issue Task] "Issue: Keyboard navigation broken in form"
+[Workflow Task] "Execute: Checkout Process"
+  └── [Issue Task] "Issue: Back button doesn't preserve cart"
+[Fix Task] "Fix: Missing hover states" (created in fix mode)
+[Verification Task] "Verify: Run test suite"
+[Report Task] "Generate: HTML report"
+```
+
 ## Execution Modes
 
 This skill operates in two modes:
@@ -38,8 +60,16 @@ Fix Mode → Spawn Fix Agents → Capture AFTER → Verify Locally
 
 ## Process
 
-### Phase 1: Read Workflows
+### Phase 1: Read Workflows and Initialize Task List
 
+**First, check for existing tasks (session recovery):**
+1. Call `TaskList` to check for existing workflow tasks
+2. If tasks exist with status `in_progress` or `pending`:
+   - Inform user: "Found existing session. Workflows completed: [list]. Resuming from: [workflow name]"
+   - Skip to the incomplete workflow
+3. If no existing tasks, proceed with fresh execution
+
+**Read and parse workflows:**
 1. Read the file `/workflows/browser-workflows.md`
 2. **If the file does not exist or is empty:**
    - Stop immediately
@@ -50,6 +80,26 @@ Fix Mode → Spawn Fix Agents → Capture AFTER → Verify Locally
 4. If no workflows are found in the file, inform the user and stop
 5. List the workflows found and ask the user which one to execute (or all)
 
+**Create workflow tasks:**
+After user confirms which workflows to run, create a task for each:
+
+```
+For each workflow to execute, call TaskCreate:
+- subject: "Execute: [Workflow Name]"
+- description: |
+    Execute browser workflow: [Workflow Name]
+    Steps: [count] steps
+    File: /workflows/browser-workflows.md
+
+    Steps summary:
+    1. [Step 1 brief]
+    2. [Step 2 brief]
+    ...
+- activeForm: "Executing [Workflow Name]"
+```
+
+This creates the task structure that enables progress tracking and session recovery.
+
 ### Phase 2: Initialize Browser
 
 1. Call `tabs_context_mcp` with `createIfEmpty: true` to get/create a tab
@@ -57,6 +107,13 @@ Fix Mode → Spawn Fix Agents → Capture AFTER → Verify Locally
 3. Take an initial screenshot to confirm browser is ready
 
 ### Phase 3: Execute Workflow
+
+**Before starting each workflow, update its task:**
+```
+TaskUpdate:
+- taskId: [workflow task ID]
+- status: "in_progress"
+```
 
 For each numbered step in the workflow:
 
@@ -76,6 +133,34 @@ For each numbered step in the workflow:
    - Any technical problems? (errors in console, failed requests)
    - Any potential improvements or feature ideas?
 5. **Record** your observations before moving to next step
+
+**When an issue is found, create an issue task:**
+```
+TaskCreate:
+- subject: "Issue: [Brief issue description]"
+- description: |
+    **Workflow:** [Workflow name]
+    **Step:** [Step number and description]
+    **Issue:** [Detailed description]
+    **Severity:** [High/Med/Low]
+    **Current behavior:** [What's wrong]
+    **Expected behavior:** [What it should do]
+    **Screenshot:** [Path to before screenshot]
+- activeForm: "Documenting issue"
+
+Then link it to the workflow task:
+TaskUpdate:
+- taskId: [issue task ID]
+- addBlockedBy: [workflow task ID]
+```
+
+**After completing all steps in a workflow:**
+```
+TaskUpdate:
+- taskId: [workflow task ID]
+- status: "completed"
+- metadata: {"issuesFound": [count], "stepsPassed": [count], "stepsFailed": [count]}
+```
 
 ### Phase 4: UX Platform Evaluation [DELEGATE TO AGENT]
 
@@ -203,10 +288,54 @@ Task tool parameters:
 
 After completing all workflows (or when user requests), consolidate findings into a summary report:
 
-1. Read `.claude/plans/browser-workflow-findings.md` for all recorded findings
-2. Write consolidated report to `.claude/plans/browser-workflow-report.md`
-3. Include overall statistics, prioritized issues, and recommendations
-4. Present findings to user and await instructions (fix all, fix some, or done)
+**Create audit report task:**
+```
+TaskCreate:
+- subject: "Generate: Audit Report"
+- description: "Consolidate all workflow findings into summary report"
+- activeForm: "Generating audit report"
+
+TaskUpdate:
+- taskId: [report task ID]
+- status: "in_progress"
+```
+
+**Generate the report:**
+1. Call `TaskList` to get summary of all workflow and issue tasks
+2. Read `.claude/plans/browser-workflow-findings.md` for detailed findings
+3. Write consolidated report to `.claude/plans/browser-workflow-report.md`
+4. Include:
+   - Overall statistics from task metadata (workflows completed, issues found)
+   - Prioritized issues list (from issue tasks)
+   - Recommendations
+
+**Present findings to user:**
+Display a summary using task data:
+```
+## Audit Complete
+
+**Workflows Executed:** [completed count]/[total count]
+**Issues Found:** [issue task count]
+  - High severity: [count]
+  - Medium severity: [count]
+  - Low severity: [count]
+
+**Issues:**
+1. [Issue subject] (High) - [workflow name]
+2. [Issue subject] (Med) - [workflow name]
+...
+
+What would you like to do?
+- "fix all" - Fix all issues
+- "fix 1,3,5" - Fix specific issues by number
+- "done" - End session
+```
+
+```
+TaskUpdate:
+- taskId: [report task ID]
+- status: "completed"
+```
 
 ### Phase 7: Screenshot Management
 
@@ -254,17 +383,41 @@ workflows/
 
 When user triggers fix mode ("fix this issue" or "fix all"):
 
-1. **Confirm which issues to fix:**
+1. **Get issue list from tasks:**
    ```
+   Call TaskList to get all issue tasks (subject starts with "Issue:")
+   Display to user:
+
    Issues found:
-   1. Missing hover states on buttons - BEFORE: 01-hover-states-missing.png
-   2. Keyboard navigation broken - BEFORE: 02-keyboard-nav-broken.png
-   3. Back button doesn't work - BEFORE: 03-back-button-broken.png
+   1. [Task ID: X] Missing hover states on buttons - BEFORE: 01-hover-states-missing.png
+   2. [Task ID: Y] Keyboard navigation broken - BEFORE: 02-keyboard-nav-broken.png
+   3. [Task ID: Z] Back button doesn't work - BEFORE: 03-back-button-broken.png
 
    Fix all issues? Or specify which to fix: [1,2,3 / all / specific numbers]
    ```
 
-2. **Spawn one agent per issue** using the Task tool. For independent issues, spawn agents in parallel (all in a single message):
+2. **Create fix tasks for each issue to fix:**
+   ```
+   For each issue the user wants fixed:
+
+   TaskCreate:
+   - subject: "Fix: [Issue brief description]"
+   - description: |
+       Fixing issue from task [issue task ID]
+       **Issue:** [Issue name and description]
+       **Severity:** [High/Med/Low]
+       **Current behavior:** [What's wrong]
+       **Expected behavior:** [What it should do]
+       **Screenshot reference:** [Path to before screenshot]
+   - activeForm: "Fixing [issue brief]"
+
+   TaskUpdate:
+   - taskId: [fix task ID]
+   - addBlockedBy: [issue task ID]  # Links fix to its issue
+   - status: "in_progress"
+   ```
+
+3. **Spawn one agent per issue** using the Task tool. For independent issues, spawn agents in parallel (all in a single message):
 
 ```
 Task tool parameters (for each issue):
@@ -315,16 +468,52 @@ Task tool parameters (for each issue):
     Do NOT run tests - the main workflow will handle that.
 ```
 
-3. **After all fix agents complete:**
+4. **After all fix agents complete:**
    - Collect summaries from each agent
    - Refresh the browser
    - Capture AFTER screenshots for each fix
    - Verify fixes visually
    - Track all changes made
 
+   **Update fix tasks with results:**
+   ```
+   For each completed fix:
+
+   TaskUpdate:
+   - taskId: [fix task ID]
+   - status: "completed"
+   - metadata: {
+       "filesModified": ["src/components/Button.css", "src/styles/global.css"],
+       "afterScreenshot": "workflows/screenshots/{workflow}/after/{file}.png"
+     }
+   ```
+
+   **Update issue tasks to reflect fix status:**
+   ```
+   TaskUpdate:
+   - taskId: [issue task ID]
+   - status: "completed"
+   - metadata: {"fixedBy": [fix task ID], "fixedAt": "[ISO timestamp]"}
+   ```
+
 ### Phase 9: Local Verification [DELEGATE TO AGENT]
 
 **CRITICAL:** After making fixes, verify everything works locally before creating a PR.
+
+**Create verification task:**
+```
+TaskCreate:
+- subject: "Verify: Run test suite"
+- description: |
+    Run all tests to verify fixes don't break existing functionality.
+    Fixes applied: [list of fix task IDs]
+    Files modified: [aggregated list from fix task metadata]
+- activeForm: "Running verification tests"
+
+TaskUpdate:
+- taskId: [verification task ID]
+- status: "in_progress"
+```
 
 **Use the Task tool to spawn a verification agent:**
 
@@ -392,10 +581,35 @@ Task tool parameters:
 ```
 
 **After agent returns:**
+```
+TaskUpdate:
+- taskId: [verification task ID]
+- status: "completed"
+- metadata: {
+    "result": "PASS" or "FAIL",
+    "unitTests": {"passed": N, "failed": N},
+    "e2eTests": {"passed": N, "failed": N},
+    "lint": "pass" or "fail",
+    "typecheck": "pass" or "fail"
+  }
+```
+
 - If PASS: Proceed to report generation
 - If FAIL: Review failures with user, spawn another agent to fix remaining issues
 
 ### Phase 10: Generate HTML Report [DELEGATE TO AGENT]
+
+**Create report generation task:**
+```
+TaskCreate:
+- subject: "Generate: HTML Report"
+- description: "Generate HTML report with before/after screenshot comparisons"
+- activeForm: "Generating HTML report"
+
+TaskUpdate:
+- taskId: [html report task ID]
+- status: "in_progress"
+```
 
 **Use the Task tool to generate the HTML report:**
 
@@ -436,7 +650,27 @@ Task tool parameters:
     Return confirmation when complete.
 ```
 
+**After agent completes:**
+```
+TaskUpdate:
+- taskId: [html report task ID]
+- status: "completed"
+- metadata: {"outputPath": "workflows/browser-changes-report.html"}
+```
+
 ### Phase 11: Generate Markdown Report [DELEGATE TO AGENT]
+
+**Create markdown report task:**
+```
+TaskCreate:
+- subject: "Generate: Markdown Report"
+- description: "Generate Markdown documentation for fixes"
+- activeForm: "Generating Markdown report"
+
+TaskUpdate:
+- taskId: [md report task ID]
+- status: "in_progress"
+```
 
 **Use the Task tool to generate the Markdown report:**
 
@@ -465,7 +699,30 @@ Task tool parameters:
     Return confirmation when complete.
 ```
 
+**After agent completes:**
+```
+TaskUpdate:
+- taskId: [md report task ID]
+- status: "completed"
+- metadata: {"outputPath": "workflows/browser-changes-documentation.md"}
+```
+
 ### Phase 12: Create PR and Monitor CI
+
+**Create PR task:**
+```
+TaskCreate:
+- subject: "Create: Pull Request"
+- description: |
+    Create PR for browser UX compliance fixes.
+    Fixes included: [list from completed fix tasks]
+    Files modified: [aggregated from fix task metadata]
+- activeForm: "Creating pull request"
+
+TaskUpdate:
+- taskId: [pr task ID]
+- status: "in_progress"
+```
 
 **Only after local verification passes**, create the PR:
 
@@ -509,10 +766,43 @@ Task tool parameters:
    - Push fixes and re-run CI
    - Do not merge until CI is green
 
-5. **Report PR status to user:**
+5. **Update PR task with status:**
+   ```
+   TaskUpdate:
+   - taskId: [pr task ID]
+   - metadata: {
+       "prUrl": "https://github.com/owner/repo/pull/123",
+       "ciStatus": "running" | "passed" | "failed"
+     }
+   ```
+
+   When CI completes:
+   ```
+   TaskUpdate:
+   - taskId: [pr task ID]
+   - status: "completed"
+   - metadata: {"prUrl": "...", "ciStatus": "passed", "merged": false}
+   ```
+
+6. **Report PR status to user:**
    ```
    PR created: https://github.com/owner/repo/pull/123
    CI status: Running... (or Passed/Failed)
+   ```
+
+7. **Final session summary from tasks:**
+   ```
+   Call TaskList to generate final summary:
+
+   ## Session Complete
+
+   **Workflows Executed:** [count completed workflow tasks]
+   **Issues Found:** [count issue tasks]
+   **Issues Fixed:** [count completed fix tasks]
+   **Tests:** [from verification task metadata]
+   **PR:** [from pr task metadata]
+
+   All tasks completed successfully.
    ```
 
 ## MCP Tool Reference
@@ -604,7 +894,41 @@ Do not silently skip failed steps.
 
 If resuming from an interrupted session:
 
+**Primary method: Use task list (preferred)**
+1. Call `TaskList` to get all existing tasks
+2. Check for workflow tasks with status `in_progress` or `pending`
+3. Check for issue tasks to understand what was found
+4. Check for fix tasks to see what fixes were attempted
+5. Resume from the appropriate point based on task states
+
+**Recovery decision tree:**
+```
+TaskList shows:
+├── All workflow tasks completed, no fix tasks
+│   └── Ask user: "Audit complete. Want to fix issues?"
+├── All workflow tasks completed, fix tasks in_progress
+│   └── Resume fix mode, check agent status
+├── Some workflow tasks pending
+│   └── Resume from first pending workflow
+├── Workflow task in_progress
+│   └── Read findings file to see which steps completed
+│       └── Resume from next step in that workflow
+└── No tasks exist
+    └── Fresh start (Phase 1)
+```
+
+**Fallback method: Use findings file**
 1. Read `.claude/plans/browser-workflow-findings.md` to see which workflows have been completed
 2. Resume from the next uncompleted workflow
-3. Do not re-execute already-passed workflows unless the user specifically requests it
-4. Inform the user which workflows were already completed and where you're resuming from
+3. Recreate tasks for remaining workflows
+
+**Always inform user:**
+```
+Resuming from interrupted session:
+- Workflows completed: [list from completed tasks]
+- Issues found: [count from issue tasks]
+- Current state: [in_progress task description]
+- Resuming: [next action]
+```
+
+Do not re-execute already-passed workflows unless the user specifically requests it.

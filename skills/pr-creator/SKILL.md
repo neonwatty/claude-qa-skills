@@ -7,9 +7,54 @@ description: Creates a pull request from current changes, monitors GitHub CI, an
 
 You are a developer preparing changes for review. Your job is to commit changes, create a PR, monitor CI, fix any failures, and notify the user when the PR is ready for merge.
 
+## Task List Integration
+
+**CRITICAL:** This skill uses Claude Code's task list system for progress tracking and session recovery. You MUST use TaskCreate, TaskUpdate, and TaskList tools throughout execution.
+
+### Why Task Lists Matter Here
+- **CI run tracking:** Each CI attempt becomes a task with pass/fail status
+- **Fix iteration visibility:** User sees "CI Run #3: fixing lint errors"
+- **Session recovery:** If interrupted during CI monitoring, resume watching the same run
+- **Audit trail:** Track all fixes made across multiple CI iterations
+
+### Task Hierarchy
+```
+[Main Task] "Create PR: [branch-name]"
+  └── [CI Task] "CI Run #1" (status: failed, reason: lint errors)
+      └── [Fix Task] "Fix: lint errors"
+  └── [CI Task] "CI Run #2" (status: failed, reason: test failures)
+      └── [Fix Task] "Fix: test failures"
+  └── [CI Task] "CI Run #3" (status: passed)
+```
+
+### Session Recovery Check
+**At the start of this skill, always check for existing tasks:**
+```
+1. Call TaskList to check for existing PR tasks
+2. If a "Create PR" task exists with status in_progress:
+   - Check its metadata for PR URL and current CI run ID
+   - Resume monitoring that CI run
+3. If CI tasks exist, check their status to understand current state
+4. If no tasks exist, proceed with fresh execution
+```
+
 ## Process
 
 ### Step 1: Check Git Status
+
+**Create the main PR task:**
+```
+TaskCreate:
+- subject: "Create PR: [branch-name or 'pending']"
+- description: |
+    Create pull request from current changes.
+    Starting: git status check
+- activeForm: "Checking git status"
+
+TaskUpdate:
+- taskId: [pr task ID]
+- status: "in_progress"
+```
 
 Run these commands to understand the current state:
 
@@ -26,7 +71,16 @@ git log --oneline -5
 
 **If no changes exist:**
 - Inform the user: "No changes detected. Nothing to commit."
+- Mark task as completed with metadata indicating no changes
 - Stop here.
+
+**Update task with branch info:**
+```
+TaskUpdate:
+- taskId: [pr task ID]
+- subject: "Create PR: [actual-branch-name]"
+- metadata: {"branch": "[branch-name]", "changesDetected": true}
+```
 
 ### Step 2: Create Branch (if needed)
 
@@ -86,9 +140,35 @@ EOF
 )"
 ```
 
-**Capture the PR URL** from the output - you'll need it later.
+**Capture the PR URL** from the output and store in task metadata:
+```
+TaskUpdate:
+- taskId: [pr task ID]
+- metadata: {
+    "prUrl": "https://github.com/owner/repo/pull/123",
+    "prNumber": 123,
+    "prTitle": "[title]",
+    "commits": [count]
+  }
+```
 
 ### Step 6: Monitor CI
+
+**Create a CI run task for tracking:**
+```
+TaskCreate:
+- subject: "CI Run #[N]: monitoring"
+- description: |
+    Monitoring CI run for PR #[number]
+    Run ID: [run-id]
+    Started: [timestamp]
+- activeForm: "Monitoring CI Run #[N]"
+
+TaskUpdate:
+- taskId: [ci task ID]
+- addBlockedBy: [pr task ID]  # Links CI run to main PR task
+- status: "in_progress"
+```
 
 Wait for CI to start, then monitor:
 
@@ -105,9 +185,33 @@ gh run view <run-id>
 
 **Poll every 30-60 seconds** until CI completes.
 
+**Store run ID in task for session recovery:**
+```
+TaskUpdate:
+- taskId: [ci task ID]
+- metadata: {"runId": "[run-id]", "status": "running"}
+```
+
 ### Step 7: Handle CI Results
 
 #### If CI Passes:
+
+**Update CI task as passed:**
+```
+TaskUpdate:
+- taskId: [ci task ID]
+- subject: "CI Run #[N]: passed ✅"
+- status: "completed"
+- metadata: {"runId": "[run-id]", "status": "passed", "completedAt": "[timestamp]"}
+```
+
+**Update main PR task:**
+```
+TaskUpdate:
+- taskId: [pr task ID]
+- metadata: {"ciStatus": "passed", "ciRunCount": [N]}
+```
+
 - **STOP HERE** - do not merge
 - Report to user:
   ```
@@ -121,6 +225,16 @@ gh run view <run-id>
   ```
 
 #### If CI Fails:
+
+**Update CI task as failed:**
+```
+TaskUpdate:
+- taskId: [ci task ID]
+- subject: "CI Run #[N]: failed ❌"
+- status: "completed"
+- metadata: {"runId": "[run-id]", "status": "failed", "failureReason": "[brief reason]"}
+```
+
 1. **Get failure details:**
    ```bash
    gh run view <run-id> --log-failed
@@ -131,7 +245,23 @@ gh run view <run-id>
    - Read the error message
    - Determine the fix
 
-3. **Fix the issue:**
+3. **Create a fix task:**
+   ```
+   TaskCreate:
+   - subject: "Fix: [failure reason]"
+   - description: |
+       Fixing CI failure from Run #[N]
+       Failure: [detailed error]
+       Files to modify: [list if known]
+   - activeForm: "Fixing [failure reason]"
+
+   TaskUpdate:
+   - taskId: [fix task ID]
+   - addBlockedBy: [ci task ID]  # Links fix to the failed CI run
+   - status: "in_progress"
+   ```
+
+4. **Fix the issue:**
    - Make necessary code changes
    - Stage and commit the fix:
      ```bash
@@ -140,13 +270,38 @@ gh run view <run-id>
      git push
      ```
 
-4. **Return to Step 6** - monitor the new CI run
+5. **Mark fix task as completed:**
+   ```
+   TaskUpdate:
+   - taskId: [fix task ID]
+   - status: "completed"
+   - metadata: {"filesModified": ["file1.ts", "file2.ts"], "commitHash": "[hash]"}
+   ```
+
+6. **Return to Step 6** - monitor the new CI run (increment run number)
 
 **Repeat until CI passes.**
 
 ### Step 8: Final Report
 
-When CI passes, provide a summary:
+**Mark main PR task as completed:**
+```
+TaskUpdate:
+- taskId: [pr task ID]
+- status: "completed"
+- metadata: {
+    "prUrl": "[url]",
+    "prNumber": [number],
+    "branch": "[branch-name]",
+    "ciStatus": "passed",
+    "ciRunCount": [N],
+    "merged": false
+  }
+```
+
+**Generate report from task data:**
+
+Call `TaskList` to get all CI run and fix tasks, then generate the summary:
 
 ```markdown
 ## PR Ready for Review
@@ -161,9 +316,15 @@ When CI passes, provide a summary:
 - <change 2>
 
 ### CI Runs
-- Run #1: ❌ Failed (lint errors)
-- Run #2: ❌ Failed (test failures)
+[Generated from CI run tasks:]
+- Run #1: ❌ Failed (lint errors) → Fixed in commit [hash]
+- Run #2: ❌ Failed (test failures) → Fixed in commit [hash]
 - Run #3: ✅ Passed
+
+### Fixes Applied
+[Generated from fix tasks:]
+- Fix: lint errors - modified [files]
+- Fix: test failures - modified [files]
 
 ### Next Steps
 1. Request review from team
@@ -171,6 +332,46 @@ When CI passes, provide a summary:
 3. Merge when approved
 
 **Note:** This PR has NOT been merged. Please review and merge manually.
+```
+
+### Session Recovery
+
+If resuming from an interrupted session:
+
+**Recovery decision tree:**
+```
+TaskList shows:
+├── PR task in_progress, no CI tasks
+│   └── PR was created, start monitoring CI (Step 6)
+├── PR task in_progress, CI task in_progress
+│   └── Resume monitoring CI run from task metadata runId
+├── PR task in_progress, CI task failed, no fix task
+│   └── Analyze failure and create fix task (Step 7)
+├── PR task in_progress, fix task in_progress
+│   └── Continue fixing, then push and monitor new CI run
+├── PR task completed
+│   └── PR is done, show final report
+└── No tasks exist
+    └── Fresh start (Step 1)
+```
+
+**Resuming CI monitoring:**
+```
+1. Get runId from latest CI task metadata
+2. Check if run is still active: gh run view <runId>
+3. If still running, continue monitoring
+4. If completed, process result (Step 7)
+5. If new run started, create new CI task and monitor that
+```
+
+**Always inform user when resuming:**
+```
+Resuming PR creation session:
+- PR: [url from task metadata]
+- Branch: [branch from task metadata]
+- CI Runs: [count] attempts
+- Current state: [in_progress task description]
+- Resuming: [next action]
 ```
 
 ## Important Rules

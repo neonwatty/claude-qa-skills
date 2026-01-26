@@ -7,6 +7,43 @@ description: Translates browser workflow markdown files into Playwright E2E test
 
 You are a senior QA automation engineer. Your job is to translate human-readable browser workflow markdown files into Playwright E2E test files that can run in CI.
 
+## Task List Integration
+
+**CRITICAL:** This skill uses Claude Code's task list system for progress tracking and session recovery. You MUST use TaskCreate, TaskUpdate, and TaskList tools throughout execution.
+
+### Why Task Lists Matter Here
+- **Selector mapping progress:** Track which workflows have selectors resolved
+- **Ambiguous selector tracking:** Each ambiguous selector becomes a blocking task awaiting user input
+- **Translation progress:** User sees "3/5 workflows translated"
+- **Session recovery:** If interrupted, know which selectors were found and which need resolution
+- **Code generation tracking:** Track test generation and user approval
+
+### Task Hierarchy
+```
+[Main Task] "Convert: Browser Workflows to Playwright"
+  └── [Parse Task] "Parse: browser-workflows.md"
+  └── [Check Task] "Check: Existing tests"
+  └── [Selector Task] "Selectors: Find for all workflows" (agent)
+      └── [Ambiguous Task] "Resolve: Settings button selector" (user input needed)
+      └── [Ambiguous Task] "Resolve: Submit button selector" (user input needed)
+  └── [Generate Task] "Generate: Playwright test file" (agent)
+  └── [Approval Task] "Approval: Review generated tests"
+  └── [Write Task] "Write: e2e/browser-workflows.spec.ts"
+```
+
+### Session Recovery Check
+**At the start of this skill, always check for existing tasks:**
+```
+1. Call TaskList to check for existing conversion tasks
+2. If a "Convert: Browser Workflows to Playwright" task exists with status in_progress:
+   - Check if parsing completed
+   - Check if selector discovery completed (read metadata for mappings)
+   - Check for pending ambiguous selector tasks awaiting user input
+   - Check if code generation completed
+   - Resume from appropriate phase
+3. If no tasks exist, proceed with fresh execution
+```
+
 ## The Translation Pipeline
 
 ```
@@ -25,6 +62,34 @@ Use when:
 
 ### Phase 1: Read and Parse Workflows
 
+**Create the main conversion task:**
+```
+TaskCreate:
+- subject: "Convert: Browser Workflows to Playwright"
+- description: |
+    Convert browser workflows markdown to Playwright E2E tests.
+    Source: /workflows/browser-workflows.md
+    Target: e2e/browser-workflows.spec.ts
+- activeForm: "Parsing workflows"
+
+TaskUpdate:
+- taskId: [main task ID]
+- status: "in_progress"
+```
+
+**Create parse task:**
+```
+TaskCreate:
+- subject: "Parse: browser-workflows.md"
+- description: "Read and parse workflow file"
+- activeForm: "Parsing workflows"
+
+TaskUpdate:
+- taskId: [parse task ID]
+- addBlockedBy: [main task ID]
+- status: "in_progress"
+```
+
 1. Read `/workflows/browser-workflows.md`
 2. If file doesn't exist, inform user and stop
 3. Parse all workflows (each starts with `## Workflow:` or `### Workflow:`)
@@ -34,7 +99,33 @@ Use when:
    - Numbered steps and substeps
    - Any `[MANUAL]` tagged steps
 
+**Mark parse task complete with workflow inventory:**
+```
+TaskUpdate:
+- taskId: [parse task ID]
+- status: "completed"
+- metadata: {
+    "workflowCount": [N],
+    "workflows": [list of names],
+    "totalSteps": [count],
+    "manualSteps": [count]
+  }
+```
+
 ### Phase 2: Check for Existing Tests
+
+**Create check task:**
+```
+TaskCreate:
+- subject: "Check: Existing tests"
+- description: "Check for existing Playwright tests and determine diff"
+- activeForm: "Checking existing tests"
+
+TaskUpdate:
+- taskId: [check task ID]
+- addBlockedBy: [main task ID]
+- status: "in_progress"
+```
 
 1. Look for existing `e2e/browser-workflows.spec.ts`
 2. If exists, parse it to find:
@@ -45,9 +136,39 @@ Use when:
    - Modified workflows → Update
    - Removed workflows → Ask user whether to remove tests
 
+**Mark check task complete with diff summary:**
+```
+TaskUpdate:
+- taskId: [check task ID]
+- status: "completed"
+- metadata: {
+    "existingTestFile": true/false,
+    "existingWorkflows": [list of names],
+    "toAdd": [list of new workflow names],
+    "toUpdate": [list of modified workflow names],
+    "toRemove": [list of removed workflow names],
+    "hasCustomCode": true/false
+  }
+```
+
 ### Phase 3: Explore Codebase for Selectors [DELEGATE TO AGENT]
 
 **Purpose:** For each workflow step, explore the codebase to find reliable selectors. Delegate this to an Explore agent to save context.
+
+**Create selector discovery task:**
+```
+TaskCreate:
+- subject: "Selectors: Find for all workflows"
+- description: |
+    Find Playwright selectors for [N] workflows, [M] total steps.
+    Priority: data-testid > aria-label > role+text > :has-text > class > CSS path
+- activeForm: "Discovering selectors"
+
+TaskUpdate:
+- taskId: [selector task ID]
+- addBlockedBy: [main task ID]
+- status: "in_progress"
+```
 
 **Use the Task tool to spawn an Explore agent:**
 
@@ -115,7 +236,52 @@ Task tool parameters:
     ```
 ```
 
-**After agent returns:** Use the selector mapping to generate accurate Playwright test code. For ambiguous selectors, ask the user to choose. For missing selectors, flag for manual verification.
+**After agent returns:**
+
+**Update selector task with findings:**
+```
+TaskUpdate:
+- taskId: [selector task ID]
+- status: "completed"
+- metadata: {
+    "selectorsFound": [count],
+    "highConfidence": [count],
+    "mediumConfidence": [count],
+    "ambiguous": [count],
+    "missing": [count]
+  }
+```
+
+**For each ambiguous selector, create a resolution task:**
+```
+For each ambiguous selector:
+
+TaskCreate:
+- subject: "Resolve: [element description] selector"
+- description: |
+    Step [N.M]: "[step text]"
+    Found multiple matches:
+    1. [selector option 1] (in [file])
+    2. [selector option 2] (in [file])
+    Awaiting user decision.
+- activeForm: "Awaiting selector choice"
+
+TaskUpdate:
+- taskId: [resolve task ID]
+- addBlockedBy: [selector task ID]
+- status: "in_progress"
+```
+
+**Ask user to resolve ambiguous selectors:**
+Use `AskUserQuestion` for each ambiguous selector task. After user responds:
+```
+TaskUpdate:
+- taskId: [resolve task ID]
+- status: "completed"
+- metadata: {"chosenSelector": "[user's choice]", "reason": "[if provided]"}
+```
+
+Use the selector mapping to generate accurate Playwright test code. For missing selectors, flag for manual verification with TODO comments.
 
 ### Phase 4: Map Actions to Playwright
 
@@ -171,6 +337,23 @@ test.skip('Step N: [description]', async () => {
 ### Phase 6: Generate Test File [DELEGATE TO AGENT]
 
 **Purpose:** Generate the Playwright test file from the parsed workflows and selector mapping. Delegate to an agent for focused code generation.
+
+**Create code generation task:**
+```
+TaskCreate:
+- subject: "Generate: Playwright test file"
+- description: |
+    Generate e2e/browser-workflows.spec.ts from workflows and selector mapping.
+    Workflows: [count]
+    Selectors resolved: [count]
+    Ambiguous resolved: [count]
+- activeForm: "Generating Playwright tests"
+
+TaskUpdate:
+- taskId: [generate task ID]
+- addBlockedBy: [main task ID]
+- status: "in_progress"
+```
 
 **Use the Task tool to spawn a code generation agent:**
 
@@ -231,7 +414,23 @@ Task tool parameters:
     ```
 ```
 
-**After agent returns:** Write the generated test file to `e2e/browser-workflows.spec.ts`. Review any TODOs with the user.
+**After agent returns:**
+
+**Update generation task with summary:**
+```
+TaskUpdate:
+- taskId: [generate task ID]
+- status: "completed"
+- metadata: {
+    "workflowsTranslated": [count],
+    "totalTests": [count],
+    "skippedManual": [count],
+    "todosForReview": [count],
+    "linesOfCode": [count]
+  }
+```
+
+Review any TODOs with the user before writing the file.
 
 Create `e2e/browser-workflows.spec.ts` with this structure:
 
@@ -315,30 +514,164 @@ When updating existing tests:
 
 ### Phase 8: Review with User
 
+**Create approval task:**
+```
+TaskCreate:
+- subject: "Approval: Review generated tests"
+- description: |
+    Review generated Playwright tests before writing.
+    Tests: [count]
+    TODOs: [count]
+    Awaiting user approval.
+- activeForm: "Awaiting test approval"
+
+TaskUpdate:
+- taskId: [approval task ID]
+- addBlockedBy: [main task ID]
+- status: "in_progress"
+```
+
 Before writing the file:
 
-1. **Show translation summary:**
+1. **Show translation summary (from task metadata):**
    ```
-   Workflows to translate: 5
+   Workflows to translate: 5 (from parse task metadata)
    - Workflow A: 8 steps (7 translated, 1 manual)
    - Workflow B: 6 steps (6 translated)
    - Workflow C: 10 steps (8 translated, 2 need selector help)
-   ...
+
+   Selectors: [from selector task metadata]
+   - High confidence: [count]
+   - Medium confidence: [count]
+   - Resolved by user: [count from resolve tasks]
+
+   Tests generated: [from generate task metadata]
+   - Total tests: [count]
+   - Skipped (manual): [count]
+   - TODOs for review: [count]
    ```
 
-2. **Ask about ambiguous selectors:**
-   ```
-   Step "Click the submit button" - found multiple matches:
-   1. [data-testid="form-submit"] (in LoginForm.tsx)
-   2. button.btn-primary:has-text("Submit") (generic)
-
-   Which selector should I use? [1/2/other]
-   ```
+2. **Any remaining ambiguous selectors** should have been resolved via resolve tasks in Phase 3.
+   If any were skipped, ask now.
 
 3. **Confirm before writing:**
-   - Show diff if updating existing file
+   - Show diff if updating existing file (from check task metadata)
    - List any workflows being added/removed
    - Get explicit approval
+
+**After user approves:**
+```
+TaskUpdate:
+- taskId: [approval task ID]
+- status: "completed"
+- metadata: {"decision": "approved"}
+```
+
+**Create write task and write the file:**
+```
+TaskCreate:
+- subject: "Write: e2e/browser-workflows.spec.ts"
+- description: "Write approved Playwright test file"
+- activeForm: "Writing test file"
+
+TaskUpdate:
+- taskId: [write task ID]
+- status: "in_progress"
+```
+
+**Write the file to `e2e/browser-workflows.spec.ts`**
+
+**Mark write task complete:**
+```
+TaskUpdate:
+- taskId: [write task ID]
+- status: "completed"
+- metadata: {"outputPath": "e2e/browser-workflows.spec.ts", "testsWritten": [count]}
+```
+
+**Mark main task complete:**
+```
+TaskUpdate:
+- taskId: [main task ID]
+- status: "completed"
+- metadata: {
+    "outputPath": "e2e/browser-workflows.spec.ts",
+    "workflowsTranslated": [count],
+    "totalTests": [count],
+    "skippedManual": [count],
+    "selectorsResolved": [count],
+    "ambiguousResolved": [count]
+  }
+```
+
+**Final summary from task data:**
+```
+## Playwright Tests Generated
+
+**Output:** e2e/browser-workflows.spec.ts
+**Workflows:** [from parse task] → [from generate task] tests
+
+### Translation Summary
+| Workflow | Steps | Tests | Manual | TODOs |
+|----------|-------|-------|--------|-------|
+[Generated from task metadata]
+
+### Selector Resolution
+- High confidence: [from selector task]
+- User-resolved: [count of completed resolve tasks]
+- Missing (TODO): [from selector task]
+
+### Next Steps
+1. Run tests: `npx playwright test e2e/browser-workflows.spec.ts`
+2. Review any TODO comments in the file
+3. Add to CI pipeline
+
+The tests are ready to run with Playwright.
+```
+
+### Session Recovery
+
+If resuming from an interrupted session:
+
+**Recovery decision tree:**
+```
+TaskList shows:
+├── Main task in_progress, no parse task
+│   └── Start Phase 1 (parse workflows)
+├── Main task in_progress, parse completed, no check task
+│   └── Start Phase 2 (check existing tests)
+├── Main task in_progress, check completed, no selector task
+│   └── Start Phase 3 (selector discovery)
+├── Main task in_progress, selector completed, resolve tasks pending
+│   └── Ask user to resolve remaining ambiguous selectors
+├── Main task in_progress, all resolve tasks completed, no generate task
+│   └── Start Phase 6 (code generation)
+├── Main task in_progress, generate completed, no approval task
+│   └── Start Phase 8 (user review)
+├── Main task in_progress, approval completed, no write task
+│   └── Write the file
+├── Main task completed
+│   └── Show final summary
+└── No tasks exist
+    └── Fresh start (Phase 1)
+```
+
+**Resuming with partial selector resolution:**
+If some ambiguous selector tasks are completed but others pending:
+1. Read completed resolve tasks to get user's selector choices
+2. Present remaining ambiguous selectors to user
+3. Continue after all resolved
+
+**Always inform user when resuming:**
+```
+Resuming Playwright conversion session:
+- Workflows parsed: [count from parse task]
+- Existing tests: [from check task]
+- Selectors found: [from selector task]
+- Ambiguous resolved: [count completed resolve tasks]/[total]
+- Code generated: [yes/no from generate task]
+- Resuming: [next action]
+```
 
 ## Selector Discovery Prompts
 

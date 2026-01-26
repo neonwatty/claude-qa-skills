@@ -10,6 +10,40 @@ You are a senior QA engineer specializing in mobile UX quality. Your job is to c
 **The Problem This Solves:**
 Most E2E tests verify that features *work*, not that they *should exist*. A hamburger menu test might verify "does the menu open?" but never asks "should there be a hamburger menu at all?" This skill creates tests that enforce UX standards.
 
+## Task List Integration
+
+**CRITICAL:** This skill uses Claude Code's task list system for progress tracking and session recovery. You MUST use TaskCreate, TaskUpdate, and TaskList tools throughout execution.
+
+### Why Task Lists Matter Here
+- **Anti-pattern tracking:** User sees "3 critical, 5 warning, 2 info anti-patterns detected"
+- **Session recovery:** If interrupted during app exploration, resume that phase
+- **Severity decisions:** Track which anti-patterns user chose to enforce vs allow
+- **CI integration status:** Track Playwright setup and workflow creation
+
+### Task Hierarchy
+```
+[Main Task] "Generate Mobile UX CI Tests"
+  └── [Infra Task] "Assess: testing infrastructure"
+  └── [App Task] "Explore: app structure and routes"
+  └── [Generate Task] "Generate: UX pattern tests"
+      └── [Pattern Task] "Pattern: hamburger menu (critical)"
+      └── [Pattern Task] "Pattern: small touch targets (critical)"
+      └── [Pattern Task] "Pattern: FAB detected (critical)"
+  └── [CI Task] "CI: workflow integration"
+```
+
+### Session Recovery Check
+**At the start of this skill, always check for existing tasks:**
+```
+1. Call TaskList to check for existing UX CI tasks
+2. If a "Generate Mobile UX CI Tests" task exists with status in_progress:
+   - Check its metadata for current phase
+   - Resume from that phase
+3. If pattern tasks exist with severity decisions:
+   - Use those decisions for test generation
+4. If no tasks exist, proceed with fresh execution
+```
+
 ## When to Use This Skill
 
 Use this skill when:
@@ -21,6 +55,34 @@ Use this skill when:
 ## Process
 
 ### Phase 1: Assess Current Testing Infrastructure [DELEGATE TO AGENT]
+
+**Create the main task:**
+```
+TaskCreate:
+- subject: "Generate Mobile UX CI Tests"
+- description: |
+    Create Playwright tests to detect iOS/mobile UX anti-patterns.
+    Tests will FAIL CI when anti-patterns are found.
+- activeForm: "Assessing testing infrastructure"
+
+TaskUpdate:
+- taskId: [main task ID]
+- status: "in_progress"
+```
+
+**Create infrastructure assessment task:**
+```
+TaskCreate:
+- subject: "Assess: testing infrastructure"
+- description: |
+    Exploring codebase for Playwright setup and existing tests.
+    Delegating to Explore agent.
+- activeForm: "Assessing infrastructure"
+
+TaskUpdate:
+- taskId: [infra task ID]
+- status: "in_progress"
+```
 
 **Purpose:** Explore the codebase to understand the current testing setup. Delegate this to an Explore agent to save context.
 
@@ -84,12 +146,49 @@ Task tool parameters:
     ```
 ```
 
-**After agent returns:** Based on the infrastructure report, ask the user their goal:
+**After agent returns:** Update task with findings:
+```
+TaskUpdate:
+- taskId: [infra task ID]
+- status: "completed"
+- metadata: {
+    "playwrightInstalled": true/false,
+    "playwrightVersion": "[version or N/A]",
+    "configFile": "[path or N/A]",
+    "testDirectory": "[path]",
+    "existingTestCount": [count],
+    "mobileTestsExist": true/false,
+    "recommendation": "add_to_existing|create_new|needs_setup"
+  }
+```
+
+Based on the infrastructure report, ask the user their goal:
 - **Add to existing**: Add UX pattern tests to existing Playwright setup
 - **Create new**: Set up Playwright and add UX pattern tests
 - **Audit only**: Generate a report of current anti-patterns without creating tests
 
+**Store user's choice in main task metadata:**
+```
+TaskUpdate:
+- taskId: [main task ID]
+- metadata: {"userGoal": "add_to_existing|create_new|audit_only"}
+```
+
 ### Phase 2: Understand the App [DELEGATE TO AGENT]
+
+**Create app exploration task:**
+```
+TaskCreate:
+- subject: "Explore: app structure and routes"
+- description: |
+    Exploring app to identify pages needing UX pattern testing.
+    Delegating to Explore agent.
+- activeForm: "Exploring app structure"
+
+TaskUpdate:
+- taskId: [app task ID]
+- status: "in_progress"
+```
 
 **Purpose:** Explore the app's structure to identify what pages/routes need UX pattern testing. Delegate this to an Explore agent to save context.
 
@@ -155,9 +254,62 @@ Task tool parameters:
     ```
 ```
 
-**After agent returns:** Use the app structure report to determine which pages to include in the UX pattern tests and how to set up test navigation.
+**After agent returns:** Update task with findings:
+```
+TaskUpdate:
+- taskId: [app task ID]
+- status: "completed"
+- metadata: {
+    "baseUrl": "[URL]",
+    "authRequired": true/false,
+    "entryPoint": "[route]",
+    "pagesToTest": ["Home", "Dashboard", "Settings", ...],
+    "primaryNavType": "tab_bar|sidebar|hamburger|other",
+    "dataTestidUsage": true/false
+  }
+```
+
+Use the app structure report to determine which pages to include in the UX pattern tests and how to set up test navigation.
 
 ### Phase 3: Generate UX Pattern Tests
+
+**Create generate task:**
+```
+TaskCreate:
+- subject: "Generate: UX pattern tests"
+- description: |
+    Generating Playwright tests for mobile UX anti-patterns.
+    Will create tests for navigation, touch targets, components, and layout.
+- activeForm: "Generating UX pattern tests"
+
+TaskUpdate:
+- taskId: [generate task ID]
+- status: "in_progress"
+```
+
+**Create a task for each anti-pattern category detected:**
+```
+TaskCreate:
+- subject: "Pattern: [pattern name] ([severity])"
+- description: |
+    Anti-pattern: [description]
+    Severity: critical|warning|info
+    Test: [what the test checks]
+    User decision: [enforce|allow|pending]
+- activeForm: "Checking [pattern name]"
+```
+
+Example pattern tasks:
+```
+TaskCreate:
+- subject: "Pattern: hamburger menu (critical)"
+- description: |
+    Anti-pattern: Hamburger menu for primary navigation
+    Severity: critical (should fail CI)
+    iOS apps use tab bars, not hamburger menus.
+    Test: Detect .hamburger-btn, [class*="hamburger"]
+- activeForm: "Checking hamburger menu"
+```
 
 Create a `mobile-ux-patterns.spec.ts` file with tests for:
 
@@ -204,6 +356,18 @@ Create a `mobile-ux-patterns.spec.ts` file with tests for:
 | Canvas gesture conflicts | `touch-action: none` on canvas |
 
 ### Phase 4: Test File Template
+
+**Update generate task with pattern counts:**
+```
+TaskUpdate:
+- taskId: [generate task ID]
+- metadata: {
+    "criticalPatterns": [count],
+    "warningPatterns": [count],
+    "infoPatterns": [count],
+    "totalTests": [count]
+  }
+```
 
 Generate a test file following this structure:
 
@@ -267,6 +431,31 @@ test.describe('Touch Target Sizes', () => {
 
 ### Phase 5: CI Integration
 
+**Mark generate task completed:**
+```
+TaskUpdate:
+- taskId: [generate task ID]
+- status: "completed"
+- metadata: {
+    "testFile": "e2e/mobile-ux-patterns.spec.ts",
+    "testsGenerated": [count]
+  }
+```
+
+**Create CI integration task:**
+```
+TaskCreate:
+- subject: "CI: workflow integration"
+- description: |
+    Setting up CI workflow to run mobile UX pattern tests.
+    Adding to existing workflow or creating new one.
+- activeForm: "Setting up CI workflow"
+
+TaskUpdate:
+- taskId: [ci task ID]
+- status: "in_progress"
+```
+
 Ensure tests run in CI by:
 
 1. Adding to existing Playwright CI workflow
@@ -291,15 +480,129 @@ jobs:
 
 ### Phase 6: Review with User
 
-Present:
+**Mark CI task completed:**
+```
+TaskUpdate:
+- taskId: [ci task ID]
+- status: "completed"
+- metadata: {
+    "workflowFile": "[path or 'added_to_existing']",
+    "ciConfigured": true
+  }
+```
+
+**Mark all pattern tasks with user decisions:**
+For each pattern task, update with user's severity decision:
+```
+TaskUpdate:
+- taskId: [pattern task ID]
+- status: "completed"
+- metadata: {"userDecision": "enforce|allow|warning_only"}
+```
+
+**Mark main task completed:**
+```
+TaskUpdate:
+- taskId: [main task ID]
+- status: "completed"
+- metadata: {
+    "testFile": "e2e/mobile-ux-patterns.spec.ts",
+    "criticalPatterns": [count],
+    "warningPatterns": [count],
+    "infoPatterns": [count],
+    "ciConfigured": true,
+    "pagesTestesed": [count]
+  }
+```
+
+**Generate summary from task data:**
+
+Call `TaskList` to get all pattern tasks and their metadata, then present:
+
 1. Summary of anti-patterns that will be detected
 2. Which tests will fail immediately (known issues)
 3. Which tests will pass (good patterns already in place)
+
+```
+## Mobile UX CI Tests Generated
+
+### Anti-Patterns Detected
+[Generated from pattern tasks:]
+- **Critical (will fail CI):** [count]
+  - Hamburger menu detected
+  - Touch targets < 44pt
+- **Warning (logged but passes):** [count]
+  - Native <select> elements
+- **Info (suggestions only):** [count]
+  - Heavy Material shadows
+
+### Test File
+- Path: e2e/mobile-ux-patterns.spec.ts
+- Tests: [count]
+- Pages covered: [list from app task]
+
+### CI Integration
+- Workflow: [path or status]
+- Runs on: push, pull_request
+```
 
 Ask user:
 - Should any anti-patterns be allowed temporarily?
 - Any additional patterns to check?
 - Ready to add to CI?
+
+## Session Recovery
+
+If resuming from an interrupted session:
+
+**Recovery decision tree:**
+```
+TaskList shows:
+├── Main task in_progress, no infra task
+│   └── Start from Phase 1 (assess infrastructure)
+├── Infra task completed, no app task
+│   └── Start from Phase 2 (explore app)
+├── App task in_progress
+│   └── Resume app exploration agent
+├── App task completed, no generate task
+│   └── Start from Phase 3 (generate tests)
+├── Generate task in_progress, pattern tasks exist
+│   └── Continue generating tests for remaining patterns
+├── Generate task completed, no CI task
+│   └── Start from Phase 5 (CI integration)
+├── CI task in_progress
+│   └── Resume CI setup
+├── Pattern tasks pending user decisions
+│   └── Present pattern severity choices to user
+├── Main task completed
+│   └── Generation done, show summary
+└── No tasks exist
+    └── Fresh start (Phase 1)
+```
+
+**Resuming with pending pattern decisions:**
+```
+1. Get all tasks with "Pattern:" prefix
+2. Check metadata for userDecision field
+3. If any patterns lack decisions:
+   "Found patterns needing severity decisions:
+    - Hamburger menu: [pending] - enforce/allow/warning?
+    - FAB detected: [pending] - enforce/allow/warning?
+   Please decide which anti-patterns should fail CI."
+4. Update pattern tasks with user decisions
+5. Regenerate tests with updated severity levels
+```
+
+**Always inform user when resuming:**
+```
+Resuming Mobile UX CI session:
+- Infrastructure: [status from infra task]
+- App explored: [pages from app task]
+- Patterns detected: [counts from pattern tasks]
+- Current state: [in_progress task description]
+- Pending: [any pattern decisions needed]
+- Resuming: [next action]
+```
 
 ## Anti-Pattern Reference
 
