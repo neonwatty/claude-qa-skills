@@ -7,6 +7,39 @@ description: Translates iOS workflow markdown files into Playwright E2E tests fo
 
 You are a senior QA automation engineer. Your job is to translate human-readable iOS workflow markdown files into Playwright E2E test files that can run in CI using WebKit with mobile viewport emulation.
 
+## Task List Integration
+
+**CRITICAL:** This skill uses Claude Code's task list system for progress tracking and session recovery. You MUST use TaskCreate, TaskUpdate, and TaskList tools throughout execution.
+
+### Why Task Lists Matter Here
+- **Coverage visibility:** User sees "5/7 workflows translatable, 72% CI coverage"
+- **Session recovery:** If interrupted during selector discovery, resume that phase
+- **Ambiguous selector resolution:** Block on selectors needing user input
+- **iOS Simulator tracking:** Clearly show which steps require real iOS vs WebKit
+
+### Task Hierarchy
+```
+[Main Task] "Translate iOS Workflows to Playwright"
+  └── [Parse Task] "Parse: 5 workflows from ios-workflows.md"
+  └── [Check Task] "Check: existing ios-mobile-workflows.spec.ts"
+  └── [Selector Task] "Selectors: finding mobile-specific selectors"
+  └── [Ambiguous Task] "Ambiguous: Step 2.3 - mobile vs desktop nav" (BLOCKING)
+  └── [Generate Task] "Generate: WebKit mobile tests"
+  └── [Write Task] "Write: e2e/ios-mobile-workflows.spec.ts"
+```
+
+### Session Recovery Check
+**At the start of this skill, always check for existing tasks:**
+```
+1. Call TaskList to check for existing translation tasks
+2. If a "Translate iOS Workflows" task exists with status in_progress:
+   - Check its metadata for current phase
+   - Resume from that phase
+3. If ambiguous selector tasks exist and are pending:
+   - These are BLOCKING - present to user for resolution
+4. If no tasks exist, proceed with fresh execution
+```
+
 ## The Translation Pipeline
 
 ```
@@ -42,6 +75,21 @@ Use when:
 
 ### Phase 1: Read and Parse Workflows
 
+**Create the main translation task:**
+```
+TaskCreate:
+- subject: "Translate iOS Workflows to Playwright"
+- description: |
+    Convert iOS workflow markdown to Playwright WebKit mobile tests.
+    Source: /workflows/ios-workflows.md
+    Target: e2e/ios-mobile-workflows.spec.ts
+- activeForm: "Reading iOS workflows"
+
+TaskUpdate:
+- taskId: [main task ID]
+- status: "in_progress"
+```
+
 1. Read `/workflows/ios-workflows.md`
 2. If file doesn't exist, inform user and stop
 3. Parse all workflows (each starts with `## Workflow:` or `### Workflow:`)
@@ -52,7 +100,45 @@ Use when:
    - `[MANUAL]` tagged steps
    - iOS-specific steps (gestures, permissions, etc.)
 
+**Create parse task with metadata:**
+```
+TaskCreate:
+- subject: "Parse: [N] workflows from ios-workflows.md"
+- description: |
+    Parsed iOS workflows for translation.
+    Workflows: [list names]
+    Total steps: [count]
+    iOS-specific: [count] steps
+    Manual steps: [count]
+- activeForm: "Parsing iOS workflows"
+
+TaskUpdate:
+- taskId: [parse task ID]
+- status: "completed"
+- metadata: {
+    "workflowCount": [N],
+    "totalSteps": [count],
+    "iosSpecificSteps": [count],
+    "manualSteps": [count],
+    "workflows": ["Workflow 1", "Workflow 2", ...]
+  }
+```
+
 ### Phase 2: Check for Existing Tests
+
+**Create check task:**
+```
+TaskCreate:
+- subject: "Check: existing ios-mobile-workflows.spec.ts"
+- description: |
+    Check for existing Playwright WebKit tests.
+    Looking for: e2e/ios-mobile-workflows.spec.ts
+- activeForm: "Checking existing tests"
+
+TaskUpdate:
+- taskId: [check task ID]
+- status: "in_progress"
+```
 
 1. Look for existing `e2e/ios-mobile-workflows.spec.ts`
 2. If exists, parse to find which workflows are translated
@@ -61,7 +147,36 @@ Use when:
    - Modified workflows → Update
    - Removed workflows → Ask user
 
+**Update check task with results:**
+```
+TaskUpdate:
+- taskId: [check task ID]
+- status: "completed"
+- metadata: {
+    "existingFile": true/false,
+    "existingWorkflows": ["Workflow 1", ...],
+    "newWorkflows": ["Workflow 3", ...],
+    "modifiedWorkflows": ["Workflow 1", ...],
+    "removedWorkflows": []
+  }
+```
+
 ### Phase 3: Explore Codebase for Selectors [DELEGATE TO AGENT]
+
+**Create selector task:**
+```
+TaskCreate:
+- subject: "Selectors: finding mobile-specific selectors"
+- description: |
+    Discovering Playwright selectors for iOS workflow steps.
+    Delegating to Explore agent for thorough codebase search.
+    Looking for mobile-specific components and touch handlers.
+- activeForm: "Finding mobile selectors"
+
+TaskUpdate:
+- taskId: [selector task ID]
+- status: "in_progress"
+```
 
 **Purpose:** For each workflow step, explore the codebase to find reliable selectors with mobile-specific considerations. Delegate this to an Explore agent to save context.
 
@@ -139,6 +254,52 @@ Task tool parameters:
 
 **After agent returns:** Use the selector mapping to generate accurate Playwright test code. Note mobile-specific considerations for each selector.
 
+**Update selector task with findings:**
+```
+TaskUpdate:
+- taskId: [selector task ID]
+- status: "completed"
+- metadata: {
+    "selectorsFound": [count],
+    "highConfidence": [count],
+    "mediumConfidence": [count],
+    "ambiguous": [count],
+    "missing": [count],
+    "mobileSpecific": [count]
+  }
+```
+
+**Handle ambiguous selectors (BLOCKING):**
+For each ambiguous selector, create a blocking task that requires user resolution:
+```
+TaskCreate:
+- subject: "Ambiguous: Step [N.M] - [element description]"
+- description: |
+    BLOCKING: This selector needs user input.
+
+    Step: [step description]
+    Options found:
+    1. [selector option 1] - [context]
+    2. [selector option 2] - [context]
+
+    Which selector should be used for mobile?
+- activeForm: "Awaiting selector choice"
+
+# DO NOT mark as in_progress - leave as pending to indicate blocking
+```
+
+**IMPORTANT:** If any ambiguous tasks are created:
+1. Present all ambiguous selectors to user at once
+2. Wait for user to resolve each one
+3. Update tasks with user's choices:
+```
+TaskUpdate:
+- taskId: [ambiguous task ID]
+- status: "completed"
+- metadata: {"selectedSelector": "[user's choice]", "reasoning": "[user's notes]"}
+```
+4. Only proceed to Phase 4 after ALL ambiguous tasks are resolved
+
 ### Phase 4: Map Actions to Playwright (Mobile)
 
 | Workflow Language | Playwright Code |
@@ -212,6 +373,22 @@ test.skip('Step N: [description]', async () => {
 
 ### Phase 6: Generate Test File [DELEGATE TO AGENT]
 
+**Create generate task:**
+```
+TaskCreate:
+- subject: "Generate: WebKit mobile tests"
+- description: |
+    Generating Playwright WebKit mobile test file.
+    Delegating to code generation agent.
+    Workflows: [count]
+    Selectors resolved: [count]
+- activeForm: "Generating mobile tests"
+
+TaskUpdate:
+- taskId: [generate task ID]
+- status: "in_progress"
+```
+
 **Purpose:** Generate the Playwright WebKit mobile test file from the parsed workflows and selector mapping. Delegate to an agent for focused code generation.
 
 **Use the Task tool to spawn a code generation agent:**
@@ -278,6 +455,36 @@ Task tool parameters:
 ```
 
 **After agent returns:** Write the generated test file to `e2e/ios-mobile-workflows.spec.ts`. Review coverage summary with user.
+
+**Update generate task with coverage metrics:**
+```
+TaskUpdate:
+- taskId: [generate task ID]
+- status: "completed"
+- metadata: {
+    "totalWorkflows": [count],
+    "totalTests": [count],
+    "webkitTranslatable": [count],
+    "iosSimulatorOnly": [count],
+    "coverage": "[percentage]%"
+  }
+```
+
+**Create write task:**
+```
+TaskCreate:
+- subject: "Write: e2e/ios-mobile-workflows.spec.ts"
+- description: |
+    Writing generated Playwright WebKit mobile tests.
+    File: e2e/ios-mobile-workflows.spec.ts
+    Tests: [count]
+    Coverage: [percentage]% CI-runnable
+- activeForm: "Writing test file"
+
+TaskUpdate:
+- taskId: [write task ID]
+- status: "in_progress"
+```
 
 Create `e2e/ios-mobile-workflows.spec.ts`:
 
@@ -399,7 +606,31 @@ Same as browser skill:
 
 ### Phase 9: Review with User
 
-Show translation summary:
+**Mark write task completed:**
+```
+TaskUpdate:
+- taskId: [write task ID]
+- status: "completed"
+- metadata: {"filePath": "e2e/ios-mobile-workflows.spec.ts", "fileWritten": true}
+```
+
+**Mark main task completed:**
+```
+TaskUpdate:
+- taskId: [main task ID]
+- status: "completed"
+- metadata: {
+    "workflowsTranslated": [count],
+    "totalTests": [count],
+    "webkitCoverage": "[percentage]%",
+    "iosSimulatorOnly": [count],
+    "outputFile": "e2e/ios-mobile-workflows.spec.ts"
+  }
+```
+
+**Generate summary from task data:**
+
+Call `TaskList` to get all tasks and their metadata, then generate:
 
 ```
 iOS Workflows to translate: 5
@@ -416,6 +647,67 @@ Workflow: Canvas Manipulation
 
 Coverage: 72% of steps can run in CI
 Remaining 28% require ios-workflow-executor for full testing
+
+## Task Summary
+[Generated from task metadata:]
+- Workflows parsed: [from parse task]
+- Selectors found: [from selector task]
+- Ambiguous resolved: [count from ambiguous tasks]
+- Tests generated: [from generate task]
+- File written: [from write task]
+```
+
+## Session Recovery
+
+If resuming from an interrupted session:
+
+**Recovery decision tree:**
+```
+TaskList shows:
+├── Main task in_progress, no parse task
+│   └── Start from Phase 1 (read workflows)
+├── Parse task completed, no check task
+│   └── Start from Phase 2 (check existing tests)
+├── Check task completed, no selector task
+│   └── Start from Phase 3 (selector discovery)
+├── Selector task in_progress
+│   └── Resume selector discovery agent
+├── Ambiguous tasks pending (not completed)
+│   └── BLOCKING: Present to user for resolution
+├── Selector task completed, no generate task
+│   └── Start from Phase 6 (generate tests)
+├── Generate task in_progress
+│   └── Resume code generation agent
+├── Generate task completed, no write task
+│   └── Start from Phase 9 (write file)
+├── Main task completed
+│   └── Translation done, show summary
+└── No tasks exist
+    └── Fresh start (Phase 1)
+```
+
+**Resuming with ambiguous selectors:**
+```
+1. Get all tasks with "Ambiguous:" prefix
+2. Filter to status: "pending" (not yet resolved)
+3. Present each to user:
+   "Found unresolved selector choices from previous session:
+    - Step 2.3: bottom-nav vs tab-bar
+    - Step 4.1: .mobile-menu vs .hamburger-menu
+   Please select the correct selector for each."
+4. Update each task as user resolves them
+5. Only continue to generation when all resolved
+```
+
+**Always inform user when resuming:**
+```
+Resuming iOS workflow translation session:
+- Source: /workflows/ios-workflows.md
+- Target: e2e/ios-mobile-workflows.spec.ts
+- Workflows: [count from parse task metadata]
+- Current state: [in_progress task description]
+- Pending: [any blocking ambiguous tasks]
+- Resuming: [next action]
 ```
 
 ## iOS-Specific Considerations

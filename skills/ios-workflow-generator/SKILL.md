@@ -9,9 +9,58 @@ You are a senior QA engineer tasked with creating comprehensive workflow documen
 
 **Important:** This skill is for testing web apps (React, Vue, HTML/CSS/JS, etc.) running in Safari on the iOS Simulator. These web apps are intended to become **PWAs or wrapped native apps** (via Capacitor, Tauri, Electron, etc.) and should feel **indistinguishable from native iOS apps**. The UX bar is native iOS quality, not just "mobile-friendly web."
 
+## Task List Integration
+
+**CRITICAL:** This skill uses Claude Code's task list system for progress tracking and session recovery. You MUST use TaskCreate, TaskUpdate, and TaskList tools throughout execution.
+
+### Why Task Lists Matter Here
+- **Parallel agent tracking:** Monitor 3 exploration agents completing simultaneously
+- **Progress visibility:** User sees "Exploring: 2/3 agents complete"
+- **Session recovery:** If interrupted, know which agents finished and what they found
+- **Iteration tracking:** Track multiple approval rounds with user
+- **iOS-specific tracking:** Record iOS anti-patterns found, HIG compliance checks
+
+### Task Hierarchy
+```
+[Main Task] "Generate: iOS Workflows"
+  └── [Explore Task] "Explore: Pages & Navigation" (agent)
+  └── [Explore Task] "Explore: UI Components & Interactions" (agent)
+  └── [Explore Task] "Explore: Data & State" (agent)
+  └── [Research Task] "Research: iOS HIG Conventions" (agent)
+  └── [Generate Task] "Generate: Workflow Drafts"
+  └── [Approval Task] "Approval: User Review #1"
+  └── [Write Task] "Write: ios-workflows.md"
+```
+
+### Session Recovery Check
+**At the start of this skill, always check for existing tasks:**
+```
+1. Call TaskList to check for existing iOS workflow generator tasks
+2. If a "Generate: iOS Workflows" task exists with status in_progress:
+   - Check which exploration tasks completed (read their metadata for findings)
+   - Check if iOS HIG research completed
+   - Check if drafts were generated
+   - Resume from appropriate phase
+3. If no tasks exist, proceed with fresh execution
+```
+
 ## Process
 
 ### Phase 1: Assess Current State
+
+**Create the main iOS workflow generator task:**
+```
+TaskCreate:
+- subject: "Generate: iOS Workflows"
+- description: |
+    Generate comprehensive iOS workflow documentation for Safari testing.
+    Starting: assess current state
+- activeForm: "Assessing current state"
+
+TaskUpdate:
+- taskId: [main task ID]
+- status: "in_progress"
+```
 
 1. Check if `/workflows/ios-workflows.md` already exists
 2. If it exists, read it and note:
@@ -24,9 +73,46 @@ You are a senior QA engineer tasked with creating comprehensive workflow documen
    - **Refactor:** Reorganize or improve existing workflows
    - **Audit:** Check existing workflows against current app state
 
+**Update task with assessment results:**
+```
+TaskUpdate:
+- taskId: [main task ID]
+- metadata: {
+    "existingFile": true/false,
+    "existingWorkflowCount": [N],
+    "userGoal": "create" | "update" | "refactor" | "audit"
+  }
+```
+
 ### Phase 2: Explore the Web Application [DELEGATE TO AGENTS]
 
 **Purpose:** Thoroughly understand the web app by launching multiple Explore agents in parallel. This saves context and allows comprehensive codebase exploration.
+
+**Create exploration tasks before spawning agents:**
+```
+TaskCreate (3 tasks in parallel):
+
+Task 1:
+- subject: "Explore: Pages & Navigation"
+- description: "Find all pages, navigation patterns, and entry points"
+- activeForm: "Exploring pages"
+
+Task 2:
+- subject: "Explore: UI Components & Interactions"
+- description: "Find all interactive UI components and touch interactions"
+- activeForm: "Exploring components"
+
+Task 3:
+- subject: "Explore: Data & State"
+- description: "Understand data model and user CRUD actions"
+- activeForm: "Exploring data model"
+
+Then for each:
+TaskUpdate:
+- taskId: [explore task ID]
+- addBlockedBy: [main task ID]  # Links to main task
+- status: "in_progress"
+```
 
 **Use the Task tool to spawn three agents in parallel (all in a single message):**
 
@@ -174,12 +260,46 @@ Task tool parameters:
     ```
 ```
 
+**After each agent returns, update its task:**
+```
+TaskUpdate:
+- taskId: [explore task ID]
+- status: "completed"
+- metadata: {
+    "pagesFound": [count],           # For pages agent
+    "componentsFound": [count],      # For components agent
+    "touchInteractions": [count],    # For components agent
+    "entitiesFound": [count],        # For data agent
+    "summary": "[brief summary of findings]"
+  }
+```
+
 **After all agents return:** Synthesize findings into a feature inventory:
 - List all user-facing pages/views
 - Group by section of the app
 - Note the base URL and navigation paths
 
+**Update main task with exploration summary:**
+```
+TaskUpdate:
+- taskId: [main task ID]
+- metadata: {
+    "explorationComplete": true,
+    "pagesFound": [total],
+    "componentsFound": [total],
+    "entitiesFound": [total],
+    "baseUrl": "[discovered URL]"
+  }
+```
+
 ### Phase 3: Identify User Journeys
+
+**Update main task for journey identification phase:**
+```
+TaskUpdate:
+- taskId: [main task ID]
+- activeForm: "Identifying user journeys"
+```
 
 Based on exploration, identify key user journeys:
 
@@ -199,9 +319,36 @@ Based on exploration, identify key user journeys:
 - Offline behavior
 - Permission requests (camera, location, notifications)
 
+**Update main task with journey counts:**
+```
+TaskUpdate:
+- taskId: [main task ID]
+- metadata: {
+    "coreJourneys": [count],
+    "featureJourneys": [count],
+    "edgeCaseJourneys": [count],
+    "totalWorkflows": [total]
+  }
+```
+
 ### Phase 4: Research UX Conventions [DELEGATE TO AGENT]
 
 **Purpose:** For each major screen type identified, research what good iOS UX looks like. The app should feel indistinguishable from a native iOS app. Delegate this to an agent to save context.
+
+**Create iOS HIG research task:**
+```
+TaskCreate:
+- subject: "Research: iOS HIG Conventions"
+- description: |
+    Research iOS Human Interface Guidelines conventions for identified screen types.
+    Screen types: [list from Phase 3]
+- activeForm: "Researching iOS conventions"
+
+TaskUpdate:
+- taskId: [research task ID]
+- addBlockedBy: [main task ID]
+- status: "in_progress"
+```
 
 **Use the Task tool to spawn a UX research agent:**
 
@@ -269,9 +416,37 @@ Task tool parameters:
     - Material Design styled inputs
 ```
 
-**After agent returns:** Include iOS UX expectations in workflows so the executor knows what to verify for each screen type.
+**After agent returns:**
+```
+TaskUpdate:
+- taskId: [research task ID]
+- status: "completed"
+- metadata: {
+    "screenTypesResearched": [count],
+    "iosConventionsDocumented": [count],
+    "antiPatternsIdentified": [count],
+    "referenceAppsCompared": ["Airbnb", "Spotify", "Instagram"]
+  }
+```
+
+Include iOS UX expectations in workflows so the executor knows what to verify for each screen type.
 
 ### Phase 5: Generate Workflows
+
+**Create workflow generation task:**
+```
+TaskCreate:
+- subject: "Generate: Workflow Drafts"
+- description: |
+    Generate [N] iOS workflow drafts based on exploration and HIG research.
+    Core: [count], Feature: [count], Edge Case: [count]
+- activeForm: "Generating iOS workflow drafts"
+
+TaskUpdate:
+- taskId: [generate task ID]
+- addBlockedBy: [main task ID]
+- status: "in_progress"
+```
 
 For each journey, create a workflow with this structure:
 
@@ -299,6 +474,28 @@ For each journey, create a workflow with this structure:
 - Include wait conditions where animations or loading matters
 
 ### Phase 6: Organize & Draft
+
+**Mark generation task as complete:**
+```
+TaskUpdate:
+- taskId: [generate task ID]
+- status: "completed"
+- metadata: {
+    "workflowsGenerated": [count],
+    "totalSteps": [count],
+    "coreWorkflows": [list of names],
+    "featureWorkflows": [list of names],
+    "edgeCaseWorkflows": [list of names],
+    "iosHigChecksIncluded": true
+  }
+```
+
+**Update main task for organization phase:**
+```
+TaskUpdate:
+- taskId: [main task ID]
+- activeForm: "Organizing iOS workflows"
+```
 
 Structure the document:
 
@@ -340,11 +537,28 @@ Structure the document:
 
 **This step is mandatory. Do not write the final file without user approval.**
 
+**Create approval task:**
+```
+TaskCreate:
+- subject: "Approval: User Review #1"
+- description: |
+    Present iOS workflows to user for approval.
+    Workflows: [count]
+    Awaiting user decision.
+- activeForm: "Awaiting user approval"
+
+TaskUpdate:
+- taskId: [approval task ID]
+- addBlockedBy: [main task ID]
+- status: "in_progress"
+```
+
 After generating the workflows, use `AskUserQuestion` to get explicit approval:
 
 1. **Present a summary** to the user:
    - Total workflows generated (list each by name)
    - Screens/features covered
+   - iOS HIG checks included
    - Any gaps or areas you couldn't fully cover
    - Anything that needs manual verification
 
@@ -353,12 +567,43 @@ After generating the workflows, use `AskUserQuestion` to get explicit approval:
    - Provide options: Approve / Add more workflows / Modify existing / Start over
 
 3. **If user wants additions or changes:**
+
+   **Update approval task as needing changes:**
+   ```
+   TaskUpdate:
+   - taskId: [approval task ID]
+   - subject: "Approval: User Review #1 - changes requested"
+   - status: "completed"
+   - metadata: {"decision": "changes_requested", "feedback": "[user feedback]"}
+   ```
+
+   **Create new approval task for next round:**
+   ```
+   TaskCreate:
+   - subject: "Approval: User Review #2"
+   - description: |
+       Second review round after changes.
+       Changes made: [list of changes]
+   - activeForm: "Awaiting user approval (round 2)"
+   ```
+
    - Ask specifically what workflows to add or modify
    - Generate the additional/modified workflows
    - Return to step 1 and present updated summary
    - Repeat until user approves
 
-4. **Only after explicit approval**, write to `/workflows/ios-workflows.md`
+4. **Only after explicit approval:**
+
+   **Update approval task as approved:**
+   ```
+   TaskUpdate:
+   - taskId: [approval task ID]
+   - subject: "Approval: User Review #[N] - approved ✅"
+   - status: "completed"
+   - metadata: {"decision": "approved", "reviewRounds": [N]}
+   ```
+
+   Write to `/workflows/ios-workflows.md`
 
 **Example AskUserQuestion usage:**
 
@@ -369,6 +614,113 @@ Options:
 - "Add more workflows"
 - "Modify some workflows"
 - "Let me describe what's missing"
+```
+
+### Phase 8: Write File and Complete
+
+**Create write task:**
+```
+TaskCreate:
+- subject: "Write: ios-workflows.md"
+- description: "Write approved iOS workflows to file"
+- activeForm: "Writing iOS workflow file"
+
+TaskUpdate:
+- taskId: [write task ID]
+- status: "in_progress"
+```
+
+**Write the file to `/workflows/ios-workflows.md`**
+
+**Mark write task as complete:**
+```
+TaskUpdate:
+- taskId: [write task ID]
+- status: "completed"
+- metadata: {"outputPath": "/workflows/ios-workflows.md", "workflowCount": [N]}
+```
+
+**Mark main task as complete:**
+```
+TaskUpdate:
+- taskId: [main task ID]
+- status: "completed"
+- metadata: {
+    "outputPath": "/workflows/ios-workflows.md",
+    "workflowCount": [N],
+    "reviewRounds": [N],
+    "explorationAgents": 3,
+    "iosHigResearch": true,
+    "baseUrl": "[URL]"
+  }
+```
+
+**Final summary from task data:**
+```
+## iOS Workflows Generated
+
+**File:** /workflows/ios-workflows.md
+**Workflows:** [count from task metadata]
+**Review rounds:** [count from approval task metadata]
+**Base URL:** [from main task metadata]
+
+### Exploration Summary
+- Pages found: [from explore task metadata]
+- UI components found: [from explore task metadata]
+- Data entities: [from explore task metadata]
+
+### iOS HIG Research
+- Screen types researched: [from research task metadata]
+- Conventions documented: [from research task metadata]
+- Anti-patterns to check: [from research task metadata]
+
+### Workflows Created
+[List from generate task metadata]
+
+The workflows are ready to be executed with the ios-workflow-executor skill.
+```
+
+### Session Recovery
+
+If resuming from an interrupted session:
+
+**Recovery decision tree:**
+```
+TaskList shows:
+├── Main task in_progress, no explore tasks
+│   └── Start Phase 2 (exploration)
+├── Main task in_progress, some explore tasks completed
+│   └── Check which agents finished, spawn remaining
+├── Main task in_progress, all explore tasks completed, no research task
+│   └── Start Phase 4 (iOS HIG research)
+├── Main task in_progress, research completed, no generate task
+│   └── Start Phase 5 (generate workflows)
+├── Main task in_progress, generate completed, no approval task
+│   └── Start Phase 7 (user review)
+├── Main task in_progress, approval task in_progress
+│   └── Present summary to user again
+├── Main task in_progress, approval completed (approved), no write task
+│   └── Start Phase 8 (write file)
+├── Main task completed
+│   └── Show final summary
+└── No tasks exist
+    └── Fresh start (Phase 1)
+```
+
+**Resuming with partial exploration:**
+If some exploration agents completed but others didn't:
+1. Read completed agent findings from task metadata
+2. Spawn only the missing agents
+3. Combine all findings when all complete
+
+**Always inform user when resuming:**
+```
+Resuming iOS workflow generation session:
+- Exploration: [N]/3 agents complete
+- iOS HIG Research: [complete/pending]
+- Workflows generated: [count or "pending"]
+- Approval: [status]
+- Resuming: [next action]
 ```
 
 ## Workflow Writing Standards
