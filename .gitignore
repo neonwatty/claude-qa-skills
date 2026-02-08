@@ -4,3 +4,9 @@ node_modules/
 # Local development
 .claude/
 mockups/
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Mobile workflow config (may contain credentials)
+workflows/mobile-config.json
