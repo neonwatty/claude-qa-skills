@@ -25,6 +25,13 @@ Skills for [Claude Code](https://claude.ai/code) that leverage browser automatio
 | **browser-workflow-executor** | "run browser workflows" | Executes workflows via Chrome MCP |
 | **ios-workflow-generator** | "generate ios workflows" | Explores iOS app, creates workflow docs |
 | **ios-workflow-executor** | "run ios workflows" | Executes workflows via iOS Simulator MCP |
+| **ios-workflow-to-playwright** | "convert ios workflows to playwright" | Converts iOS workflows to WebKit mobile Playwright tests |
+| **browser-workflow-to-playwright** | "convert workflows to playwright" | Converts browser workflows to Playwright E2E tests |
+| **mobile-ux-ci** | "add mobile ux checks" | Generates Playwright tests that detect iOS/mobile UX anti-patterns |
+| **mobile-browser-workflow-generator** | "generate mobile browser workflows" | Explores codebase, creates mobile workflow docs with iOS HIG focus |
+| **mobile-browser-workflow-executor** | "run mobile browser workflows" | Executes workflows in Playwright mobile viewport (393x852) |
+| **mobile-browser-workflow-to-playwright** | "convert mobile workflows to playwright" | Converts mobile workflows to Chromium mobile CI tests |
+| **mobile-browser-workflow-orchestrator** | "run mobile workflow pipeline" | Chains generator → executor → converter with config management |
 
 ## Local Development
 
@@ -41,4 +48,5 @@ Don't install the plugin in projects where you're actively developing it—the i
 
 - **Browser skills**: Claude-in-Chrome MCP
 - **iOS skills**: iOS Simulator MCP
+- **Mobile browser skills**: Playwright MCP (primary), Claude-in-Chrome MCP (alternative)
 - **PR creator**: [GitHub CLI](https://cli.github.com/) (`gh`)
