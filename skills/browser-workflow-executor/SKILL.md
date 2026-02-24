@@ -126,7 +126,14 @@ For each numbered step in the workflow:
    - "Drag [element]" → `computer` with `left_click_drag`
    - "Scroll [direction]" → `computer` with `scroll`
    - "Wait [seconds]" → `computer` with `wait`
-3. **Screenshot** after each action using `computer` with `action: screenshot`
+3. **Screenshot** after each major step:
+   - Use `computer` with `action: screenshot` to capture the current state
+   - **Save screenshots to disk** using `gif_creator` or by writing base64 data via Bash:
+     ```
+     Save to: workflows/screenshots/browser-audit/wfNN-stepNN.png
+     ```
+   - Use the naming convention: `wf{workflow_number:02d}-step{step_number:02d}.png`
+   - These files will be embedded in the HTML audit report
 4. **Observe** and note:
    - Did it work as expected?
    - Any UI/UX issues? (confusing labels, poor contrast, slow response)
@@ -284,33 +291,57 @@ Task tool parameters:
 4. This ensures findings are preserved even if session is interrupted
 5. Continue to next workflow after recording
 
-### Phase 6: Generate Audit Report
+### Phase 6: Generate Audit Report (HTML with Screenshots)
 
-After completing all workflows (or when user requests), consolidate findings into a summary report:
+After completing all workflows (or when user requests), generate an HTML audit report with embedded screenshots.
+
+**CRITICAL:** The audit report MUST be HTML (not just markdown) and MUST embed screenshots from Phase 3. This is the primary deliverable.
 
 **Create audit report task:**
 ```
 TaskCreate:
-- subject: "Generate: Audit Report"
-- description: "Consolidate all workflow findings into summary report"
-- activeForm: "Generating audit report"
+- subject: "Generate: HTML Audit Report"
+- description: "Generate HTML report with screenshots for all workflow results"
+- activeForm: "Generating HTML audit report"
 
 TaskUpdate:
 - taskId: [report task ID]
 - status: "in_progress"
 ```
 
-**Generate the report:**
+**Generate the HTML report:**
 1. Call `TaskList` to get summary of all workflow and issue tasks
 2. Read `.claude/plans/browser-workflow-findings.md` for detailed findings
-3. Write consolidated report to `.claude/plans/browser-workflow-report.md`
-4. Include:
-   - Overall statistics from task metadata (workflows completed, issues found)
-   - Prioritized issues list (from issue tasks)
-   - Recommendations
+3. Write HTML report to `workflows/browser-audit-report.html`
 
-**Present findings to user:**
-Display a summary using task data:
+**HTML Report Structure:**
+```html
+<!-- Required sections: -->
+<h1>Browser Workflow Audit Report</h1>
+<p>Date: [timestamp] | Environment: [URL]</p>
+
+<!-- Summary table -->
+<table>
+  <tr><th>#</th><th>Workflow</th><th>Status</th><th>Steps</th><th>Notes</th></tr>
+  <!-- One row per workflow with PASS/FAIL/SKIP badge -->
+</table>
+
+<!-- Per-workflow detail sections -->
+<h2>Workflow N: [Name]</h2>
+<p>Status: PASS/FAIL/SKIP</p>
+<h3>Steps</h3>
+<ol>
+  <li>Step description — PASS/FAIL
+    <br><img src="screenshots/browser-audit/wfNN-stepNN.png" style="max-width:800px; border:1px solid #ddd; border-radius:8px; margin:8px 0;">
+  </li>
+</ol>
+```
+
+4. **Every workflow section MUST include `<img>` tags** referencing the screenshots saved during Phase 3. Use relative paths: `screenshots/browser-audit/wfNN-stepNN.png`
+5. Style with clean design, professional appearance, app accent color
+6. Update the HTML file **incrementally after EACH workflow** so partial results are always viewable
+
+**Also present a text summary to the user:**
 ```
 ## Audit Complete
 
@@ -320,10 +351,7 @@ Display a summary using task data:
   - Medium severity: [count]
   - Low severity: [count]
 
-**Issues:**
-1. [Issue subject] (High) - [workflow name]
-2. [Issue subject] (Med) - [workflow name]
-...
+**Report:** workflows/browser-audit-report.html
 
 What would you like to do?
 - "fix all" - Fix all issues
