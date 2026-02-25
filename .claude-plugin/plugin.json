@@ -1,9 +1,9 @@
 {
-  "name": "claude-skills",
-  "description": "Reusable skills for validation, PR creation, workflow testing, and feature planning",
+  "name": "claude-qa-skills",
+  "description": "Claude Code QA testing pipeline — generate workflows, execute them, convert to Playwright CI tests",
   "version": "1.0.0",
   "author": {
     "name": "neonwatty"
   },
-  "repository": "https://github.com/neonwatty/claude-skills"
+  "repository": "https://github.com/neonwatty/claude-qa-skills"
 }

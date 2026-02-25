@@ -1,8 +1,8 @@
 {
-  "name": "claude-skills",
+  "name": "claude-qa-skills",
   "version": "1.0.0",
   "private": true,
-  "description": "Claude Code skills for workflow generation and execution",
+  "description": "Claude Code QA testing pipeline — generate workflows, execute them, convert to Playwright CI tests",
   "scripts": {
     "validate": "npm run validate:md && npm run validate:skills && npm run validate:links",
     "validate:md": "npx markdownlint-cli2 'skills/**/*.md' 'README.md'",

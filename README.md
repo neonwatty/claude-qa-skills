@@ -1,52 +1,101 @@
-# Claude Code Skills Plugin
+# Claude QA Skills
 
-Skills for [Claude Code](https://claude.ai/code) that leverage browser automation, iOS Simulator control, and interactive questioning.
+QA testing pipeline for [Claude Code](https://claude.ai/code) — generate user workflows, execute them with browser/iOS/mobile automation, and convert to Playwright CI tests.
 
 ## Installation
 
 ```bash
-# 1. Add the marketplace
-/plugin marketplace add neonwatty/claude-skills
+# Add the marketplace
+/plugin marketplace add neonwatty/claude-qa-skills
 
-# 2. Install to your project
-/plugin install claude-skills@claude-skills --scope project
+# Install to your project
+/plugin install claude-qa-skills@claude-qa-skills --scope project
 ```
+
+## The Pipeline
+
+```
+Generate → Execute → Playwright
+```
+
+1. **Generate** — Explore your codebase and create comprehensive user workflow documents
+2. **Execute** — Run each workflow step-by-step with browser, iOS, or mobile automation, capture screenshots, generate HTML reports
+3. **Playwright** — Convert refined workflows into Playwright E2E tests for CI
+
+Each stage works across three platforms: desktop browser, iOS Safari, and mobile browser (Chromium).
 
 ## Skills
 
+### Browser (Desktop)
+
 | Skill | Trigger | Description |
 |-------|---------|-------------|
-| **validator** | "validate", "run checks" | Auto-detects project type, runs linting/tests/type checking |
-| **pr-creator** | "create pr" | Commits, creates PR, monitors CI until green |
-| **feature-interview** | "new feature", "plan a feature" | Deep Q&A about requirements, writes implementation plan |
-| **bug-interview** | "found a bug", "let's work on this bug" | Systematic bug diagnosis, writes investigation plan |
-| **think-through** | "think through", "help me think about" | Socratic exploration of technical ideas (apps, products, tools) |
-| **browser-workflow-generator** | "generate browser workflows" | Explores codebase, creates user workflow docs |
-| **browser-workflow-executor** | "run browser workflows" | Executes workflows via Chrome MCP |
-| **ios-workflow-generator** | "generate ios workflows" | Explores iOS app, creates workflow docs |
-| **ios-workflow-executor** | "run ios workflows" | Executes workflows via iOS Simulator MCP |
-| **ios-workflow-to-playwright** | "convert ios workflows to playwright" | Converts iOS workflows to WebKit mobile Playwright tests |
-| **browser-workflow-to-playwright** | "convert workflows to playwright" | Converts browser workflows to Playwright E2E tests |
-| **mobile-ux-ci** | "add mobile ux checks" | Generates Playwright tests that detect iOS/mobile UX anti-patterns |
+| **browser-workflow-generator** | "generate browser workflows" | Explores codebase, discovers all routes and interactions, creates numbered workflow docs |
+| **browser-workflow-executor** | "run browser workflows" | Executes workflows via Claude-in-Chrome MCP, captures before/after screenshots, generates HTML reports |
+| **browser-workflow-to-playwright** | "convert workflows to playwright" | Translates workflow markdown into Playwright E2E tests for CI |
+
+### iOS (Mobile Safari)
+
+| Skill | Trigger | Description |
+|-------|---------|-------------|
+| **ios-workflow-generator** | "generate ios workflows" | Explores web app for iOS Safari, creates mobile-specific workflow docs |
+| **ios-workflow-executor** | "run ios workflows" | Executes workflows in iOS Simulator Safari, captures screenshots, generates HTML reports |
+| **ios-workflow-to-playwright** | "convert ios workflows to playwright" | Translates iOS workflows into Playwright tests using WebKit with mobile viewport |
+
+### Mobile Browser (Chromium)
+
+| Skill | Trigger | Description |
+|-------|---------|-------------|
 | **mobile-browser-workflow-generator** | "generate mobile browser workflows" | Explores codebase, creates mobile workflow docs with iOS HIG focus |
 | **mobile-browser-workflow-executor** | "run mobile browser workflows" | Executes workflows in Playwright mobile viewport (393x852) |
 | **mobile-browser-workflow-to-playwright** | "convert mobile workflows to playwright" | Converts mobile workflows to Chromium mobile CI tests |
-| **mobile-browser-workflow-orchestrator** | "run mobile workflow pipeline" | Chains generator → executor → converter with config management |
+| **mobile-browser-workflow-orchestrator** | "run mobile workflow pipeline" | Chains generator, executor, and converter with config management |
 
-## Local Development
+### Mobile UX
 
-If you're iterating on these skills locally:
+| Skill | Trigger | Description |
+|-------|---------|-------------|
+| **mobile-ux-ci** | "add mobile ux checks" | Generates Playwright tests that detect iOS/mobile UX anti-patterns (hamburger menus, small touch targets, FABs) |
+
+## Workflow
+
+A typical QA cycle looks like:
 
 ```bash
-# Load local version instead of cached plugin
-claude --plugin-dir /path/to/claude-skills
-```
+# 1. Generate workflows from your codebase
+"generate browser workflows"
 
-Don't install the plugin in projects where you're actively developing it—the installed version is cached and won't reflect your local changes until pushed.
+# 2. Execute and test them (fix issues found)
+"run browser workflows"
+
+# 3. Promote to CI tests
+"convert workflows to playwright"
+
+# Repeat for iOS
+"generate ios workflows"
+"run ios workflows"
+"convert ios workflows to playwright"
+
+# Or use the mobile orchestrator for the full pipeline
+"run mobile workflow pipeline"
+```
 
 ## Requirements
 
 - **Browser skills**: Claude-in-Chrome MCP
 - **iOS skills**: iOS Simulator MCP
 - **Mobile browser skills**: Playwright MCP (primary), Claude-in-Chrome MCP (alternative)
-- **PR creator**: [GitHub CLI](https://cli.github.com/) (`gh`)
+
+## Local Development
+
+```bash
+# Load local version instead of cached plugin
+claude --plugin-dir /path/to/claude-qa-skills
+```
+
+Don't install the plugin in projects where you're actively developing it — the installed version is cached and won't reflect your local changes until pushed.
+
+## Related Plugins
+
+- [claude-dev-skills](https://github.com/neonwatty/claude-dev-skills) — Developer workflow automation (validation, PR creation)
+- [claude-interview-skills](https://github.com/neonwatty/claude-interview-skills) — Structured interviews for feature planning and bug diagnosis
