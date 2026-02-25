@@ -22,9 +22,10 @@ Skills for [Claude Code](https://claude.ai/code) that leverage browser automatio
 | **bug-interview** | "found a bug", "let's work on this bug" | Systematic bug diagnosis, writes investigation plan |
 | **think-through** | "think through", "help me think about" | Socratic exploration of technical ideas (apps, products, tools) |
 | **browser-workflow-generator** | "generate browser workflows" | Explores codebase, creates user workflow docs |
-| **browser-workflow-executor** | "run browser workflows" | Executes workflows via Chrome MCP |
+| **browser-workflow-executor** | "run browser workflows" | Executes workflows via Chrome MCP, generates before/after screenshot report |
 | **ios-workflow-generator** | "generate ios workflows" | Explores iOS app, creates workflow docs |
-| **ios-workflow-executor** | "run ios workflows" | Executes workflows via iOS Simulator MCP |
+| **ios-workflow-executor** | "run ios workflows" | Executes workflows via iOS Simulator MCP, generates before/after screenshot report |
+| **mobile-browser-workflow-executor** | "run mobile browser workflows" | Executes workflows in mobile viewport via Chrome MCP, generates before/after screenshot report |
 
 ## Local Development
 
