@@ -287,6 +287,42 @@ TaskUpdate(
 
 ---
 
+### Phase 2.5: Capture Before State
+
+**Purpose:** Capture the pristine app state before any workflow steps execute, for a holistic before/after comparison of the overall transformation.
+
+**Create before-state capture task:**
+```
+TaskCreate:
+- subject: "Capture: before state for all workflows"
+- description: "Screenshot each workflow's starting page in mobile viewport before any steps execute"
+- activeForm: "Capturing before state"
+
+TaskUpdate:
+- taskId: [before-state task ID]
+- status: "in_progress"
+```
+
+For each workflow that will be executed:
+
+1. Navigate to the workflow's starting URL
+2. Wait for the page to fully load (2-3 seconds)
+3. Take a screenshot of the mobile viewport
+4. Save to `workflows/screenshots/before-after/{workflow-name}/before.png`
+   - Use Bash to create the directory: `mkdir -p workflows/screenshots/before-after/{workflow-name}`
+   - The workflow-name should be kebab-cased from the workflow title
+5. Record the starting URL for each workflow (needed later for after-state capture)
+
+```
+TaskUpdate:
+- taskId: [before-state task ID]
+- status: "completed"
+```
+
+**Note:** These are different from the per-issue before/after screenshots in Phase 7. Those capture individual issues. These capture the overall app state.
+
+---
+
 ### Phase 3: Execute Workflow
 
 **Objective**: Execute workflow steps sequentially, capturing state at each step.
@@ -1285,28 +1321,37 @@ TaskUpdate(
 
 ```
 workflows/
-└── screenshots/
-    ├── product-search-flow/
-    │   ├── before/
-    │   │   ├── initial.png
-    │   │   ├── step-1.png
-    │   │   ├── step-2.png
-    │   │   └── ...
-    │   ├── after/
-    │   │   ├── step-1.png
-    │   │   ├── step-2.png
-    │   │   ├── final.png
-    │   │   └── ...
-    │   ├── analysis/
-    │   │   ├── touch-targets-overlay.png
-    │   │   ├── navigation-pattern.png
-    │   │   └── contrast-check.png
-    │   └── mockups/
-    │       ├── tab-bar-solution.png
-    │       └── fixed-touch-targets.png
-    ├── checkout-process/
-    │   └── [same structure]
-    └── ...
+├── screenshots/
+│   ├── product-search-flow/
+│   │   ├── before/                    (per-issue before screenshots)
+│   │   │   ├── initial.png
+│   │   │   ├── step-1.png
+│   │   │   ├── step-2.png
+│   │   │   └── ...
+│   │   ├── after/                     (per-issue after screenshots)
+│   │   │   ├── step-1.png
+│   │   │   ├── step-2.png
+│   │   │   ├── final.png
+│   │   │   └── ...
+│   │   ├── analysis/
+│   │   │   ├── touch-targets-overlay.png
+│   │   │   ├── navigation-pattern.png
+│   │   │   └── contrast-check.png
+│   │   └── mockups/
+│   │       ├── tab-bar-solution.png
+│   │       └── fixed-touch-targets.png
+│   ├── checkout-process/
+│   │   └── [same structure]
+│   └── ...
+├── before-after/                      (holistic before/after per workflow)
+│   ├── product-search-flow/
+│   │   ├── before.png                 (starting page before any steps)
+│   │   └── after.png                  (starting page after all fixes)
+│   ├── checkout-process/
+│   │   ├── before.png
+│   │   └── after.png
+│   └── ...
+└── mobile-before-after-report.html    (side-by-side comparison report)
 ```
 
 **Screenshot Optimization**:
@@ -1848,6 +1893,146 @@ Create verification report at .claude/plans/mobile-browser-workflow-verification
 ```
 
 **Output**: Verification report confirming fixes resolved issues, with before/after metrics.
+
+---
+
+### Phase 9.5: Capture After State
+
+**Purpose:** Capture the app state after all workflows have been executed and fixes applied, for holistic before/after comparison.
+
+**Create after-state capture task:**
+```
+TaskCreate:
+- subject: "Capture: after state for all workflows"
+- description: "Screenshot each workflow's starting page after all fixes are applied"
+- activeForm: "Capturing after state"
+
+TaskUpdate:
+- taskId: [after-state task ID]
+- status: "in_progress"
+```
+
+For each workflow that was executed:
+
+1. Navigate to the workflow's starting URL again
+2. Wait for the page to fully load (2-3 seconds)
+3. Take a screenshot of the mobile viewport
+4. Save to `workflows/screenshots/before-after/{workflow-name}/after.png`
+
+```
+TaskUpdate:
+- taskId: [after-state task ID]
+- status: "completed"
+```
+
+**Audit-only mode:** In audit mode (no fixes), these screenshots will be identical to the before screenshots. The report will show a "No visual changes" badge for unchanged workflows.
+
+---
+
+### Phase 9.6: Generate Before/After Report [DELEGATE TO AGENT]
+
+**Purpose:** Generate a standalone, self-contained HTML report showing side-by-side before/after screenshots for each workflow, with mobile device frames.
+
+**Create report task:**
+```
+TaskCreate:
+- subject: "Generate: Before/After Report"
+- description: "Generate HTML report with side-by-side before/after screenshots"
+- activeForm: "Generating before/after report"
+
+TaskUpdate:
+- taskId: [before-after report task ID]
+- status: "in_progress"
+```
+
+**Delegate to a general-purpose agent** using the Task tool:
+
+```
+Task tool parameters:
+- subagent_type: "general-purpose"
+- prompt: |
+    Generate a before/after HTML report for mobile browser workflow testing.
+
+    ## Input
+    - Read all before/after screenshots from `workflows/screenshots/before-after/`
+    - Each workflow subfolder has `before.png` and `after.png`
+    - Read the findings from task list or `.claude/plans/mobile-browser-workflow-findings.md` for issue counts
+
+    ## Output
+    Write to `workflows/mobile-before-after-report.html`
+
+    ## Requirements
+    - Self-contained HTML (all images embedded as base64 using: base64 -i <file>)
+    - Side-by-side comparison layout for each workflow
+    - Mobile device frame styling (rounded corners, phone bezel)
+    - Executive summary: workflows tested, issues found, issues fixed, viewport used
+    - Per-workflow section: workflow name, starting URL, before/after images, issue count
+    - Clean, minimal CSS with system-ui font
+    - No external dependencies
+    - If before and after screenshots are identical, show a "No visual changes" badge
+
+    ## HTML Template
+
+    ```html
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Before/After Report — Mobile Browser Workflows</title>
+      <style>
+        body { font-family: system-ui; max-width: 1200px; margin: 0 auto; padding: 2rem; background: #fafafa; }
+        .summary { background: #fff; padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; border: 1px solid #e0e0e0; }
+        .workflow-section { margin-bottom: 3rem; border-bottom: 1px solid #eee; padding-bottom: 2rem; }
+        .comparison { display: flex; gap: 2rem; align-items: flex-start; justify-content: center; }
+        .comparison .panel { flex: 0 1 280px; }
+        .device-frame { background: #1a1a1a; border-radius: 32px; padding: 10px; }
+        .device-frame img { width: 100%; border-radius: 22px; display: block; }
+        .label { font-weight: 600; margin-bottom: 0.5rem; text-align: center; }
+        .before .label { color: #d32f2f; }
+        .after .label { color: #2e7d32; }
+        .stats { display: flex; gap: 1rem; margin-top: 1rem; justify-content: center; }
+        .stat { background: #f0f0f0; padding: 0.5rem 1rem; border-radius: 4px; font-size: 0.9rem; }
+        .no-change { background: #fff3cd; padding: 0.5rem 1rem; border-radius: 4px; font-size: 0.9rem; color: #856404; }
+      </style>
+    </head>
+    <body>
+      <h1>Before / After Report — Mobile Browser</h1>
+      <div class="summary">
+        <p>Generated: {timestamp}</p>
+        <p>Viewport: 393x852 (iPhone 14)</p>
+        <p>Workflows tested: {count} | Issues found: {issues} | Issues fixed: {fixed}</p>
+      </div>
+      <div class="workflow-section">
+        <h2>{workflow name}</h2>
+        <p>Starting URL: {url}</p>
+        <div class="comparison">
+          <div class="panel before">
+            <div class="label">Before</div>
+            <div class="device-frame">
+              <img src="data:image/png;base64,{before_b64}" />
+            </div>
+          </div>
+          <div class="panel after">
+            <div class="label">After</div>
+            <div class="device-frame">
+              <img src="data:image/png;base64,{after_b64}" />
+            </div>
+          </div>
+        </div>
+        <div class="stats">
+          <span class="stat">Issues: {n}</span>
+          <span class="stat">Fixed: {n}</span>
+        </div>
+      </div>
+    </body>
+    </html>
+    ```
+```
+
+```
+TaskUpdate:
+- taskId: [before-after report task ID]
+- status: "completed"
+```
 
 ---
 
