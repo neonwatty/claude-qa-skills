@@ -1,13 +1,13 @@
 {
-  "name": "claude-skills",
+  "name": "claude-qa-skills",
   "owner": {
     "name": "neonwatty"
   },
   "plugins": [
     {
-      "name": "claude-skills",
+      "name": "claude-qa-skills",
       "source": "./",
-      "description": "Validation, PR creation, workflow testing, and feature planning skills",
+      "description": "QA testing pipeline — generate workflows, execute them, convert to Playwright CI tests",
       "version": "1.0.0"
     }
   ]
