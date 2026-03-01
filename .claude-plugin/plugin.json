@@ -1,9 +1,13 @@
 {
-  "name": "claude-qa-skills",
-  "description": "Claude Code QA testing pipeline — generate workflows, execute them, convert to Playwright CI tests",
+  "name": "qa-skills",
   "version": "1.0.0",
+  "description": "QA testing pipeline — generate workflows, execute interactively, translate to Playwright, run E2E tests. Supports browser, iOS, mobile, and multi-user flows.",
   "author": {
-    "name": "neonwatty"
+    "name": "Jeremy Watt",
+    "url": "https://github.com/neonwatty"
   },
+  "license": "MIT",
+  "keywords": ["qa", "testing", "playwright", "e2e", "ios", "mobile", "multi-user", "browser-automation"],
+  "skills": "./skills",
   "repository": "https://github.com/neonwatty/claude-qa-skills"
 }
