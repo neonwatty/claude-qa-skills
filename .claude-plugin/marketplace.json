@@ -1,14 +1,16 @@
 {
-  "name": "claude-qa-skills",
-  "owner": {
-    "name": "neonwatty"
-  },
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "neonwatty-qa",
+  "description": "Claude Code QA plugins by Jeremy Watt",
+  "owner": { "name": "Jeremy Watt", "github": "neonwatty" },
   "plugins": [
     {
-      "name": "claude-qa-skills",
-      "source": "./",
-      "description": "QA testing pipeline — generate workflows, execute them, convert to Playwright CI tests",
-      "version": "1.0.0"
+      "name": "qa-skills",
+      "source": { "source": "github", "repo": "neonwatty/claude-qa-skills" },
+      "description": "QA testing pipeline — generate workflows, execute interactively, translate to Playwright, run E2E tests.",
+      "version": "1.0.0",
+      "category": "testing",
+      "tags": ["qa", "playwright", "e2e", "ios", "mobile", "multi-user"]
     }
   ]
 }
