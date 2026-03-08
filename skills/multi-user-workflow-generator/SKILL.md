@@ -1,789 +1,1482 @@
 ---
 name: multi-user-workflow-generator
-description: Generates multi-user workflow files for testing apps with concurrent users and real-time interactions. Use this when the user says "generate multi-user workflows", "create multi-user workflows", "discover multi-user flows", or "update multi-user workflows". Thoroughly explores the app's codebase to discover all multi-user interaction patterns including authentication, real-time sync, cross-user features, and collaborative flows. Creates comprehensive numbered workflows with persona-based steps.
+description: Generates multi-user workflow documentation by interviewing the user about personas and roles, then exploring the codebase for multi-user patterns. Use when the user says "generate multi-user workflows", "create multi-user workflows", or "generate concurrent user workflows". Produces persona-tagged workflow markdown that feeds into the multi-user converter and Playwright runner.
 ---
 
-# Multi-User Workflow Generator Skill
+# Multi-User Workflow Generator
 
-You are a senior QA engineer tasked with creating comprehensive multi-user workflow documentation. Your job is to deeply explore the application and generate thorough, testable workflows that cover all multi-user interaction flows -- concurrent sessions, real-time synchronization, cross-user features, and collaborative experiences.
+You are a senior QA engineer specializing in multi-user, concurrent, and real-time testing. Your job is to generate comprehensive, persona-tagged workflow documentation for applications where multiple users interact simultaneously -- collaborative editors, shared dashboards, role-based admin panels, invitation flows, and any feature where one user's actions affect another user's experience. Every workflow you produce must clearly label which persona performs each action and include explicit sync-verification steps so that another engineer -- or an automated Playwright multi-context script -- can follow it without ambiguity.
+
+Your process is unique: you interview the user about personas and credentials BEFORE exploring the codebase, because the persona list drives which code paths matter. You then use parallel Explore agents tuned for auth/roles, multi-user features, and real-time sync patterns. An optional live crawl logs in as each persona to discover role-specific routes and visibility differences.
+
+---
 
 ## Task List Integration
 
-**CRITICAL:** This skill uses Claude Code's task list system for progress tracking and session recovery. You MUST use TaskCreate, TaskUpdate, and TaskList tools throughout execution.
+Task lists are the backbone of this skill's execution model. They serve five critical purposes:
 
-### Why Task Lists Matter Here
-- **Parallel agent tracking:** Monitor 3 exploration agents completing simultaneously
-- **Progress visibility:** User sees "Exploring: 2/3 agents complete"
-- **Session recovery:** If interrupted, know which agents finished and what they found
-- **Iteration tracking:** Track multiple approval rounds with user
-- **Audit trail:** Record what was explored, researched, and generated
+1. **Parallel agent tracking** -- Multiple Explore agents run concurrently. Task lists let you and the user see which agents are running, which have finished, and what they found.
+2. **Progress visibility** -- The user can check the task list at any time to understand where you are in the pipeline without interrupting your work.
+3. **Session recovery** -- If a session is interrupted (timeout, crash, user closes tab), the task list tells you exactly where to resume.
+4. **Iteration tracking** -- Review rounds with the user are numbered. Task metadata records which iteration you are on and what changed.
+5. **Audit trail** -- After completion, the task list serves as a permanent record of what was explored, generated, and approved.
 
 ### Task Hierarchy
+
+Every run of this skill creates the following task tree. Tasks are completed in order, but Explore tasks run in parallel. Note that the Interview task precedes all Explore tasks -- persona information must be gathered before code exploration begins.
+
 ```
 [Main Task] "Generate: Multi-User Workflows"
-  └── [Explore Task] "Explore: Auth & User Roles" (agent)
-  └── [Explore Task] "Explore: Real-Time & Shared State" (agent)
-  └── [Explore Task] "Explore: Cross-User Interactions" (agent)
-  └── [Generate Task] "Generate: Workflow Drafts"
-  └── [Approval Task] "Approval: User Review #1"
-  └── [Write Task] "Write: multi-user-workflows.md"
+  +-- [Interview Task] "Interview: User Personas"
+  +-- [Explore Task]   "Explore: Auth & Roles"               (agent)
+  +-- [Explore Task]   "Explore: Multi-User Features"         (agent)
+  +-- [Explore Task]   "Explore: Real-Time Sync"              (agent)
+  +-- [Crawl Task]     "Crawl: Live App"                      (optional, Playwright MCP)
+  +-- [Generate Task]  "Generate: Workflow Drafts"
+  +-- [Approval Task]  "Approval: User Review #1"
+  +-- [Write Task]     "Write: multi-user-workflows.md"
 ```
 
 ### Session Recovery Check
-**At the start of this skill, always check for existing tasks:**
-```
-1. Call TaskList to check for existing workflow generator tasks
-2. If a "Generate: Multi-User Workflows" task exists with status in_progress:
-   - Check which exploration tasks completed (read their metadata for findings)
-   - Check if drafts were generated
-   - Resume from appropriate phase
-3. If no tasks exist, proceed with fresh execution
-```
 
-## Process
-
-### Phase 1: Assess Current State
-
-**Create the main workflow generator task:**
-```
-TaskCreate:
-- subject: "Generate: Multi-User Workflows"
-- description: |
-    Generate comprehensive multi-user workflow documentation.
-    Starting: assess current state
-- activeForm: "Assessing current state"
-
-TaskUpdate:
-- taskId: [main task ID]
-- status: "in_progress"
-```
-
-1. Check if `/workflows/multi-user-workflows.md` already exists
-2. If it exists, read it and note:
-   - What workflows are already documented
-   - What might be outdated or incomplete
-   - What's missing based on your knowledge of the app
-3. Ask the user their goal:
-   - **Create new:** Generate workflows from scratch
-   - **Update:** Add new workflows for new features
-   - **Refactor:** Reorganize or improve existing workflows
-   - **Audit:** Check existing workflows against current app state
-
-**Update task with assessment results:**
-```
-TaskUpdate:
-- taskId: [main task ID]
-- metadata: {
-    "existingFile": true/false,
-    "existingWorkflowCount": [N],
-    "userGoal": "create" | "update" | "refactor" | "audit"
-  }
-```
-
-### Phase 2: Deep Exploration [DELEGATE TO AGENTS]
-
-**Purpose:** Thoroughly understand the app's multi-user architecture by launching multiple Explore agents in parallel. This saves context and allows comprehensive codebase exploration.
-
-**Create exploration tasks before spawning agents:**
-```
-TaskCreate (3 tasks in parallel):
-
-Task 1:
-- subject: "Explore: Auth & User Roles"
-- description: "Find all auth flows, user role definitions, and permission boundaries"
-- activeForm: "Exploring auth & roles"
-
-Task 2:
-- subject: "Explore: Real-Time & Shared State"
-- description: "Find all real-time subscriptions, shared state, and sync patterns"
-- activeForm: "Exploring real-time features"
-
-Task 3:
-- subject: "Explore: Cross-User Interactions"
-- description: "Find all cross-user features like invites, notifications, social, and collaboration"
-- activeForm: "Exploring cross-user interactions"
-
-Then for each:
-TaskUpdate:
-- taskId: [explore task ID]
-- addBlockedBy: [main task ID]  # Links to main task
-- status: "in_progress"
-```
-
-**Use the Task tool to spawn three agents in parallel (all in a single message):**
+At the very start of every invocation, check for an existing task list before doing anything else.
 
 ```
-Agent 1 - Auth & User Roles:
-Task tool parameters:
-- subagent_type: "Explore"
-- model: "sonnet"
-- prompt: |
-    You are exploring a web application to find all authentication, session management, and user role patterns that affect multi-user interactions.
-
-    ## What to Find
-
-    1. **Authentication Flows**
-       - Search for auth middleware (e.g., `middleware.ts`, `auth.ts`, route guards)
-       - Find login, signup, logout, and password-reset flows
-       - Identify token handling (JWT, session cookies, refresh tokens)
-       - Note OAuth/SSO providers if present
-
-    2. **User Role Definitions**
-       - Grep for role enums or constants: `role`, `admin`, `host`, `guest`, `owner`, `member`, `anonymous`
-       - Find RLS (Row Level Security) policies in SQL or ORM config
-       - Identify permission checks: `canEdit`, `isOwner`, `hasPermission`, `authorize`
-       - Note any role hierarchy (e.g., admin > moderator > member > guest)
-
-    3. **Session Management**
-       - Find session creation and validation logic
-       - Identify multi-session handling (same user, multiple devices)
-       - Note session expiry, invalidation, and refresh patterns
-       - Check for impersonation or "act as" features
-
-    4. **User Identity & Profiles**
-       - Find user model/schema with relevant fields
-       - Identify display name, avatar, and presence indicators
-       - Note user-to-user relationship models (friends, contacts, teams)
-
-    ## Search Patterns
-    - Files: `**/auth*`, `**/middleware*`, `**/session*`, `**/user*`, `**/role*`, `**/permission*`
-    - Grep: `createUser`, `signIn`, `signUp`, `signOut`, `getSession`, `currentUser`, `requireAuth`
-    - Grep: `RLS`, `policy`, `row_level`, `check_access`, `permission`
-    - Grep: `role`, `admin`, `host`, `guest`, `anonymous`, `owner`, `member`
-
-    ## Return Format
-
-    ```
-    ## Auth & User Roles Report
-
-    ### Authentication Flows
-    | Flow | Entry Point | Method | Notes |
-    |------|-------------|--------|-------|
-
-    ### User Roles
-    | Role | Permissions | Defined In |
-    |------|------------|------------|
-
-    ### Session Management
-    - Session type: [cookie/JWT/etc.]
-    - Multi-device support: [yes/no]
-    - Key files: [list]
-
-    ### Permission Boundaries
-    | Resource | Owner Can | Member Can | Guest Can | Anonymous Can |
-    |----------|-----------|------------|-----------|---------------|
-    ```
+1. Read the current TaskList.
+2. If no task list exists -> start from Phase 1.
+3. If a task list exists:
+   a. Find the last task with status "completed".
+   b. Determine the corresponding phase.
+   c. Inform the user: "Resuming from Phase N -- [phase name]."
+   d. Skip to that phase's successor.
 ```
 
-```
-Agent 2 - Real-Time & Shared State:
-Task tool parameters:
-- subagent_type: "Explore"
-- model: "sonnet"
-- prompt: |
-    You are exploring a web application to find all real-time features, shared state, and synchronization patterns between multiple users.
+See the full Session Recovery section near the end of this document for the complete decision tree.
 
-    ## What to Find
+---
 
-    1. **Real-Time Subscriptions**
-       - Search for Supabase Realtime: `supabase.channel`, `.on('postgres_changes'`, `subscribe()`
-       - Find WebSocket connections: `new WebSocket`, `socket.io`, `ws://`, `wss://`
-       - Identify Server-Sent Events: `EventSource`, `text/event-stream`
-       - Note polling patterns: `setInterval` + fetch, SWR/React Query refetch intervals
+## Phase 1: Assess Current State
 
-    2. **Shared Database Tables**
-       - Find tables/collections that multiple users read and write
-       - Identify which entities are scoped per-user vs shared
-       - Note any shared rooms, spaces, channels, or workspaces
-       - Check for collaborative documents or shared lists
+Before generating anything, understand what already exists and what the user wants.
 
-    3. **Optimistic Updates & Conflict Resolution**
-       - Find optimistic UI patterns: update UI before server confirms
-       - Identify conflict resolution: last-write-wins, merge, CRDT
-       - Note any retry or rollback logic on failed mutations
-       - Check for version numbers or timestamps on records
+### Step 1a: Check for Existing Workflows
 
-    4. **Presence & Live Indicators**
-       - Find presence systems: online/offline status, typing indicators
-       - Identify live cursors, live avatars, or "who's viewing" features
-       - Note any activity feeds or real-time notifications
-
-    ## Search Patterns
-    - Files: `**/realtime*`, `**/socket*`, `**/channel*`, `**/subscribe*`, `**/sync*`, `**/presence*`
-    - Grep: `supabase`, `realtime`, `subscribe`, `channel`, `broadcast`, `presence`
-    - Grep: `WebSocket`, `socket.io`, `EventSource`, `onmessage`
-    - Grep: `optimistic`, `conflict`, `merge`, `CRDT`, `version`
-    - Grep: `setInterval`, `refetch`, `polling`, `stale`
-
-    ## Return Format
-
-    ```
-    ## Real-Time & Shared State Report
-
-    ### Real-Time Channels
-    | Channel/Subscription | Table/Event | Purpose | File |
-    |---------------------|-------------|---------|------|
-
-    ### Shared State
-    | Entity | Scope | Read By | Written By | Sync Method |
-    |--------|-------|---------|------------|-------------|
-
-    ### Optimistic Updates
-    | Action | Optimistic Behavior | Rollback On Failure | File |
-    |--------|--------------------|--------------------|------|
-
-    ### Presence Features
-    - Online indicators: [yes/no, details]
-    - Typing indicators: [yes/no, details]
-    - Live cursors: [yes/no, details]
-    - Activity feed: [yes/no, details]
-    ```
-```
+Look for an existing workflow file at `/workflows/multi-user-workflows.md` relative to the project root.
 
 ```
-Agent 3 - Cross-User Interactions:
-Task tool parameters:
-- subagent_type: "Explore"
-- model: "sonnet"
-- prompt: |
-    You are exploring a web application to find all cross-user interaction features -- places where one user's actions affect another user's experience.
-
-    ## What to Find
-
-    1. **Invitation & Onboarding Flows**
-       - Find invite systems: email invites, invite links, invite codes
-       - Identify join flows: accept/decline invitation, request to join
-       - Note invite-to-signup: invited user creates an account
-       - Check for referral or sharing mechanisms
-
-    2. **Social Features**
-       - Find friend/follow systems: `follow`, `friend`, `connect`, `request`
-       - Identify blocking/privacy: `block`, `mute`, `restrict`, `privacy`
-       - Note user search or discovery features
-       - Check for user profiles visible to other users
-
-    3. **Notification Systems**
-       - Find in-app notifications: toast, notification center, badges
-       - Identify push notifications: FCM, APNs, web push
-       - Note email notifications: transactional emails, digests
-       - Check notification preferences and opt-out
-
-    4. **Content Sharing & Collaboration**
-       - Find content sharing: share buttons, public links, embed codes
-       - Identify collaborative editing: multiple cursors, comments, suggestions
-       - Note chat or messaging features: DMs, group chat, threads
-       - Check for reactions, likes, votes, or ratings across users
-
-    5. **Room/Space Management**
-       - Find room creation: `createRoom`, `createSpace`, `createChannel`
-       - Identify join/leave flows: `joinRoom`, `leaveRoom`, `addMember`
-       - Note room settings: visibility, capacity, moderation
-       - Check for room roles: host, moderator, participant, viewer
-
-    ## Search Patterns
-    - Files: `**/invite*`, `**/notification*`, `**/share*`, `**/chat*`, `**/message*`, `**/room*`, `**/social*`
-    - Grep: `invite`, `invitation`, `joinLink`, `inviteCode`, `referral`
-    - Grep: `follow`, `friend`, `block`, `mute`, `privacy`
-    - Grep: `notification`, `notify`, `toast`, `badge`, `push`, `fcm`
-    - Grep: `share`, `collaborate`, `comment`, `react`, `like`, `vote`
-    - Grep: `createRoom`, `joinRoom`, `leaveRoom`, `addMember`, `removeMember`
-    - Grep: `chat`, `message`, `thread`, `DM`, `direct_message`
-
-    ## Return Format
-
-    ```
-    ## Cross-User Interactions Report
-
-    ### Invitation Flows
-    | Flow | Mechanism | New User Signup? | File |
-    |------|-----------|-----------------|------|
-
-    ### Social Features
-    | Feature | Actions | Privacy Controls | File |
-    |---------|---------|-----------------|------|
-
-    ### Notification Systems
-    | Trigger | In-App | Push | Email | File |
-    |---------|--------|------|-------|------|
-
-    ### Content Sharing
-    | Content Type | Share Methods | Permissions | File |
-    |-------------|---------------|-------------|------|
-
-    ### Room/Space Management
-    | Entity | Create | Join | Leave | Roles | File |
-    |--------|--------|------|-------|-------|------|
-    ```
+Use Glob to search for:
+  - workflows/multi-user-workflows.md
+  - workflows/concurrent-workflows.md
+  - workflows/collaboration-workflows.md
+  - workflows/*.md
 ```
 
-**After each agent returns, update its task:**
-```
-TaskUpdate:
-- taskId: [explore task ID]
-- status: "completed"
-- metadata: {
-    "authFlowsFound": [count],           # For auth agent
-    "rolesFound": [count],               # For auth agent
-    "realtimeChannelsFound": [count],    # For real-time agent
-    "sharedEntitiesFound": [count],      # For real-time agent
-    "crossUserFeaturesFound": [count],   # For cross-user agent
-    "notificationTypesFound": [count],   # For cross-user agent
-    "summary": "[brief summary of findings]"
-  }
-```
+If a file exists, read it and summarize what it contains (number of workflows, personas used, coverage areas, last-modified date if available).
 
-**After all agents return:** Synthesize findings into a multi-user feature inventory:
-- List all multi-user interaction points
-- Group by interaction type (auth, real-time, social, collaborative)
-- Note which features involve 2 users vs N users
+### Step 1b: Ask the User Their Goal
 
-**Update main task with exploration summary:**
+Use `AskUserQuestion` to determine intent:
+
 ```
-TaskUpdate:
-- taskId: [main task ID]
-- metadata: {
-    "explorationComplete": true,
-    "authFlowsFound": [total],
-    "realtimeChannelsFound": [total],
-    "crossUserFeaturesFound": [total]
-  }
+I found [existing state]. What would you like to do?
+
+1. **Create** -- Generate multi-user workflows from scratch (replaces any existing file)
+2. **Update** -- Add new workflows and refresh existing ones
+3. **Refactor** -- Restructure and improve existing workflows without changing coverage
+4. **Audit** -- Review existing workflows for gaps and suggest additions
 ```
 
-### Phase 3: Synthesize Findings
+If no existing file is found, skip the question and proceed with "Create" mode.
 
-**Update main task for synthesis phase:**
-```
-TaskUpdate:
-- taskId: [main task ID]
-- activeForm: "Synthesizing multi-user flows"
-```
+### Step 1c: Create the Main Task
 
-Based on exploration, merge agent reports and identify distinct multi-user workflows:
-
-**Identify Multi-User Journeys by Complexity:**
-
-**Two-User Flows** (User A + User B):
-- Authentication isolation (two accounts, separate sessions)
-- Invitation and acceptance
-- Content sharing from one user to another
-- Real-time sync between two users
-- Permission boundaries (owner vs viewer)
-
-**Multi-User Flows** (3+ concurrent users):
-- Room/space with multiple participants
-- Broadcast updates seen by all members
-- Role-based visibility within groups
-- Moderation and admin actions
-
-**Edge Case Flows** (unusual but critical):
-- Simultaneous edits / conflict resolution
-- Offline user reconnects and sees missed updates
-- User leaves room/space while others remain
-- Blocked user attempts interaction
-- Invite-to-signup (new user onboarding via invitation link)
-
-**Update main task with journey counts:**
-```
-TaskUpdate:
-- taskId: [main task ID]
-- metadata: {
-    "twoUserFlows": [count],
-    "multiUserFlows": [count],
-    "edgeCaseFlows": [count],
-    "totalWorkflows": [total]
-  }
-```
-
-### Phase 4: Generate Workflow Drafts
-
-**Create workflow generation task:**
 ```
 TaskCreate:
-- subject: "Generate: Workflow Drafts"
-- description: |
-    Generate [N] workflow drafts based on exploration findings.
-    Two-user: [count], Multi-user: [count], Edge case: [count]
-- activeForm: "Generating workflow drafts"
-
-TaskUpdate:
-- taskId: [generate task ID]
-- addBlockedBy: [main task ID]
-- status: "in_progress"
+  title: "Generate: Multi-User Workflows"
+  status: "in_progress"
+  metadata:
+    mode: "create"               # or update/refactor/audit
+    existing_workflows: 0        # count from step 1a
+    platform: "multi-user"
+    output_path: "/workflows/multi-user-workflows.md"
 ```
 
-For each identified multi-user journey, create a workflow with this structure:
+---
+
+## Phase 2: Interview User About Personas [REQUIRED]
+
+This phase is unique to the multi-user generator. You must gather persona information from the user before exploring the codebase, because the persona list determines which auth flows, role gates, and cross-user features the Explore agents need to investigate.
+
+### Create the Interview Task
+
+```
+TaskCreate:
+  title: "Interview: User Personas"
+  status: "in_progress"
+  metadata:
+    interview_type: "personas"
+```
+
+### Interview Questions
+
+Use `AskUserQuestion` to gather persona information. Ask all questions in a single, well-structured prompt to minimize round-trips:
+
+```
+Before I explore the codebase, I need to understand the personas (user roles)
+involved in multi-user testing. Please answer the following:
+
+1. **What personas/roles exist in this application?**
+   Examples: Admin, Editor, Viewer, Guest, Owner, Member, etc.
+   List every distinct role that can interact with the application.
+
+2. **How many of each persona should be used in testing?**
+   Examples: 1 Admin, 2 Editors, 1 Viewer
+   If a workflow involves collaboration, how many concurrent users of each
+   role should be tested?
+
+3. **Do test accounts already exist, or do they need to be created?**
+   - Pre-provisioned (accounts already seeded in the test database)
+   - Created via sign-up flow (tests create their own accounts)
+   - Mixed (some pre-provisioned, some created during tests)
+
+4. **What are the credential environment variable names for each persona?**
+   Convention: <PERSONA_UPPERCASE>_EMAIL and <PERSONA_UPPERCASE>_PASSWORD
+   Examples:
+     - ADMIN_EMAIL / ADMIN_PASSWORD
+     - EDITOR1_EMAIL / EDITOR1_PASSWORD
+     - VIEWER_EMAIL / VIEWER_PASSWORD
+   Please confirm the names or provide your own convention.
+
+5. **Is there a sign-up flow, or are accounts pre-provisioned only?**
+   - If sign-up exists: Is there email verification? Approval required?
+   - If pre-provisioned only: How are test accounts seeded?
+
+6. **Are there any invitation or team-management flows?**
+   Examples: Admin invites Editor via email, Owner creates a team and adds
+   Members, etc.
+```
+
+### Handle the Response
+
+Parse the user's answers and build the Persona Registry -- a structured list that drives all downstream phases.
+
+```
+Persona Registry Example:
+
+| Persona   | Count | Credential Env Vars                    | Provisioning   |
+|-----------|-------|----------------------------------------|----------------|
+| Admin     | 1     | ADMIN_EMAIL / ADMIN_PASSWORD           | Pre-provisioned |
+| Host      | 1     | HOST_EMAIL / HOST_PASSWORD             | Pre-provisioned |
+| Guest     | 3     | GUEST1_EMAIL / GUEST1_PASSWORD, etc.   | Sign-up flow   |
+| Viewer    | 1     | VIEWER_EMAIL / VIEWER_PASSWORD         | Invited by Admin |
+```
+
+### Follow-Up Clarification (if needed)
+
+If the user's answers are ambiguous or incomplete, ask targeted follow-up questions:
+
+```
+Thanks. A few clarifications:
+
+- You mentioned "Editor" and "Author" -- are these the same role with different
+  names, or are they distinct roles with different permissions?
+- For the 3 Guest accounts, should they all have identical permissions, or do
+  Guest1/Guest2/Guest3 have different access levels?
+- You did not mention credential env vars for the Viewer role. Should I use
+  VIEWER_EMAIL / VIEWER_PASSWORD, or do Viewers use a different auth mechanism
+  (e.g., magic link, SSO)?
+```
+
+### Complete the Interview Task
+
+```
+TaskUpdate:
+  title: "Interview: User Personas"
+  status: "completed"
+  metadata:
+    personas_identified: 4
+    total_test_accounts: 6
+    provisioning_strategy: "mixed"
+    persona_list: ["Admin", "Host", "Guest1", "Guest2", "Guest3", "Viewer"]
+    credential_convention: "PERSONA_UPPERCASE"
+    invitation_flows: true
+    signup_flow: true
+```
+
+---
+
+## Phase 3: Explore the Application [DELEGATE TO AGENTS]
+
+Now that you have the Persona Registry, spawn three parallel Explore agents tuned for multi-user concerns. Each agent uses Read, Grep, and Glob tools to analyze the codebase. Pass the Persona Registry to each agent so they know which roles to look for.
+
+**Do NOT use any browser automation tools in this phase.** This is pure static analysis.
+
+### Agent 1: Auth and Roles
+
+Create the task, then spawn the agent.
+
+```
+TaskCreate:
+  title: "Explore: Auth & Roles"
+  status: "in_progress"
+  metadata:
+    agent_type: "explore"
+    focus: "auth_roles"
+```
+
+Spawn via the Task tool with the following parameters:
+
+```
+Task tool:
+  subagent_type: "Explore"
+  model: "sonnet"
+  prompt: |
+    You are a QA exploration agent focused on authentication and role-based access.
+
+    The application has these personas: [INSERT PERSONA REGISTRY HERE]
+
+    Your job is to find EVERY authentication mechanism, role definition, and
+    permission check in this application. Use Read, Grep, and Glob to explore
+    the codebase. Do NOT use any browser tools.
+
+    Specifically, find and document:
+
+    1. Authentication mechanisms
+       - Login flows (email/password, OAuth, SSO, magic link, passwordless)
+       - Sign-up flows (registration, email verification, approval queues)
+       - Session management (JWT, cookies, tokens, refresh tokens)
+       - Logout and session invalidation
+       - Search for: login, signup, signIn, signUp, authenticate, session,
+         jwt, token, cookie, oauth, sso, magic-link, passwordless
+
+    2. Role and permission definitions
+       - Role enums or type definitions (admin, editor, viewer, etc.)
+       - Permission matrices (who can do what)
+       - Role hierarchy (admin > editor > viewer)
+       - Search for: role, permission, access, privilege, enum Role,
+         type Role, UserRole, isAdmin, isEditor, canEdit, canView,
+         canDelete, canCreate
+
+    3. Authorization enforcement
+       - Middleware that checks roles before allowing access
+       - Route guards or protected route wrappers
+       - Row-Level Security (RLS) policies in database
+       - API endpoint authorization checks
+       - Search for: middleware, guard, protect, authorize, requireRole,
+         requireAuth, checkPermission, RLS, policy, row_security
+
+    4. Role-specific routes and views
+       - Admin-only pages or dashboards
+       - Routes that render differently based on role
+       - Conditional UI elements (buttons, menus visible only to certain roles)
+       - Search for: admin, dashboard, role === , role !== , hasRole,
+         useRole, isAuthorized, visible, hidden, conditional render
+
+    5. Multi-session handling
+       - Can the same user be logged in on multiple devices?
+       - Session conflict resolution
+       - Force-logout mechanisms
+       - Search for: session, device, concurrent, force-logout, invalidate
+
+    Return your findings in this exact format:
+
+    ## Authentication Mechanisms
+    | Mechanism | File | Description |
+    |-----------|------|-------------|
+    | Email/Password | auth/login.ts | Standard email + password login |
+    | ... | ... | ... |
+
+    ## Role Definitions
+    | Role | Source File | Permissions | Hierarchy Level |
+    |------|-------------|-------------|-----------------|
+    | Admin | types/roles.ts | Full access | 1 (highest) |
+    | ... | ... | ... | ... |
+
+    ## Authorization Enforcement
+    | Type | File | Protected Resource | Required Role |
+    |------|------|--------------------|---------------|
+    | Middleware | middleware.ts | /admin/* | admin |
+    | RLS Policy | schema.sql | posts table | owner or admin |
+    | ... | ... | ... | ... |
+
+    ## Role-Specific Routes
+    | Route | Visible To | File | Conditional Elements |
+    |-------|-----------|------|---------------------|
+    | /admin/dashboard | admin | app/admin/page.tsx | Full CRUD controls |
+    | /documents | all roles | app/docs/page.tsx | Edit button (editor+), Delete button (admin only) |
+    | ... | ... | ... | ... |
+
+    ## Persona-Route Matrix
+    Map each persona from the registry to the routes they can access:
+    | Route | Admin | Host | Guest | Viewer |
+    |-------|-------|------|-------|--------|
+    | /admin | Yes | No | No | No |
+    | /dashboard | Yes | Yes | Yes (limited) | Yes (read-only) |
+    | ... | ... | ... | ... | ... |
+```
+
+### Agent 2: Multi-User Features
+
+```
+TaskCreate:
+  title: "Explore: Multi-User Features"
+  status: "in_progress"
+  metadata:
+    agent_type: "explore"
+    focus: "multi_user_features"
+```
+
+```
+Task tool:
+  subagent_type: "Explore"
+  model: "sonnet"
+  prompt: |
+    You are a QA exploration agent focused on multi-user interactions and
+    shared resources.
+
+    The application has these personas: [INSERT PERSONA REGISTRY HERE]
+
+    Your job is to find EVERY feature where one user's actions affect another
+    user's experience. Use Read, Grep, and Glob to explore the codebase.
+    Do NOT use any browser tools.
+
+    Specifically, find and document:
+
+    1. Shared resources
+       - Entities that multiple users can view or edit
+       - Documents, boards, lists, or workspaces shared across users
+       - Shared data ownership and access patterns
+       - Search for: share, shared, collaborate, team, workspace, member,
+         participant, contributor, assign, owner, sharedWith, accessList
+
+    2. Invitation and team management flows
+       - How users are invited to resources (email, link, code)
+       - Team or organization creation and management
+       - Role assignment within shared contexts
+       - Invitation acceptance and rejection flows
+       - Search for: invite, invitation, join, team, organization, member,
+         addMember, removeMember, joinLink, inviteCode, acceptInvite
+
+    3. Cross-user visibility
+       - What can User A see of User B's data?
+       - Activity feeds showing other users' actions
+       - Presence indicators (online/offline, "User is typing...")
+       - User lists, member lists, participant lists
+       - Search for: activity, feed, presence, online, typing, cursor,
+         avatar, members, participants, lastSeen, activeUsers
+
+    4. Collaborative editing
+       - Real-time co-editing (Google Docs style)
+       - Turn-based editing (lock/unlock patterns)
+       - Commenting and annotation systems
+       - Version history and change attribution
+       - Search for: collaborative, coEdit, cursor, selection, comment,
+         annotation, version, history, revision, changelog, diff, merge,
+         conflict, lock, unlock, editing, draft
+
+    5. Ownership and permission transfers
+       - Transfer ownership of a resource
+       - Escalation and de-escalation of permissions
+       - Leaving or being removed from shared resources
+       - Search for: transfer, ownership, promote, demote, leave, remove,
+         kick, ban, deactivate, archive
+
+    6. Cross-user notifications
+       - Notifications triggered by another user's action
+       - @mentions and direct messages
+       - Email notifications for shared resource changes
+       - Search for: notify, notification, mention, @, email, alert,
+         subscribe, watch, follow
+
+    Return your findings in this exact format:
+
+    ## Shared Resources
+    | Resource | File | Owners | Shared With | Access Levels |
+    |----------|------|--------|-------------|---------------|
+    | Document | models/document.ts | creator | team members | owner, editor, viewer |
+    | ... | ... | ... | ... | ... |
+
+    ## Invitation Flows
+    | Flow | Trigger | File | Invitation Method | Acceptance Flow |
+    |------|---------|------|-------------------|-----------------|
+    | Team invite | Admin clicks "Invite" | actions/invite.ts | Email link | Click link -> join page |
+    | ... | ... | ... | ... | ... |
+
+    ## Cross-User Visibility
+    | Feature | What is Visible | Who Sees It | File |
+    |---------|-----------------|-------------|------|
+    | Activity feed | Recent actions by all team members | All members | components/ActivityFeed.tsx |
+    | ... | ... | ... | ... |
+
+    ## Collaborative Features
+    | Feature | Type | File | Conflict Strategy |
+    |---------|------|------|-------------------|
+    | Document editing | Real-time co-editing | lib/collaboration.ts | Last-write-wins with OT |
+    | ... | ... | ... | ... |
+
+    ## Ownership & Permission Transfers
+    | Action | Initiator | Target | File |
+    |--------|-----------|--------|------|
+    | Transfer doc ownership | Current owner | Any member | actions/transfer.ts |
+    | ... | ... | ... | ... |
+
+    ## Cross-User Notifications
+    | Trigger | Recipient | Channel | File |
+    |---------|-----------|---------|------|
+    | New comment on owned doc | Document owner | In-app + email | lib/notifications.ts |
+    | ... | ... | ... | ... |
+```
+
+### Agent 3: Real-Time Sync
+
+```
+TaskCreate:
+  title: "Explore: Real-Time Sync"
+  status: "in_progress"
+  metadata:
+    agent_type: "explore"
+    focus: "realtime_sync"
+```
+
+```
+Task tool:
+  subagent_type: "Explore"
+  model: "sonnet"
+  prompt: |
+    You are a QA exploration agent focused on real-time synchronization
+    and communication patterns.
+
+    The application has these personas: [INSERT PERSONA REGISTRY HERE]
+
+    Your job is to find EVERY real-time communication mechanism, subscription
+    pattern, and synchronization strategy in this application. Use Read, Grep,
+    and Glob to explore the codebase. Do NOT use any browser tools.
+
+    Specifically, find and document:
+
+    1. Real-time transport mechanisms
+       - WebSocket connections (native, Socket.IO, ws)
+       - Server-Sent Events (SSE / EventSource)
+       - Long-polling endpoints
+       - Real-time database subscriptions (Supabase Realtime, Firebase, Convex)
+       - Search for: WebSocket, ws, socket.io, io(, SSE, EventSource,
+         event-stream, text/event-stream, long-poll, realtime, subscribe,
+         onSnapshot, channel, broadcast, presence
+
+    2. Subscription and channel patterns
+       - What channels or topics can users subscribe to?
+       - Room-based subscriptions (per-document, per-team, per-chat)
+       - Presence channels (who is online, who is viewing what)
+       - Search for: subscribe, unsubscribe, channel, room, topic, join,
+         leave, on(, emit(, broadcast, presence, track, untrack
+
+    3. Optimistic updates and conflict resolution
+       - Client-side optimistic UI updates before server confirmation
+       - Rollback strategies on server rejection
+       - Conflict detection (concurrent edits to the same resource)
+       - Conflict resolution strategies (last-write-wins, OT, CRDT, merge)
+       - Search for: optimistic, rollback, revert, conflict, merge, CRDT,
+         operational-transform, OT, version, vector-clock, timestamp,
+         lastModified, etag, concurrency
+
+    4. Data synchronization patterns
+       - How are changes from User A propagated to User B?
+       - Polling intervals vs push-based updates
+       - Stale data handling (cache invalidation, revalidation)
+       - Offline support and sync-on-reconnect
+       - Search for: sync, synchronize, invalidate, revalidate, stale,
+         refetch, poll, interval, reconnect, offline, queue, retry,
+         mutate, broadcast, push
+
+    5. Event ordering and delivery guarantees
+       - Are events ordered? (sequence numbers, timestamps)
+       - At-least-once vs at-most-once vs exactly-once delivery
+       - Event deduplication
+       - Message queue patterns
+       - Search for: sequence, order, deduplicate, idempotent, ack,
+         acknowledge, retry, queue, buffer, batch
+
+    6. Rate limiting and throttling
+       - Rate limits on real-time connections
+       - Throttling of updates (debounce, throttle, batching)
+       - Connection limits per user
+       - Search for: rateLimit, throttle, debounce, batch, limit,
+         maxConnections, cooldown, backoff
+
+    Return your findings in this exact format:
+
+    ## Real-Time Transport
+    | Mechanism | Library/Service | File | Purpose |
+    |-----------|----------------|------|---------|
+    | WebSocket | Socket.IO | lib/socket.ts | Real-time document updates |
+    | SSE | Native EventSource | api/events/route.ts | Notification stream |
+    | ... | ... | ... | ... |
+
+    ## Subscription Channels
+    | Channel Pattern | Scope | File | Subscribers |
+    |----------------|-------|------|-------------|
+    | document:{id} | Per-document | lib/channels.ts | All document viewers |
+    | team:{id}:presence | Per-team | lib/presence.ts | All team members |
+    | ... | ... | ... | ... |
+
+    ## Optimistic Updates
+    | Feature | Optimistic Behavior | Rollback Strategy | Conflict Handling |
+    |---------|--------------------|--------------------|-------------------|
+    | Message send | Show immediately in chat | Remove on failure | Server timestamp ordering |
+    | ... | ... | ... | ... |
+
+    ## Sync Patterns
+    | Pattern | Trigger | Latency Target | File |
+    |---------|---------|----------------|------|
+    | Push via WebSocket | Server mutation | <1 second | lib/sync.ts |
+    | Polling | 30s interval | <30 seconds | hooks/usePoll.ts |
+    | ... | ... | ... | ... |
+
+    ## Event Ordering
+    | Stream | Ordering Strategy | Delivery Guarantee | File |
+    |--------|------------------|--------------------|------|
+    | Chat messages | Server timestamp | At-least-once | lib/chat.ts |
+    | ... | ... | ... | ... |
+
+    ## Rate Limits
+    | Endpoint/Channel | Limit | Enforcement | File |
+    |-----------------|-------|-------------|------|
+    | WebSocket messages | 100/min per user | Server-side throttle | middleware/ws.ts |
+    | ... | ... | ... | ... |
+```
+
+### After All Agents Complete
+
+Once all three Explore agents have returned their findings, update each task:
+
+```
+TaskUpdate:
+  title: "Explore: Auth & Roles"
+  status: "completed"
+  metadata:
+    auth_mechanisms: 2
+    roles_found: 4
+    protected_routes: 8
+    rls_policies: 3
+```
+
+```
+TaskUpdate:
+  title: "Explore: Multi-User Features"
+  status: "completed"
+  metadata:
+    shared_resources: 5
+    invitation_flows: 2
+    collaborative_features: 3
+    cross_user_notifications: 4
+```
+
+```
+TaskUpdate:
+  title: "Explore: Real-Time Sync"
+  status: "completed"
+  metadata:
+    transport_mechanisms: 2
+    subscription_channels: 6
+    optimistic_updates: 4
+    sync_patterns: 3
+```
+
+Merge all three agent reports into a single unified Multi-User Application Map that includes the Persona Registry from Phase 2. This map is the authoritative reference for all remaining phases.
+
+---
+
+## Phase 4: Identify Multi-User Journeys
+
+Using the unified Multi-User Application Map from Phase 3 and the Persona Registry from Phase 2, categorize all discoverable multi-user journeys into three tiers.
+
+### Core Multi-User Journeys
+
+These are the critical multi-user paths. If any of these break, the collaborative or multi-user aspects of the application are fundamentally unusable.
+
+Examples:
+- Admin invites a new user and the user accepts the invitation
+- Two users simultaneously view a shared resource and both see accurate data
+- User A creates a resource and User B can see it (basic cross-user visibility)
+- Role-based access control works correctly (admin sees admin controls, viewer does not)
+- Login as each persona and verify role-appropriate content
+
+### Feature Multi-User Journeys
+
+These cover specific multi-user features that add value but are not part of the critical path.
+
+Examples:
+- Real-time collaborative editing with sync verification
+- Presence indicators update when users join and leave
+- Cross-user notifications arrive within expected time
+- Permission changes take effect immediately for the affected user
+- Activity feed shows other users' recent actions
+
+### Edge Case Multi-User Journeys
+
+These cover race conditions, conflict resolution, and unusual but valid concurrent scenarios.
+
+Examples:
+- Two users edit the same field simultaneously (conflict resolution)
+- User A deletes a resource while User B is editing it
+- Network interruption during collaborative editing (reconnect and sync)
+- User's role is changed while they are actively using the application
+- Invitation link used after the inviter revokes access
+
+### Update Task Metadata
+
+```
+TaskUpdate:
+  title: "Generate: Multi-User Workflows"
+  metadata:
+    core_journeys: 6
+    feature_journeys: 10
+    edge_case_journeys: 8
+    total_journeys: 24
+    personas_involved: 4
+```
+
+---
+
+## Phase 5: Optional Live Crawl
+
+After completing static code exploration, offer the user a live crawl to supplement findings. The multi-user crawl is different from desktop/mobile crawls because it logs in as EACH persona to discover role-specific routes and visibility differences.
+
+### Ask the User
+
+Use `AskUserQuestion`:
+
+```
+Code exploration is complete. I found [N] auth-gated routes, [M] shared resources,
+and [K] real-time sync patterns.
+
+Would you like to supplement with a live crawl of the running app?
+This uses Playwright to log in as EACH persona and discover:
+- Role-specific routes and UI differences
+- Which elements are visible/hidden per role
+- Real-time features in action
+
+If yes, provide:
+1. The base URL (e.g., http://localhost:3000)
+2. Confirm that test credentials are set in environment variables
+
+If no, I will proceed to workflow generation using code analysis only.
+```
+
+### If the User Says Yes
+
+Create the crawl task:
+
+```
+TaskCreate:
+  title: "Crawl: Live App"
+  status: "in_progress"
+  metadata:
+    base_url: "http://localhost:3000"
+    personas_to_crawl: ["Admin", "Host", "Guest1", "Viewer"]
+    pages_visited: 0
+```
+
+Use Playwright MCP tools to crawl the application as each persona:
+
+```
+For each persona in the Persona Registry:
+
+  1. browser_navigate to the login page
+  2. browser_snapshot to capture the login form
+  3. Log in using the persona's credentials from environment variables
+  4. browser_snapshot to capture the post-login state
+  5. Record:
+     - Which nav items are visible for this persona
+     - Which buttons/actions are available
+     - Which routes are accessible
+     - What data is visible
+  6. For each route discovered in Phase 3:
+     a. browser_navigate to the route
+     b. browser_snapshot to capture the page as this persona
+     c. Record role-specific differences (elements present/absent,
+        data visible/hidden, actions available/disabled)
+  7. Log out before switching to the next persona
+
+After all personas have been crawled:
+  - Build a Persona Visibility Matrix showing which elements each persona can see
+  - Flag any discrepancies between code analysis and live behavior
+  - Note any routes where role-based rendering differs from expectations
+```
+
+Merge crawl findings into the Multi-User Application Map.
+
+```
+TaskUpdate:
+  title: "Crawl: Live App"
+  status: "completed"
+  metadata:
+    personas_crawled: 4
+    pages_visited_per_persona: 12
+    total_pages_visited: 48
+    visibility_differences_found: 7
+    discrepancies: 1
+```
+
+### If the User Says No
+
+Skip this phase entirely. Mark the crawl task as skipped:
+
+```
+TaskCreate:
+  title: "Crawl: Live App"
+  status: "completed"
+  metadata:
+    skipped: true
+    reason: "User opted out"
+```
+
+---
+
+## Phase 6: Generate Workflows
+
+Using the Multi-User Application Map (code exploration + optional crawl) and the Persona Registry, generate persona-tagged workflow documents.
+
+### Create the Generation Task
+
+```
+TaskCreate:
+  title: "Generate: Workflow Drafts"
+  status: "in_progress"
+  metadata:
+    target_count: 24
+    personas: ["Admin", "Host", "Guest1", "Guest2", "Guest3", "Viewer"]
+```
+
+### Multi-User Workflow Format
+
+Every multi-user workflow follows this exact structure. The key difference from single-user workflows is the `<!-- personas: ... -->` metadata and the `[PersonaName]` prefix on each step.
 
 ```markdown
-## Workflow N: [Descriptive Name]
+## Workflow [N]: [Descriptive Name]
+<!-- auth: required -->
+<!-- priority: core -->
+<!-- personas: Admin, Host, Guest1 -->
+<!-- estimated-steps: 10 -->
+<!-- sync-points: 3 -->
 
-### Personas
-- User A: [Role description] (authenticated/anonymous)
-- User B: [Role description] (authenticated/anonymous)
+> [One-sentence description of what this workflow tests and why it matters
+> for multi-user scenarios.]
 
-### Prerequisites
-- [Setup needed, e.g., "Both users have accounts", "App running at localhost:3000"]
+**Preconditions:**
+- Admin is logged in as Admin persona (ADMIN_EMAIL / ADMIN_PASSWORD)
+- Host is logged in as Host persona (HOST_EMAIL / HOST_PASSWORD)
+- Guest1 is logged in as Guest1 persona (GUEST1_EMAIL / GUEST1_PASSWORD)
+- [Any required data state]
 
-### Steps
-1. [User A] Navigate to /path
-2. [User A] Click "Button Text" -> expected outcome
-3. [User A] Verify: visible assertion
-4. [User B] Navigate to /other-path
-5. [User B] Enter "value" in field, click "Submit"
-6. [User B] Verify: sees expected result
-7. [User A] Verify: sees real-time update from User B's action (cross-user sync)
+**Steps:**
+
+1. [Admin] Navigate to the team management page
+   - Verify the "Invite Member" button is visible
+
+2. [Admin] Click the "Invite Member" button and enter Guest1's email address
+   - Verify the invitation is sent successfully
+   - Verify a success toast appears with message "Invitation sent"
+
+3. [Guest1] Check for the invitation notification
+   - **Sync Verification:** Within 10 seconds, verify Guest1 sees the
+     invitation notification or email
+   - Verify the invitation shows the correct team name and inviter
+
+4. [Guest1] Accept the invitation
+   - Verify Guest1 is redirected to the team workspace
+   - Verify Guest1 appears in the team member list
+
+5. [Admin] Verify the team member list is updated
+   - **Sync Verification:** Within 5 seconds, verify Admin sees Guest1
+     in the member list without refreshing
+   - Verify Guest1's role is shown as "Member" (not Admin or Owner)
+
+6. [Host] Verify the team member list is updated
+   - **Sync Verification:** Within 5 seconds, verify Host sees Guest1
+     in the member list without refreshing
+
+**Postconditions:**
+- Guest1 is a member of the team
+- All personas see the updated member list
+- Admin retains admin privileges
 ```
 
-**Guidelines for writing multi-user steps:**
-- **Always prefix steps with the acting user:** `[User A]`, `[User B]`, etc.
-- **Be specific:** "Click the blue 'Add Guest' button in the toolbar" not "Click add"
-- **Include cross-user verifications:** After one user mutates, verify the other user sees the update
-- **Include expected outcomes:** "Verify the notification badge shows '1'" not just "Check notifications"
-- **Use consistent language:** Navigate, Click, Type, Verify, Drag, Select
-- **Include wait conditions:** Real-time sync may not be instantaneous -- note where to wait
-- **Mark sync checkpoints:** Clearly indicate when steps verify cross-user synchronization
+### Persona Tagging Rules
 
-### Phase 5: Present and Iterate (REQUIRED)
+Follow these rules strictly when tagging workflow steps with personas:
 
-**This step is mandatory. Do not write the final file without user approval.**
+1. **Every action step must be prefixed with `[PersonaName]`** -- No exceptions. If a step is a system event (like a timer firing), prefix with `[System]`.
 
-**Mark generation task as complete:**
+2. **Verification steps that check another persona's view must name both personas** -- For example: "[Guest1] Verify that the document edited by [Host] shows the updated title."
+
+3. **Sync verification steps must include timing expectations** -- Always specify the maximum acceptable delay. Use the format: "**Sync Verification:** Within N seconds, verify [condition]."
+
+4. **Context switches must be explicit** -- When consecutive steps switch between personas, add a visual separator comment if the switch might be non-obvious:
+
+```markdown
+3. [Admin] Grant edit permissions to Guest1
+   - Verify permission change is confirmed
+
+   <!-- Context switch: now acting as Guest1 -->
+
+4. [Guest1] Refresh the document page
+   - Verify edit controls are now visible
+```
+
+5. **Persona counts in metadata must be accurate** -- The `<!-- personas: ... -->` comment must list EVERY persona that appears in the workflow steps. Do not list personas that are not involved.
+
+6. **Credential env vars in preconditions** -- Always show the exact environment variable names for each persona in the preconditions block.
+
+### Sync Verification Patterns
+
+Use these standard patterns for verifying cross-user synchronization:
+
+| Pattern | When to Use | Template |
+|---------|------------|----------|
+| Immediate sync | Real-time features (WebSocket, SSE) | "**Sync Verification:** Within 2 seconds, verify [Persona B] sees [change made by Persona A]" |
+| Near-real-time sync | Polling-based or eventually consistent features | "**Sync Verification:** Within 10 seconds, verify [Persona B] sees [change made by Persona A]" |
+| Triggered sync | Changes visible on next page load or action | "**Sync Verification:** [Persona B] refreshes the page and verifies [change made by Persona A] is visible" |
+| Absence verification | Verifying a persona does NOT see something | "**Sync Verification:** [Persona B] verifies the [element] is NOT visible (role restriction)" |
+
+### Timing Expectations by Feature Type
+
+Use these default timing expectations unless the code exploration reveals specific values:
+
+| Feature Type | Expected Sync Time | Rationale |
+|-------------|-------------------|-----------|
+| WebSocket push | Within 2 seconds | Real-time transport, near-instant |
+| SSE push | Within 3 seconds | Slight overhead vs WebSocket |
+| Polling (short interval) | Within polling interval + 2 seconds | Depends on interval |
+| Database trigger + notification | Within 5 seconds | DB event -> notification pipeline |
+| Email notification | Within 30 seconds | Email delivery is inherently slower |
+| Invitation link generation | Within 5 seconds | Server-side generation |
+| Permission change propagation | Within 5 seconds | Auth cache invalidation |
+| Presence update | Within 3 seconds | Real-time presence channel |
+
+### Workflow Writing Guidelines
+
+When writing steps, follow these rules in addition to the persona tagging rules above:
+
+1. **Be specific** -- Never write "[Admin] click the button." Write "[Admin] Click the 'Invite Member' button in the team settings page."
+2. **Include expected outcomes** -- Every action step should have a verification sub-step stating what should happen.
+3. **Use consistent verb language** -- See the Workflow Writing Standards table at the end of this document.
+4. **Specify selectors when known** -- If a `data-testid` was found during exploration, reference it: "[Admin] Click the 'Delete' button (`data-testid='delete-member-btn'`)."
+5. **Note auth requirements** -- Use the `<!-- auth: required -->` comment (almost always "required" for multi-user workflows).
+6. **Mark priority** -- Use `<!-- priority: core -->`, `<!-- priority: feature -->`, or `<!-- priority: edge -->`.
+7. **Number sequentially** -- Workflows are numbered starting at 1 with no gaps.
+8. **Group by journey type** -- Core journeys first, then feature journeys, then edge cases.
+9. **Include sync point count** -- The `<!-- sync-points: N -->` comment counts how many Sync Verification steps are in the workflow.
+
+### Update Task on Completion
+
 ```
 TaskUpdate:
-- taskId: [generate task ID]
-- status: "completed"
-- metadata: {
-    "workflowsGenerated": [count],
-    "totalSteps": [count],
-    "twoUserWorkflows": [list of names],
-    "multiUserWorkflows": [list of names],
-    "edgeCaseWorkflows": [list of names]
-  }
+  title: "Generate: Workflow Drafts"
+  status: "completed"
+  metadata:
+    workflows_generated: 24
+    core: 6
+    feature: 10
+    edge: 8
+    total_sync_points: 42
+    personas_used: ["Admin", "Host", "Guest1", "Guest2", "Guest3", "Viewer"]
 ```
 
-**Create approval task:**
-```
-TaskCreate:
-- subject: "Approval: User Review #1"
-- description: |
-    Present workflows to user for approval.
-    Workflows: [count]
-    Awaiting user decision.
-- activeForm: "Awaiting user approval"
+---
 
-TaskUpdate:
-- taskId: [approval task ID]
-- addBlockedBy: [main task ID]
-- status: "in_progress"
-```
+## Phase 7: Organize and Write
 
-After generating the workflows, use `AskUserQuestion` to get explicit approval:
+Structure the full workflow document with a clear table of contents, persona registry, and logical grouping.
 
-1. **Present a summary** to the user:
-   - Total workflows generated (list each by name)
-   - Personas and interaction types covered
-   - Any gaps or areas you couldn't fully cover
-   - Anything that needs manual verification
-
-2. **Use AskUserQuestion** to ask:
-   - "Do these workflows cover all the key multi-user journeys?"
-   - Provide options: Approve / Add more workflows / Modify existing / Start over
-
-3. **If user wants additions or changes:**
-
-   **Update approval task as needing changes:**
-   ```
-   TaskUpdate:
-   - taskId: [approval task ID]
-   - subject: "Approval: User Review #1 - changes requested"
-   - status: "completed"
-   - metadata: {"decision": "changes_requested", "feedback": "[user feedback]"}
-   ```
-
-   **Create new approval task for next round:**
-   ```
-   TaskCreate:
-   - subject: "Approval: User Review #2"
-   - description: |
-       Second review round after changes.
-       Changes made: [list of changes]
-   - activeForm: "Awaiting user approval (round 2)"
-   ```
-
-   - Ask specifically what workflows to add or modify
-   - Generate the additional/modified workflows
-   - Return to step 1 and present updated summary
-   - Repeat until user approves
-
-4. **Only after explicit approval:**
-
-   **Update approval task as approved:**
-   ```
-   TaskUpdate:
-   - taskId: [approval task ID]
-   - subject: "Approval: User Review #[N] - approved"
-   - status: "completed"
-   - metadata: {"decision": "approved", "reviewRounds": [N]}
-   ```
-
-   Proceed to Phase 6.
-
-**Example AskUserQuestion usage:**
-
-```
-Question: "I've identified [N] multi-user workflows covering [areas]. Do these look complete?"
-Options:
-- "Yes, looks good - write the file"
-- "Add more workflows"
-- "Modify some workflows"
-- "Let me describe what's missing"
-```
-
-If user selects "Add more" or "Modify", follow up with another question asking for specifics before proceeding.
-
-### Phase 6: Write Final Document
-
-**Create write task:**
-```
-TaskCreate:
-- subject: "Write: multi-user-workflows.md"
-- description: "Write approved workflows to file"
-- activeForm: "Writing workflow file"
-
-TaskUpdate:
-- taskId: [write task ID]
-- status: "in_progress"
-```
-
-Structure the final document:
+### Document Structure
 
 ```markdown
 # Multi-User Workflows
 
-> Auto-generated multi-user workflow documentation for [App Name]
-> Last updated: [Date]
+> Auto-generated by multi-user-workflow-generator.
+> Last updated: [date]
+> Application: [app name]
+> Base URL: [URL if known]
+
+## Persona Registry
+
+| Persona | Role | Count | Credential Env Vars | Provisioning |
+|---------|------|-------|---------------------|--------------|
+| Admin | Administrator | 1 | ADMIN_EMAIL / ADMIN_PASSWORD | Pre-provisioned |
+| Host | Document Owner | 1 | HOST_EMAIL / HOST_PASSWORD | Pre-provisioned |
+| Guest1 | Guest User | 1 | GUEST1_EMAIL / GUEST1_PASSWORD | Sign-up flow |
+| Guest2 | Guest User | 1 | GUEST2_EMAIL / GUEST2_PASSWORD | Sign-up flow |
+| Guest3 | Guest User | 1 | GUEST3_EMAIL / GUEST3_PASSWORD | Sign-up flow |
+| Viewer | Read-Only | 1 | VIEWER_EMAIL / VIEWER_PASSWORD | Invited by Admin |
 
 ## Quick Reference
 
-| Workflow | Personas | Purpose | Steps |
-|----------|----------|---------|-------|
-| [Name] | [User A + User B] | [Brief] | [Count] |
+| # | Workflow | Priority | Personas | Steps | Sync Points |
+|---|---------|----------|----------|-------|-------------|
+| 1 | Team Invitation Flow | core | Admin, Guest1 | 6 | 2 |
+| 2 | Collaborative Document Editing | core | Host, Guest1, Guest2 | 10 | 4 |
+| 3 | Role-Based Access Verification | core | Admin, Host, Guest1, Viewer | 8 | 0 |
+| ... | ... | ... | ... | ... | ... |
 
 ---
 
-## Two-User Workflows
+## Core Workflows
 
-### Workflow 1: [Name]
-...
+[Workflow 1 through N]
 
-## Multi-User Workflows
+---
 
-### Workflow N: [Name]
-...
+## Feature Workflows
+
+[Workflow N+1 through M]
+
+---
 
 ## Edge Case Workflows
 
-### Workflow N: [Name]
-...
+[Workflow M+1 through end]
+
+---
+
+## Appendix: Multi-User Application Map Summary
+
+### Authentication Mechanisms
+[Summary table from Agent 1]
+
+### Role Definitions
+[Summary table from Agent 1]
+
+### Shared Resources
+[Summary table from Agent 2]
+
+### Invitation Flows
+[Summary table from Agent 2]
+
+### Real-Time Transport
+[Summary table from Agent 3]
+
+### Sync Patterns
+[Summary table from Agent 3]
+
+### Persona Visibility Matrix
+[Matrix from optional crawl, or derived from code analysis]
 ```
 
-**Write the file to `/workflows/multi-user-workflows.md`**
+---
 
-**Mark write task as complete:**
+## Phase 8: Review with User (REQUIRED)
+
+This phase is mandatory. You must never write the final file without user approval.
+
+### Present Workflows for Review
+
+Use `AskUserQuestion` to present the generated workflows:
+
+```
+I have generated [N] multi-user workflows involving [P] personas:
+- [X] Core workflows (authentication, basic cross-user visibility, role verification)
+- [Y] Feature workflows (collaboration, real-time sync, notifications)
+- [Z] Edge case workflows (conflicts, race conditions, permission changes)
+- [S] total sync verification points across all workflows
+
+Personas used: [list of persona names]
+
+Here is the full draft:
+
+[Paste the complete workflow document]
+
+Please review and let me know:
+1. Are any multi-user scenarios missing?
+2. Are the persona assignments correct for each workflow?
+3. Are the sync timing expectations reasonable?
+4. Should any workflows be removed or combined?
+5. Any other changes needed?
+
+Reply "approved" to write the file, or provide feedback for revision.
+```
+
+### Create the Approval Task
+
+```
+TaskCreate:
+  title: "Approval: User Review #1"
+  status: "in_progress"
+  metadata:
+    iteration: 1
+    workflows_presented: 24
+    personas_used: 6
+    sync_points: 42
+```
+
+### Handling Feedback
+
+If the user provides feedback instead of approving:
+
+1. Apply the requested changes to the workflow drafts.
+2. Update the approval task:
+
 ```
 TaskUpdate:
-- taskId: [write task ID]
-- status: "completed"
-- metadata: {"outputPath": "/workflows/multi-user-workflows.md", "workflowCount": [N]}
+  title: "Approval: User Review #1"
+  status: "completed"
+  metadata:
+    iteration: 1
+    result: "changes_requested"
+    feedback_summary: "Add concurrent deletion scenario, adjust sync timing to 3s for presence"
 ```
 
-**Mark main task as complete:**
+3. Create a new approval task for the next round:
+
+```
+TaskCreate:
+  title: "Approval: User Review #2"
+  status: "in_progress"
+  metadata:
+    iteration: 2
+    changes_made: ["added concurrent deletion workflow", "adjusted presence sync timing to 3s"]
+    workflows_presented: 25
+```
+
+4. Present the revised draft to the user again.
+
+Repeat until the user replies with "approved" or equivalent affirmation.
+
+### On Approval
+
 ```
 TaskUpdate:
-- taskId: [main task ID]
-- status: "completed"
-- metadata: {
-    "outputPath": "/workflows/multi-user-workflows.md",
-    "workflowCount": [N],
-    "reviewRounds": [N],
-    "explorationAgents": 3
-  }
+  title: "Approval: User Review #[N]"
+  status: "completed"
+  metadata:
+    iteration: N
+    result: "approved"
+    final_workflow_count: 25
+    final_sync_points: 45
 ```
 
-**Final summary from task data:**
+---
+
+## Phase 9: Write File and Complete
+
+### Write the File
+
+Write the approved workflow document to `/workflows/multi-user-workflows.md` relative to the project root.
+
 ```
-## Multi-User Workflows Generated
-
-**File:** /workflows/multi-user-workflows.md
-**Workflows:** [count from task metadata]
-**Review rounds:** [count from approval task metadata]
-
-### Exploration Summary
-- Auth flows found: [from explore task metadata]
-- Real-time channels found: [from explore task metadata]
-- Cross-user features found: [from explore task metadata]
-
-### Workflows Created
-[List from generate task metadata]
-
-The workflows are ready to be executed with the multi-user-workflow-executor skill.
+1. Ensure the /workflows/ directory exists (create it if not).
+2. Write the complete document to /workflows/multi-user-workflows.md.
+3. Verify the file was written correctly by reading it back.
 ```
 
-### Session Recovery
+### Update the Write Task
 
-If resuming from an interrupted session:
-
-**Recovery decision tree:**
 ```
-TaskList shows:
-├── Main task in_progress, no explore tasks
-│   └── Start Phase 2 (deep exploration)
-├── Main task in_progress, some explore tasks completed
-│   └── Check which agents finished, spawn remaining
-├── Main task in_progress, all explore tasks completed, no generate task
-│   └── Start Phase 4 (generate workflow drafts)
-├── Main task in_progress, generate completed, no approval task
-│   └── Start Phase 5 (present and iterate)
-├── Main task in_progress, approval task in_progress
-│   └── Present summary to user again
-├── Main task in_progress, approval completed (approved), no write task
-│   └── Start Phase 6 (write file)
-├── Main task completed
-│   └── Show final summary
-└── No tasks exist
-    └── Fresh start (Phase 1)
+TaskCreate:
+  title: "Write: multi-user-workflows.md"
+  status: "completed"
+  metadata:
+    file_path: "/workflows/multi-user-workflows.md"
+    file_size_lines: 620
+    workflows_written: 25
+    personas_documented: 6
 ```
 
-**Resuming with partial exploration:**
-If some exploration agents completed but others didn't:
-1. Read completed agent findings from task metadata
-2. Spawn only the missing agents
-3. Combine all findings when all complete
+### Complete the Main Task
 
-**Always inform user when resuming:**
 ```
-Resuming multi-user workflow generation session:
-- Exploration: [N]/3 agents complete
-- Workflows generated: [count or "pending"]
-- Approval: [status]
-- Resuming: [next action]
+TaskUpdate:
+  title: "Generate: Multi-User Workflows"
+  status: "completed"
+  metadata:
+    mode: "create"
+    total_workflows: 25
+    core: 6
+    feature: 11
+    edge: 8
+    personas: ["Admin", "Host", "Guest1", "Guest2", "Guest3", "Viewer"]
+    total_sync_points: 45
+    output_path: "/workflows/multi-user-workflows.md"
+    exploration_agents: 3
+    interview_completed: true
+    live_crawl: true
+    review_iterations: 2
 ```
 
-## Workflow Categories
+### Final Summary
 
-When exploring the codebase, look for these common multi-user workflow types:
+Present the user with a completion summary:
 
-| Category | What to Look For | Example Workflow |
-|----------|-----------------|------------------|
-| Authentication & session isolation | Login, signup, sessions | Two users logged in simultaneously see their own data |
-| Room/space creation and joining | Room create, join, invite | User A creates room, User B joins via link |
-| Real-time content sync | Insert, update, delete + subscription | User A adds item, User B sees it appear in real time |
-| Real-time state sync | Queue advance, toggles, counters | User A advances queue, User B sees position update |
-| Social features | Friend requests, blocking, invitations | User A sends friend request, User B accepts |
-| Notification delivery | In-app, push, email notifications | User B receives notification when User A mentions them |
-| Permission boundaries | Role checks, RLS, visibility | User A (admin) sees controls User B (member) does not |
-| Conflict resolution | Simultaneous edits, last-write-wins | Both users edit same item, system resolves conflict |
-| Leave/rejoin flows | Disconnect, leave room, rejoin | User A leaves room, User B sees them leave, User A rejoins |
-| Invite-to-signup | Invite link, new user onboarding | User A invites email, recipient signs up and joins |
+```
+Multi-user workflow generation complete.
 
-## Multi-User Workflow Writing Standards
+File: /workflows/multi-user-workflows.md
 
-**Step Types:**
+Summary:
+- Total workflows: 25
+- Core workflows: 6
+- Feature workflows: 11
+- Edge case workflows: 8
+- Personas: Admin, Host, Guest1, Guest2, Guest3, Viewer (6 total)
+- Total sync verification points: 45
+- Exploration agents used: 3 (Auth & Roles, Multi-User Features, Real-Time Sync)
+- Interview completed: yes
+- Live crawl: yes (48 pages visited across 4 personas)
+- Review iterations: 2
+
+Next steps:
+- Run "convert multi-user workflows to playwright" to generate multi-context E2E test files
+- Run "run playwright tests" to execute the generated tests
+```
+
+---
+
+## Session Recovery
+
+If the skill is invoked and an existing task list is found, use this decision tree to determine where to resume.
+
+### Decision Tree
+
+```
+Check TaskList for "Generate: Multi-User Workflows"
+
+CASE 1: No task list exists
+  -> Start from Phase 1
+
+CASE 2: Interview task is "in_progress"
+  -> The interview was started but not completed
+  -> Resume from Phase 2 (re-ask persona questions)
+
+CASE 3: Interview task is "completed", Explore tasks are "in_progress"
+  -> Some agents may have timed out
+  -> Check which Explore tasks completed
+  -> Re-spawn only the incomplete agents (pass the stored Persona Registry)
+  -> Resume from Phase 3 (partial)
+
+CASE 4: All Explore tasks are "completed", no Crawl or Generate task
+  -> Code exploration is done
+  -> Resume from Phase 5 (offer live crawl) or Phase 6 (generate)
+
+CASE 5: Crawl task exists and is "completed" or skipped, no Generate task
+  -> Resume from Phase 6 (generate workflows)
+
+CASE 6: Generate task is "completed", no Approval task
+  -> Workflows were generated but not reviewed
+  -> Resume from Phase 8 (review with user)
+
+CASE 7: Approval task exists with result "changes_requested"
+  -> User gave feedback but revisions were not completed
+  -> Read the feedback from task metadata
+  -> Apply changes and re-present for review
+  -> Resume from Phase 8 (next iteration)
+
+CASE 8: Approval task is "completed" with result "approved", no Write task
+  -> Workflows were approved but file was not written
+  -> Resume from Phase 9 (write file)
+
+CASE 9: Write task is "completed"
+  -> Everything is done
+  -> Show the final summary and ask if the user wants to make changes
+```
+
+### Always Inform the User When Resuming
+
+```
+I found an existing session for multi-user workflow generation.
+
+Current state: [describe where things left off]
+Last completed phase: [phase name]
+Persona Registry: [list of personas from the interview]
+
+I will resume from [next phase]. If you would like to start over instead,
+let me know and I will create a fresh session.
+```
+
+---
+
+## Workflow Writing Standards
+
+Use these exact verb forms and patterns when writing workflow steps. Consistency makes workflows easier to read, review, and automate.
 
 | Action | Format | Example |
 |--------|--------|---------|
-| Navigation | [User X] Navigate to [URL/page] | [User A] Navigate to the dashboard |
-| Click | [User X] Click [specific element] | [User B] Click the "Join Room" button |
-| Type | [User X] Type "[text]" in [field] | [User A] Type "Hello team" in the message input |
-| Select | [User X] Select "[option]" from [dropdown] | [User B] Select "Viewer" from role dropdown |
-| Verify | [User X] Verify [expected state] | [User A] Verify User B's avatar appears in the room |
-| Verify Sync | [User X] Verify: sees [state] from [User Y]'s action | [User B] Verify: sees new item added by User A |
-| Wait | [User X] Wait for [condition] | [User A] Wait for real-time sync indicator |
+| Navigation | [Persona] Navigate to [URL/page] | [Admin] Navigate to the team settings page |
+| Click | [Persona] Click the "[label]" [element type] | [Host] Click the "Share" button |
+| Type | [Persona] Type "[text]" in the [field name] field | [Admin] Type "guest@email.com" in the invite email field |
+| Select | [Persona] Select "[option]" from the [dropdown name] dropdown | [Admin] Select "Editor" from the role dropdown |
+| Check | [Persona] Check the "[label]" checkbox | [Host] Check the "Allow editing" checkbox |
+| Uncheck | [Persona] Uncheck the "[label]" checkbox | [Admin] Uncheck the "Can delete" checkbox |
+| Toggle | [Persona] Toggle the "[label]" switch [on/off] | [Host] Toggle the "Public access" switch on |
+| Clear | [Persona] Clear the [field name] field | [Guest1] Clear the search field |
+| Scroll | [Persona] Scroll [direction] to [target/distance] | [Viewer] Scroll down to the comments section |
+| Hover | [Persona] Hover over the "[label]" [element] | [Guest1] Hover over the "Participants" avatar stack |
+| Wait | [Persona] Wait for [condition] | [Guest2] Wait for the loading spinner to disappear |
+| Verify | [Persona] Verify [expected state] | [Guest1] Verify the shared document title reads "Project Plan" |
+| Sync Verify | **Sync Verification:** Within N seconds, verify [condition] | **Sync Verification:** Within 5 seconds, verify [Guest1] sees the document updated by [Host] |
+| Upload | [Persona] Upload "[filename]" to the [upload area] | [Host] Upload "report.pdf" to the shared files dropzone |
+| Drag | [Persona] Drag "[source]" to "[target]" | [Editor] Drag "Task A" to the "Done" column |
+| Press | [Persona] Press [key/shortcut] | [Host] Press Escape to close the share dialog |
+| Refresh | [Persona] Refresh the page | [Guest1] Refresh the page and verify data from [Host] persists |
 
-**Persona Prefix Convention:**
-- Always prefix every step with `[User A]`, `[User B]`, etc.
-- Define each persona in the Personas section at the top of each workflow
-- Include role (admin, member, guest, anonymous) and authentication state
-- Use consistent persona names throughout a workflow
+---
 
-**Cross-User Verification Pattern:**
-After any mutation by one user, include a Verify step for the other user(s):
-```markdown
-5. [User A] Click "Add Item" -> item appears in list
-6. [User A] Verify: new item visible in their list
-7. [User B] Verify: sees new item appear in real time (cross-user sync)
+## Automation-Friendly Guidelines
+
+Multi-user workflows are designed to be converted into Playwright multi-context E2E tests. Follow these guidelines to make conversion straightforward.
+
+### Multi-Context Pattern
+
+Each persona maps to a separate Playwright BrowserContext (or a separate Browser instance for full isolation). The converter will create:
+
+```
+- 1 BrowserContext per persona
+- 1 Page per context
+- Shared test fixtures for persona credentials
+- Helper functions to switch between persona contexts
 ```
 
-**Example Workflow:**
+When writing workflows, keep this mapping in mind. Each `[PersonaName]` prefix tells the converter which context to use for that step.
+
+### Locator Descriptions
+
+When describing elements in workflow steps, prefer descriptions that map cleanly to Playwright's recommended locator strategies:
+
+| Locator Strategy | Workflow Description | Playwright Equivalent |
+|-----------------|---------------------|----------------------|
+| By role + name | [Admin] Click the "Submit" button | `adminPage.getByRole('button', { name: 'Submit' })` |
+| By label | [Host] Type "john@email.com" in the email field | `hostPage.getByLabel('Email')` |
+| By text | [Guest1] Click the "Learn more" link | `guest1Page.getByText('Learn more')` |
+| By placeholder | [Guest2] Type "Search..." in the search box | `guest2Page.getByPlaceholder('Search...')` |
+| By test ID | [Admin] Click the delete button (`data-testid="delete-btn"`) | `adminPage.getByTestId('delete-btn')` |
+| By title | [Viewer] Hover over the info icon (title="More information") | `viewerPage.getByTitle('More information')` |
+
+### Preferred Locator Order
+
+When writing steps, prefer locator descriptions in this order (matching Playwright's recommendation):
+
+1. Role-based (buttons, links, headings, etc.)
+2. Label-based (form fields)
+3. Text-based (visible text content)
+4. Placeholder-based (input placeholders)
+5. Test ID-based (data-testid attributes)
+6. CSS/XPath-based (last resort, avoid when possible)
+
+### Non-Automatable Steps
+
+Some steps cannot be automated with Playwright. Mark these with `[MANUAL]`:
 
 ```markdown
-## Workflow 1: Create Room and Invite Another User
+4. [Guest1] [MANUAL] Verify the invitation email arrives in the inbox
+   - Check for subject line "You've been invited to [Team Name]"
 
-### Personas
-- User A: Room host (authenticated, admin role)
-- User B: Invited member (authenticated, member role)
-
-### Prerequisites
-- Both users have existing accounts
-- App running at localhost:3000
-- Both users logged in with separate browser sessions
-
-### Steps
-1. [User A] Navigate to /rooms
-2. [User A] Click "Create Room" button
-3. [User A] Type "Test Room" in room name field
-4. [User A] Click "Create" -> room is created, redirected to /rooms/[id]
-5. [User A] Verify: room page loads with "Test Room" title and empty member list
-6. [User A] Click "Invite" button in the toolbar
-7. [User A] Type User B's email in the invite field
-8. [User A] Click "Send Invite" -> invitation sent confirmation appears
-9. [User B] Verify: notification badge appears in the header (cross-user sync)
-10. [User B] Click the notification bell icon
-11. [User B] Verify: sees "You've been invited to Test Room" notification
-12. [User B] Click "Accept" on the invitation
-13. [User B] Verify: redirected to /rooms/[id], room content visible
-14. [User A] Verify: User B's name appears in the member list (cross-user sync)
-15. [User A] Verify: member count updates from 1 to 2
+7. [Admin] [MANUAL] Complete the CAPTCHA challenge
+   - Workflow continues after CAPTCHA is solved
 ```
+
+### Known Limitations for Multi-User Testing
+
+| Limitation | Description | Workaround |
+|-----------|-------------|------------|
+| True concurrency | Playwright contexts run sequentially in a single test | Use `Promise.all()` for parallel actions, or accept sequential execution with sync verification |
+| WebSocket state observation | Cannot directly observe WebSocket messages from another context | Verify via UI state changes with polling/retries |
+| Timing sensitivity | Real-time sync tests are inherently timing-sensitive | Use generous timeouts and retry assertions (e.g., `expect(...).toPass({ timeout: 10000 })`) |
+| Shared database state | All contexts share the same database | Ensure preconditions explicitly state required data state; use unique identifiers per test run |
+| Browser resource limits | Each context consumes memory and CPU | Limit to 4-5 simultaneous personas per test; split larger groups across multiple tests |
+| OAuth per-persona | Each persona may need separate OAuth flows | Pre-provision auth tokens or use API-level login to skip OAuth UI for secondary personas |
+| Email verification | Cannot automate email inbox checking | Use test email services (Mailhog, Ethereal) or skip verification in test env |
+
+### Prerequisites for Automation
+
+When a multi-user workflow requires specific setup, document it in the Preconditions block:
+
+```markdown
+**Preconditions:**
+- Admin is logged in as Admin persona (ADMIN_EMAIL / ADMIN_PASSWORD)
+- Host is logged in as Host persona (HOST_EMAIL / HOST_PASSWORD)
+- Guest1 is logged in as Guest1 persona (GUEST1_EMAIL / GUEST1_PASSWORD)
+- A shared workspace named "Test Workspace" exists (created by Admin)
+- Host has "Editor" role in "Test Workspace"
+- Guest1 has "Viewer" role in "Test Workspace"
+- The feature flag "real-time-collaboration" is enabled
+```
+
+This information is critical for the converter skill to generate proper `beforeAll` setup blocks that create contexts, log in each persona, and establish the required data state.
+
+---
+
+## Multi-User UX Anti-Patterns
+
+When generating workflows, watch for these common multi-user UX anti-patterns. If you detect any during exploration, flag them in the workflow document and write specific test steps to verify the application handles them correctly.
+
+### Synchronization Anti-Patterns
+
+| Anti-Pattern | Why It Matters | Verification Step |
+|-------------|----------------|-------------------|
+| Silent data loss | User A's changes overwritten by User B without warning | [User A] and [User B] edit the same field; verify conflict resolution or merge UI appears |
+| Stale reads | User sees outdated data after another user's update | [User B] Verify data updates within expected sync time after [User A] makes changes |
+| Phantom deletes | Resource disappears from one user's view without explanation | [User A] Delete resource; [User B] Verify clear "deleted" or "not found" message (not blank screen) |
+| No offline indicator | User does not know they are working with stale data | Disconnect network; verify offline banner or stale-data warning appears |
+| Optimistic update without rollback | Failed server-side operation leaves client in invalid state | [User A] Perform action that will fail server-side; verify UI rolls back to previous state |
+
+### Permission Anti-Patterns
+
+| Anti-Pattern | Why It Matters | Verification Step |
+|-------------|----------------|-------------------|
+| UI shows forbidden actions | User sees buttons they cannot use | [Viewer] Verify edit/delete buttons are NOT visible (not just disabled) |
+| Error on permitted action | User has permission but gets an error | [Editor] Perform allowed action; verify success (no 403/unauthorized) |
+| Delayed permission propagation | Role change does not take effect until re-login | [Admin] Change [Guest1]'s role; [Guest1] Verify new permissions without re-login |
+| Inconsistent permission model | Same action allowed via UI but blocked via API or vice versa | [Guest1] Perform action via UI; verify API also permits it |
+| No audit trail for permission changes | Cannot track who changed whose access | [Admin] Change [Guest1]'s role; verify audit log entry is created |
+
+### Collaboration Anti-Patterns
+
+| Anti-Pattern | Why It Matters | Verification Step |
+|-------------|----------------|-------------------|
+| No presence indicators | Users do not know who else is viewing/editing | [Host] and [Guest1] Open same document; verify presence avatars or "N users viewing" indicator |
+| Cursor/selection not shared | Users cannot see where others are editing | [Host] Place cursor in document; [Guest1] Verify remote cursor is visible |
+| No conflict notification | Concurrent edits silently merged or lost | [Host] and [Guest1] Edit same paragraph; verify conflict notification or merge UI |
+| Lock without timeout | User locks resource and goes offline, blocking others | [Host] Start editing; disconnect Host; [Guest1] Verify lock expires or can be overridden |
+| No typing indicator | Users type over each other without awareness | [Host] Begin typing; [Guest1] Verify "Host is typing..." indicator appears |
+
+### Notification Anti-Patterns
+
+| Anti-Pattern | Why It Matters | Verification Step |
+|-------------|----------------|-------------------|
+| Missing notifications | Important events do not trigger notifications | [Host] Perform notable action; [Guest1] Verify notification appears within expected time |
+| Notification flood | Every minor action sends a notification | [Host] Perform 10 rapid actions; [Guest1] Verify notifications are batched or throttled |
+| Self-notification | User notified of their own actions | [Host] Perform action; verify [Host] does NOT receive notification for own action |
+| No notification preferences | Users cannot control notification volume | Verify notification settings page exists with per-channel controls |
+| Stale notification links | Clicking notification leads to 404 or wrong state | [Admin] Delete resource; [Guest1] Click notification about resource; verify graceful error |
+
+### Multi-User Verification Steps Template
+
+When anti-patterns are detected during exploration, add a dedicated multi-user verification workflow:
+
+```markdown
+## Workflow [N]: Multi-User UX Compliance
+<!-- auth: required -->
+<!-- priority: feature -->
+<!-- personas: Admin, Host, Guest1, Viewer -->
+<!-- sync-points: 6 -->
+
+> Verifies the application follows multi-user UX best practices and avoids
+> common collaboration, synchronization, and permission anti-patterns.
+
+**Preconditions:**
+- All personas are logged in
+- A shared workspace exists with all personas as members
+
+**Steps:**
+
+1. [Host] and [Guest1] Open the same shared document simultaneously
+   - **Sync Verification:** Within 3 seconds, verify both see presence
+     indicators showing the other user
+
+2. [Host] Begin typing in the document
+   - **Sync Verification:** Within 2 seconds, verify [Guest1] sees
+     [Host]'s cursor or a "Host is typing..." indicator
+
+3. [Admin] Change [Guest1]'s role from "Editor" to "Viewer"
+   - **Sync Verification:** Within 5 seconds, verify [Guest1]'s edit
+     controls disappear without requiring re-login
+
+4. [Viewer] Attempt to access the edit page for the shared document
+   - Verify a clear "permission denied" or redirect occurs (not a 500 error)
+
+5. [Host] Delete the shared document
+   - **Sync Verification:** Within 5 seconds, verify [Guest1] sees a
+     "document deleted" message (not a blank screen)
+   - **Sync Verification:** Within 5 seconds, verify [Viewer] is
+     redirected or shown a "not found" message
+
+6. [Guest1] Click a stale notification referencing the deleted document
+   - Verify a graceful "document not found" message appears (not a crash)
+```
+
+---
 
 ## Handling Updates
 
-When updating existing multi-user workflows:
+When the user selects "Update" mode (modifying existing workflows), follow these rules to minimize disruption while ensuring coverage stays current.
 
-1. **Preserve working workflows** - Don't rewrite what works
-2. **Mark deprecated steps** - If API or UI changed, note what's outdated
-3. **Add new workflows** - Append new multi-user features as new workflows
-4. **Version notes** - Add changelog comments for significant changes
+### Rules for Updating Existing Workflows
 
-## Multi-User Anti-Patterns
+1. **Preserve working workflows** -- If an existing workflow is still valid (routes exist, components match, personas are correct, sync timings are accurate), keep it unchanged. Do not rewrite working workflows for style consistency.
 
-When generating workflows, watch for these common multi-user testing anti-patterns and ensure your workflows avoid them:
+2. **Mark deprecated workflows** -- If a workflow references features, routes, or personas that no longer exist, do not delete it. Instead, add a deprecation marker:
 
-### Synchronization Anti-Patterns
-| Anti-Pattern | Issue | Better Alternative |
-|---|---|---|
-| No real-time sync verification | Workflows don't verify other users see updates | Add cross-user Verify steps after every mutation |
-| Single-user-only testing | Workflows only test one user at a time | Always test with 2+ personas simultaneously |
-| Assuming instant sync | Steps assume updates appear immediately | Include Wait steps and verify sync timing |
-| No sync failure testing | Missing tests for what happens when sync fails | Add scenarios for network interruption during sync |
+```markdown
+## Workflow 9: Legacy Shared Calendar
+<!-- auth: required -->
+<!-- priority: feature -->
+<!-- personas: Admin, Editor -->
+<!-- deprecated: true -->
+<!-- deprecated-reason: Calendar feature removed in v3.0, replaced by external integration -->
+<!-- deprecated-date: 2025-02-15 -->
 
-### Permission Anti-Patterns
-| Anti-Pattern | Issue | Better Alternative |
-|---|---|---|
-| Missing permission boundaries | No tests for what User B should NOT see | Add negative assertions for unauthorized access |
-| Only testing happy-path roles | Only admin role tested | Test every role: admin, member, guest, anonymous |
-| No role escalation tests | Missing tests for privilege changes | Test what happens when roles change mid-session |
+> **DEPRECATED** -- This workflow references the shared calendar feature which
+> has been removed. Keeping for reference until confirmed safe to delete.
+```
 
-### Session Anti-Patterns
-| Anti-Pattern | Issue | Better Alternative |
-|---|---|---|
-| Hardcoded user IDs | Tests break when data changes | Use dynamic values from API responses |
-| Shared session state | Tests assume clean state | Include setup/teardown for each persona |
-| No offline/reconnect testing | Missing network interruption scenarios | Include disconnect/reconnect verification steps |
-| No concurrent mutation tests | Only sequential interactions tested | Test simultaneous actions by multiple users |
+3. **Add new workflows** -- New workflows are appended to the appropriate section (Core, Feature, or Edge Case). Number them sequentially after the last existing workflow.
 
-### Notification Anti-Patterns
-| Anti-Pattern | Issue | Better Alternative |
-|---|---|---|
-| No notification verification | Workflows skip checking if notifications arrive | Verify notification delivery for every cross-user action |
-| Only in-app notifications | Push and email notifications untested | Test all configured notification channels |
-| No notification preference tests | Missing tests for opt-out behavior | Verify users can control their notification preferences |
+4. **Update Persona Registry** -- If personas have changed (new roles added, roles renamed, roles removed), update the Persona Registry table at the top of the document and flag any workflows that reference deprecated personas.
+
+5. **Version notes** -- Add a version history section at the top of the file:
+
+```markdown
+## Version History
+
+| Date | Action | Details |
+|------|--------|---------|
+| 2025-02-20 | Updated | Added workflows 26-28 for new real-time chat feature; added "Moderator" persona |
+| 2025-02-15 | Updated | Deprecated workflow 9 (calendar removed); updated sync timings in workflows 3, 7, 12 |
+| 2025-02-01 | Created | Initial generation: 24 workflows, 6 personas |
+```
+
+6. **Re-validate existing workflows** -- During exploration, cross-reference existing workflow steps against the current codebase. Flag any steps that reference elements, routes, or personas that have changed:
+
+```markdown
+3. [Admin] Click the "Invite User" button
+   - **[CHANGED]** Button label is now "Add Team Member" (updated in v2.5)
+   - Verify the invitation dialog opens
+```
+
+7. **Preserve workflow numbers** -- Never renumber existing workflows. If workflow 9 is deprecated and workflow 28 is added, the gap stays. This ensures external references to "Workflow 9" remain valid.
+
+8. **Update sync timings** -- If the real-time infrastructure has changed (e.g., migrated from polling to WebSocket), update all relevant Sync Verification timing expectations.
+
+### Update Summary
+
+After an update operation, present a change summary:
+
+```
+Multi-user workflow update complete.
+
+Changes:
+- Workflows preserved (unchanged): 18
+- Workflows updated (steps modified): 4
+- Workflows deprecated: 1
+- Workflows added (new): 3
+- Total workflows: 27 (1 deprecated)
+- Personas added: 1 (Moderator)
+- Personas deprecated: 0
+- Sync timings updated: 6 steps across 3 workflows
+
+Changed workflows:
+- Workflow 3: Updated sync timing from 10s to 3s (WebSocket migration)
+- Workflow 7: Updated step 4 (new share dialog UI)
+- Workflow 12: Updated sync timing from 10s to 3s (WebSocket migration)
+- Workflow 15: Updated step 2 ([Admin] button label changed to "Add Team Member")
+
+Deprecated workflows:
+- Workflow 9: Legacy Shared Calendar (calendar removed in v3.0)
+
+New workflows:
+- Workflow 26: Real-Time Chat Message Delivery
+- Workflow 27: Chat Presence Indicators
+- Workflow 28: Moderator Content Moderation Flow
+
+New personas:
+- Moderator (MODERATOR_EMAIL / MODERATOR_PASSWORD, pre-provisioned)
+```

@@ -7,10 +7,10 @@
     {
       "name": "qa-skills",
       "source": { "source": "github", "repo": "neonwatty/claude-qa-skills" },
-      "description": "QA testing pipeline — generate workflows, execute interactively, translate to Playwright, run E2E tests.",
-      "version": "1.0.0",
+      "description": "QA testing pipeline — generate workflows, convert to Playwright tests, run interactively or in CI. Desktop, mobile, and multi-user support with built-in authentication.",
+      "version": "2.0.0",
       "category": "testing",
-      "tags": ["qa", "playwright", "e2e", "ios", "mobile", "multi-user"]
+      "tags": ["qa", "playwright", "e2e", "mobile", "multi-user", "authentication"]
     }
   ]
 }

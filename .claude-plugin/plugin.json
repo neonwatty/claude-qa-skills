@@ -1,13 +1,13 @@
 {
   "name": "qa-skills",
-  "version": "1.0.0",
-  "description": "QA testing pipeline — generate workflows, execute interactively, translate to Playwright, run E2E tests. Supports browser, iOS, mobile, and multi-user flows.",
+  "version": "2.0.0",
+  "description": "QA testing pipeline — generate workflow docs, convert to Playwright E2E tests, run interactively or in CI. Supports desktop, mobile, and multi-user flows. Playwright-only, with built-in storageState authentication and Vercel preview CI generation.",
   "author": {
     "name": "Jeremy Watt",
     "url": "https://github.com/neonwatty"
   },
   "license": "MIT",
-  "keywords": ["qa", "testing", "playwright", "e2e", "ios", "mobile", "multi-user", "browser-automation"],
+  "keywords": ["qa", "testing", "playwright", "e2e", "mobile", "multi-user", "authentication", "ci"],
   "skills": "./skills",
   "repository": "https://github.com/neonwatty/claude-qa-skills"
 }

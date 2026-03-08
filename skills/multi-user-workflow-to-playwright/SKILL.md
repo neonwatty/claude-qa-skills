@@ -1,952 +1,1058 @@
 ---
 name: multi-user-workflow-to-playwright
-description: Translates multi-user workflow markdown files into Playwright E2E tests with multiple browser contexts. Use this when the user says "convert multi-user workflows to playwright", "translate multi-user workflows to CI", "generate multi-user playwright tests", or wants to promote multi-user workflows to automated CI tests with persona-based browser contexts.
+description: Converts multi-user workflow markdown into a self-contained Playwright test project with per-persona authentication, multi-context test patterns, and CI workflow. Use when the user says "convert multi-user workflows to playwright", "translate multi-user workflows to CI", or "generate multi-user playwright tests".
 ---
 
-# Multi-User Workflow to Playwright Skill
+# Multi-User Workflow to Playwright Converter
 
-You are a senior QA automation engineer. Your job is to translate human-readable multi-user workflow markdown files into Playwright E2E test files that use multiple browser contexts to simulate concurrent users. Each persona in a workflow becomes its own browser context with independent auth and state.
+You are a senior QA automation engineer converting human-readable multi-user workflow documentation into a self-contained Playwright test project with per-persona authentication and multi-browser-context test patterns. Your job is to read workflows from `/workflows/multi-user-workflows.md`, parse persona metadata, translate every persona-tagged step into idiomatic Playwright code using separate browser contexts, and produce a fully functional test project at `e2e/multi-user/` that includes per-persona auth setup, multi-project configuration, CI configuration, and Vercel deployment protection headers.
+
+Every generated test must be runnable out of the box with `cd e2e/multi-user && npm ci && npx playwright test`.
+
+---
 
 ## Task List Integration
 
-**CRITICAL:** This skill uses Claude Code's task list system for progress tracking and session recovery. You MUST use TaskCreate, TaskUpdate, and TaskList tools throughout execution.
-
-### Why Task Lists Matter Here
-- **Persona-to-context mapping:** Track which personas have been mapped to browser contexts
-- **Selector mapping progress:** Track which workflows have selectors resolved across multiple user views
-- **Ambiguous selector tracking:** Each ambiguous selector becomes a blocking task awaiting user input
-- **Translation progress:** User sees "3/5 workflows translated"
-- **Session recovery:** If interrupted, know which selectors were found and which need resolution
-- **Code generation tracking:** Track test generation and user approval
+Task lists track agent progress, provide user visibility, enable session recovery after interruptions, record review iterations, and serve as an audit trail of what was parsed, generated, and approved.
 
 ### Task Hierarchy
+
+Every run of this skill creates the following task tree. Tasks are completed in order.
+
 ```
-[Main Task] "Translate Multi-User Workflows to Playwright"
-  └── [Parse Task] "Parse: multi-user-workflows.md"
-  └── [Check Task] "Check: existing e2e/multi-user-workflows.spec.ts"
-  └── [Selector Task] "Selectors: discover for all workflows" (agent)
-      └── [Ambiguous Task] "Resolve: member count selector" (BLOCKING)
-  └── [Generate Task] "Generate: Playwright multi-context tests"
-  └── [Approval Task] "Approval: Review generated tests"
-  └── [Write Task] "Write: e2e/multi-user-workflows.spec.ts"
+[Main Task] "Convert: Multi-User Workflows to Playwright"
+  +-- [Parse Task]    "Parse: multi-user-workflows.md"
+  +-- [Check Task]    "Check: Existing e2e/multi-user/ project"
+  +-- [Selector Task] "Selectors: Find for all workflows"   (agent)
+  +-- [Generate Task] "Generate: Playwright project"
+  +-- [Approval Task] "Approval: Review generated tests"
+  +-- [Write Task]    "Write: e2e/multi-user/"
 ```
 
 ### Session Recovery Check
-**At the start of this skill, always check for existing tasks:**
+
+At the very start of every invocation, check for an existing task list before doing anything else.
+
 ```
-1. Call TaskList to check for existing conversion tasks
-2. If a "Translate Multi-User Workflows to Playwright" task exists with status in_progress:
-   - Check if parsing completed
-   - Check if selector discovery completed (read metadata for mappings)
-   - Check for pending ambiguous selector tasks awaiting user input
-   - Check if code generation completed
-   - Resume from appropriate phase
-3. If no tasks exist, proceed with fresh execution
+1. Read the current TaskList.
+2. If no task list exists -> start from Phase 1.
+3. If a task list exists:
+   a. Find the last task with status "completed".
+   b. Determine the corresponding phase.
+   c. Inform the user: "Resuming from Phase N -- [phase name]."
+   d. Skip to that phase's successor.
 ```
+
+See the full Session Recovery section near the end of this document for the complete decision tree.
+
+---
 
 ## The Translation Pipeline
 
+This skill reads a single input file and produces a complete test project with per-persona authentication.
+
 ```
-/workflows/multi-user-workflows.md  →  e2e/multi-user-workflows.spec.ts
-       (Human-readable)                    (Playwright multi-context tests)
+/workflows/multi-user-workflows.md  ->  e2e/multi-user/
+                                          +-- playwright.config.ts
+                                          +-- package.json
+                                          +-- tests/
+                                          |   +-- admin.setup.ts
+                                          |   +-- user.setup.ts
+                                          |   +-- host.setup.ts
+                                          |   +-- guest1.setup.ts
+                                          |   +-- ...  (one per persona)
+                                          |   +-- workflows.spec.ts
+                                          +-- .github/workflows/e2e.yml
+                                          +-- .gitignore
 ```
 
-## When to Use This Skill
+Every file in the output is self-contained. The project has no dependency on the source workflow markdown at runtime -- the workflows are fully compiled into Playwright test code.
 
-Use when:
-- User has refined multi-user workflows via `multi-user-workflow-executor`
-- User wants to promote multi-user workflows to CI
-- User says "convert multi-user workflows to playwright", "generate multi-user CI tests", "automate multi-user workflows"
-- Workflows involve multiple personas interacting with the same app simultaneously (e.g., host/guest, admin/member, sender/receiver)
+---
 
-## Multi-User Playwright Patterns
+## Phase 1: Parse Workflows
 
-Multi-user tests differ from single-user tests in several critical ways:
+Read the workflow markdown file, extract each workflow with its persona metadata, and build an internal representation that drives all subsequent phases.
 
-### Persona-to-Context Mapping
-Each persona in the workflow becomes a `browser.newContext()` with its own `context.newPage()`. This gives each persona independent cookies, localStorage, and authentication state.
+### Step 1a: Locate the Workflow File
+
+Use Glob to search for the workflow file:
+
+```
+Glob patterns:
+  - workflows/multi-user-workflows.md
+  - workflows/concurrent-workflows.md
+  - workflows/collaboration-workflows.md
+```
+
+If no file is found, stop and inform the user:
+
+```
+No multi-user workflow file found at /workflows/multi-user-workflows.md.
+Please run "generate multi-user workflows" first, or provide the path
+to your workflow file.
+```
+
+### Step 1b: Read and Parse
+
+Read the entire workflow file. For each workflow, extract:
+
+1. **Workflow number** -- from the `## Workflow [N]:` heading
+2. **Workflow name** -- the descriptive name after the number
+3. **Auth requirement** -- from `<!-- auth: required -->` or `<!-- auth: no -->`
+4. **Priority** -- from `<!-- priority: core -->`, `<!-- priority: feature -->`, or `<!-- priority: edge -->`
+5. **Personas** -- from `<!-- personas: Admin, Host, Guest1 -->` (comma-separated list)
+6. **Estimated steps** -- from `<!-- estimated-steps: N -->`
+7. **Sync points** -- from `<!-- sync-points: N -->`
+8. **Deprecated flag** -- from `<!-- deprecated: true -->` (skip deprecated workflows)
+9. **Preconditions** -- the bullet list under `**Preconditions:**`
+10. **Steps** -- each numbered step with its `[PersonaName]` tag and verification sub-steps
+11. **Postconditions** -- the bullet list under `**Postconditions:**`
+
+### Step 1c: Parse the Persona Registry
+
+Near the top of the workflow file, extract the Persona Registry table and build a Persona Map. For each persona, derive:
+
+- `contextVar`: lowercased persona name + `Ctx` (e.g., `adminCtx`, `guest1Ctx`)
+- `pageVar`: lowercased persona name + `Page` (e.g., `adminPage`, `guest1Page`)
+- `authFile`: `playwright/.auth/<lowercase-persona>.json`
+- `setupFile`: `<lowercase-persona>.setup.ts`
+- `emailVar` / `passwordVar`: from the `Credential Env Vars` column (e.g., `ADMIN_EMAIL` / `ADMIN_PASSWORD`)
+
+### Step 1d: Build Internal Representation
+
+Organize workflows into a structured list. Each workflow entry includes: number, name, auth flag, priority, personas list, steps (each with a `persona` field, `action`, `verify`, optional `syncVerify` boolean, and `syncTimeout` in ms), preconditions, and postconditions.
+
+Each step's `persona` field is extracted from the `[PersonaName]` tag prefix (e.g., `[Admin]` -> `persona: "Admin"`).
+
+Skip any workflow marked `<!-- deprecated: true -->`. Log skipped workflows to the user:
+
+```
+Parsed 20 workflows from multi-user-workflows.md.
+Skipped 1 deprecated workflow: #9 (Legacy Shared Calendar).
+Converting 19 active workflows.
+Personas found: Admin, Host, Guest1, Guest2, Guest3, Viewer (6 total).
+```
+
+### Step 1e: Create Tasks
+
+Create the main task `"Convert: Multi-User Workflows to Playwright"` (in_progress) with metadata for source file, workflow counts, persona list, and output path. Create the parse task `"Parse: multi-user-workflows.md"` (completed) with metadata for workflow counts by priority, persona count, and sync point total.
+
+---
+
+## Phase 2: Check Existing Project
+
+Before generating, check whether an `e2e/multi-user/` directory already exists.
+
+### Step 2a: Check for Existing Files
+
+Use Glob to check for existing project files:
+
+```
+Glob patterns:
+  - e2e/multi-user/playwright.config.ts
+  - e2e/multi-user/package.json
+  - e2e/multi-user/tests/*.spec.ts
+  - e2e/multi-user/tests/*.setup.ts
+```
+
+### Step 2b: Determine Strategy
+
+**If no existing project is found:**
+- Proceed with fresh generation.
+- No further decisions needed.
+
+**If an existing project is found:**
+- Read the existing `tests/workflows.spec.ts` to understand what is already covered.
+- Read existing `tests/*.setup.ts` files to identify current persona setup files.
+- Use `AskUserQuestion` to determine the user's intent:
+
+```
+I found an existing Playwright project at e2e/multi-user/ with [N] existing
+test blocks and [M] persona setup files.
+
+How would you like to proceed?
+
+1. **Overwrite** -- Replace all generated files with fresh output
+2. **Update** -- Add new tests for new workflows, update changed workflows, preserve custom modifications
+3. **Cancel** -- Stop and keep existing files unchanged
+```
+
+### Step 2c: Create the Check Task
+
+Create `"Check: Existing e2e/multi-user/ project"` (completed) with metadata for existing project status, test count, persona setup file count, and chosen strategy.
+
+---
+
+## Phase 3: Selector Discovery [DELEGATE TO AGENT]
+
+Spawn an Explore agent to analyze the codebase and find the best Playwright selectors for elements referenced in the workflows.
+
+### Step 3a: Create the Task and Spawn Agent
+
+Create `"Selectors: Find for all workflows"` (in_progress).
+
+### Step 3b: Spawn the Explore Agent
+
+Spawn via the Task tool with the following parameters:
+
+```
+Task tool:
+  subagent_type: "Explore"
+  model: "sonnet"
+  prompt: |
+    You are a QA exploration agent focused on finding Playwright selectors.
+
+    Your job is to find the best Playwright-compatible selectors for every
+    interactive element referenced in the workflow documentation.
+    Use Read, Grep, and Glob to explore the codebase. Do NOT use any browser tools.
+
+    Here are the workflows I need selectors for:
+    [Paste the parsed workflow list with all step actions]
+
+    The personas involved are: [List persona names]
+    Note: Elements may render differently per persona (role-based UI).
+    When searching, look for conditional rendering based on roles.
+
+    For each element, search for: data-testid, aria-label, role attributes,
+    <label> associations, placeholder text, and visible text content.
+    Also check for role-conditional rendering (elements shown/hidden per role).
+
+    Prefer selectors in this order (Playwright recommended):
+    1. getByRole  2. getByLabel  3. getByPlaceholder
+    4. getByText  5. getByTestId  6. CSS selector (last resort)
+
+    Return findings as:
+
+    ## Selector Map
+    | Workflow | Step | Persona | Element Description | Recommended Selector | Fallback Selector |
+    |----------|------|---------|--------------------|--------------------|-------------------|
+    | 1 | 2 | Admin | "Invite Member" button | getByRole('button', { name: 'Invite Member' }) | getByTestId('invite-btn') |
+
+    ## Role-Conditional Elements
+    - Elements that render differently per persona (e.g., edit button visible to Admin but not Viewer)
+
+    ## Missing Selectors
+    - Elements not found in codebase (suggest data-testid additions)
+
+    ## Selector Quality Report
+    - Counts by selector type and elements not found
+```
+
+### Step 3c: Process Agent Results
+
+When the Explore agent returns, merge its Selector Map into the internal workflow representation. Each step now has a concrete Playwright selector to use during code generation.
+
+Update the task to completed with metadata for selector counts by type, missing count, and role-conditional element count.
+
+For any elements the agent could not locate, generate a comment in the test code:
 
 ```typescript
-// Each persona gets their own isolated browser context
-contextA = await browser.newContext()  // Host / Admin / Sender
-contextB = await browser.newContext()  // Guest / Member / Receiver
-pageA = await contextA.newPage()
-pageB = await contextB.newPage()
+// TODO: Add data-testid for this element -- selector not found in codebase
+await adminPage.locator('[data-testid="unknown-element"]').click();
 ```
 
-### Cross-Context Assertions
-After one user acts, assert the result from the other user's page. This validates real-time sync, notifications, and shared state updates.
+---
+
+## Phase 4: Generate Playwright Project
+
+This is the core generation phase. Generate ALL project files using the parsed workflows, discovered selectors, Persona Map, and configuration templates.
+
+### Step 4a: Create the Generation Task
+
+Create `"Generate: Playwright project"` (in_progress).
+
+### Step 4b: Generate playwright.config.ts
+
+Generate the Playwright configuration file with a multi-project setup. Each persona gets its own setup project, and the main test project depends on ALL persona setup projects. Tests do NOT use a `storageState` in the project config because each test creates its own per-persona browser contexts.
 
 ```typescript
-// User A creates something
-await pageA.locator('[data-testid="create-btn"]').click()
+import { defineConfig, devices } from '@playwright/test';
 
-// User B should see it appear (with timeout for propagation)
-await expect(pageB.getByText('New item')).toBeVisible({ timeout: 10000 })
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: false,
+  retries: process.env.CI ? 2 : 0,
+  reporter: process.env.CI ? 'html' : [['list'], ['html']],
+  use: {
+    baseURL: process.env.BASE_URL || 'http://localhost:3000',
+    trace: 'on-first-retry',
+    extraHTTPHeaders: {
+      ...(process.env.VERCEL_AUTOMATION_BYPASS_SECRET && {
+        'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+        'x-vercel-set-bypass-cookie': 'samesitenone',
+      }),
+    },
+  },
+  projects: [
+    { name: 'admin-setup', testMatch: /admin\.setup\.ts/ },
+    { name: 'host-setup', testMatch: /host\.setup\.ts/ },
+    { name: 'guest1-setup', testMatch: /guest1\.setup\.ts/ },
+    { name: 'guest2-setup', testMatch: /guest2\.setup\.ts/ },
+    { name: 'guest3-setup', testMatch: /guest3\.setup\.ts/ },
+    { name: 'viewer-setup', testMatch: /viewer\.setup\.ts/ },
+    {
+      name: 'multi-user-tests',
+      testDir: './tests',
+      testMatch: /workflows\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+      dependencies: [
+        'admin-setup',
+        'host-setup',
+        'guest1-setup',
+        'guest2-setup',
+        'guest3-setup',
+        'viewer-setup',
+      ],
+    },
+  ],
+});
 ```
 
-### Real-Time Sync Timeouts
-WebSocket, SSE, or polling-based real-time features need extended timeouts. Use `{ timeout: 10000 }` (10 seconds) for assertions that depend on cross-user data propagation.
+Key configuration decisions: `fullyParallel: false` because multi-user tests share state and must run sequentially within a workflow. Each persona has a dedicated setup project that runs its auth flow and saves storage state. The main `multi-user-tests` project depends on ALL persona setup projects so auth is guaranteed complete before tests begin. Tests do NOT declare `storageState` at the project level because each test creates multiple browser contexts with per-persona auth files. Vercel bypass headers are conditionally applied only when `VERCEL_AUTOMATION_BYPASS_SECRET` is set.
 
-### API Helper Functions for Preconditions
-Multi-user tests often require complex preconditions (user accounts, shared resources). Use API helpers to set up state quickly instead of driving the UI for every prerequisite.
+When generating for a specific project, include only the personas that appear in the Persona Registry. The example above shows six personas; the actual count will vary.
+
+### Step 4c: Generate Per-Persona Setup Files
+
+For EACH persona in the Persona Map, generate a dedicated setup file at `tests/<persona>.setup.ts`. Every setup file follows the same pattern but uses the persona's specific credential environment variables and auth file path.
+
+Template for each persona:
 
 ```typescript
-// Fast setup via API instead of UI
-async function createUserViaAPI(email: string, password: string) {
-  const response = await fetch('/api/auth/register', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
-  })
-  return response.json()
+import { test as setup } from '@playwright/test';
+
+const authFile = 'playwright/.auth/<persona-lowercase>.json';
+
+setup('authenticate as <persona-name>', async ({ page }) => {
+  if (!process.env.<PERSONA_EMAIL_VAR> || !process.env.<PERSONA_PASSWORD_VAR>) {
+    await page.context().storageState({ path: authFile });
+    return;
+  }
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(process.env.<PERSONA_EMAIL_VAR>);
+  await page.getByLabel('Password').fill(process.env.<PERSONA_PASSWORD_VAR>);
+  await page.getByRole('button', { name: /sign in|log in/i }).click();
+  await page.waitForURL('**/dashboard');
+  await page.context().storageState({ path: authFile });
+});
+```
+
+Concrete example for `tests/admin.setup.ts`:
+
+```typescript
+import { test as setup } from '@playwright/test';
+
+const authFile = 'playwright/.auth/admin.json';
+
+setup('authenticate as admin', async ({ page }) => {
+  if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
+    await page.context().storageState({ path: authFile });
+    return;
+  }
+  await page.goto('/login');
+  await page.getByLabel('Email').fill(process.env.ADMIN_EMAIL);
+  await page.getByLabel('Password').fill(process.env.ADMIN_PASSWORD);
+  await page.getByRole('button', { name: /sign in|log in/i }).click();
+  await page.waitForURL('**/dashboard');
+  await page.context().storageState({ path: authFile });
+});
+```
+
+The same pattern applies to every persona -- only the env var names and auth file path change (e.g., `guest1.setup.ts` uses `GUEST1_EMAIL`/`GUEST1_PASSWORD` and `playwright/.auth/guest1.json`).
+
+Key auth decisions: graceful fallback saves empty auth state when credentials are not set, so tests still run in environments without full credential configuration. Regex button matcher (`/sign in|log in/i`) handles common variations. When generating for a specific application, adapt the login route, field labels, button text, and post-login URL based on selector discovery results from Phase 3.
+
+### Step 4d: Generate package.json
+
+```json
+{
+  "name": "multi-user-e2e",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0"
+  }
 }
 ```
 
-### Skipping Unreachable Flows
-Flows requiring real external services (email delivery, push notifications, SMS) should use `test.skip` with a clear explanation.
+### Step 4e: Generate .github/workflows/e2e.yml
 
-## Process
+Generate the GitHub Actions CI workflow that runs tests against Vercel preview deployments. The CI workflow includes environment variables for ALL personas from the Persona Registry.
 
-### Phase 1: Parse Workflows
-
-**Create the main conversion task:**
-```
-TaskCreate:
-- subject: "Translate Multi-User Workflows to Playwright"
-- description: |
-    Translate multi-user workflow markdown to Playwright multi-context E2E tests.
-    Source: /workflows/multi-user-workflows.md
-    Target: e2e/multi-user-workflows.spec.ts
-- activeForm: "Parsing multi-user workflows"
-
-TaskUpdate:
-- taskId: [main task ID]
-- status: "in_progress"
-```
-
-**Create parse task:**
-```
-TaskCreate:
-- subject: "Parse: multi-user-workflows.md"
-- description: "Read and parse multi-user workflow file, extract personas and steps"
-- activeForm: "Parsing multi-user workflows"
-
-TaskUpdate:
-- taskId: [parse task ID]
-- addBlockedBy: [main task ID]
-- status: "in_progress"
-```
-
-1. Read `/workflows/multi-user-workflows.md`
-2. If file doesn't exist, inform user and stop
-3. Parse all workflows (each starts with `## Workflow:` or `### Workflow:`)
-4. For each workflow, extract:
-   - Name and description
-   - **Personas** (e.g., "Host", "Guest", "Admin", "Member") and their auth requirements
-   - Prerequisites (accounts, shared resources, invitations)
-   - Numbered steps with **persona attribution** (which user performs each step)
-   - Any `[MANUAL]` tagged steps
-   - Any cross-user assertions (one user's action verified from another's view)
-
-**Mark parse task complete with workflow inventory:**
-```
-TaskUpdate:
-- taskId: [parse task ID]
-- status: "completed"
-- metadata: {
-    "workflowCount": [N],
-    "workflows": [list of names],
-    "personas": [list of unique personas across all workflows],
-    "totalSteps": [count],
-    "crossUserAssertions": [count],
-    "manualSteps": [count]
-  }
+```yaml
+name: Multi-User E2E Tests
+on: [deployment_status]
+jobs:
+  test:
+    if: >
+      github.event.deployment_status.state == 'success' &&
+      contains(github.event.deployment_status.environment, 'Preview')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+      - run: cd e2e/multi-user && npm ci
+      - run: cd e2e/multi-user && npx playwright install chromium --with-deps
+      - run: cd e2e/multi-user && npx playwright test
+        env:
+          BASE_URL: ${{ github.event.deployment_status.target_url }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          HOST_EMAIL: ${{ secrets.HOST_EMAIL }}
+          HOST_PASSWORD: ${{ secrets.HOST_PASSWORD }}
+          GUEST1_EMAIL: ${{ secrets.GUEST1_EMAIL }}
+          GUEST1_PASSWORD: ${{ secrets.GUEST1_PASSWORD }}
+          GUEST2_EMAIL: ${{ secrets.GUEST2_EMAIL }}
+          GUEST2_PASSWORD: ${{ secrets.GUEST2_PASSWORD }}
+          GUEST3_EMAIL: ${{ secrets.GUEST3_EMAIL }}
+          GUEST3_PASSWORD: ${{ secrets.GUEST3_PASSWORD }}
+          VIEWER_EMAIL: ${{ secrets.VIEWER_EMAIL }}
+          VIEWER_PASSWORD: ${{ secrets.VIEWER_PASSWORD }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: multi-user-playwright-report
+          path: e2e/multi-user/playwright-report/
 ```
 
-### Phase 2: Check for Existing Tests
+Key CI decisions: triggers on `deployment_status` so tests run against the actual Vercel preview URL, filters to `Preview` environment only, uses `target_url` as `BASE_URL`, requires GitHub secrets for EVERY persona's email and password plus `VERCEL_AUTOMATION_BYPASS_SECRET`, uploads Playwright HTML report as artifact on every run, installs only Chromium for speed. When generating for a specific project, include only the personas from the Persona Registry.
 
-**Create check task:**
-```
-TaskCreate:
-- subject: "Check: existing e2e/multi-user-workflows.spec.ts"
-- description: "Check for existing Playwright tests and determine diff"
-- activeForm: "Checking existing tests"
-
-TaskUpdate:
-- taskId: [check task ID]
-- addBlockedBy: [main task ID]
-- status: "in_progress"
-```
-
-1. Look for existing `e2e/multi-user-workflows.spec.ts`
-2. If exists, parse it to find:
-   - Which workflows are already translated
-   - Which personas/contexts are defined
-   - Timestamps or version markers
-3. Determine which workflows need updating (diff strategy):
-   - New workflows -> Add
-   - Modified workflows -> Update
-   - Removed workflows -> Ask user whether to remove tests
-
-**Mark check task complete with diff summary:**
-```
-TaskUpdate:
-- taskId: [check task ID]
-- status: "completed"
-- metadata: {
-    "existingTestFile": true/false,
-    "existingWorkflows": [list of names],
-    "toAdd": [list of new workflow names],
-    "toUpdate": [list of modified workflow names],
-    "toRemove": [list of removed workflow names],
-    "hasCustomCode": true/false
-  }
-```
-
-### Phase 3: Explore Codebase for Selectors [DELEGATE TO AGENT]
-
-**Purpose:** For each workflow step, explore the codebase to find reliable selectors. Multi-user workflows may reference elements from different user views (e.g., host dashboard vs. guest join page). Delegate this to an Explore agent to save context.
-
-**Create selector discovery task:**
-```
-TaskCreate:
-- subject: "Selectors: discover for all workflows"
-- description: |
-    Find Playwright selectors for [N] multi-user workflows, [M] total steps.
-    Personas: [list of personas]
-    Priority: data-testid > getByRole > getByText > getByTestId > CSS
-- activeForm: "Discovering selectors"
-
-TaskUpdate:
-- taskId: [selector task ID]
-- addBlockedBy: [main task ID]
-- status: "in_progress"
-```
-
-**Use the Task tool to spawn an Explore agent:**
+### Step 4f: Generate .gitignore
 
 ```
-Task tool parameters:
-- subagent_type: "Explore"
-- model: "sonnet" (balance of speed and thoroughness)
-- prompt: |
-    You are finding reliable Playwright selectors for multi-user workflow steps.
-    Multiple personas interact with the app, so elements may appear in different
-    views or components depending on the user's role.
-
-    ## Workflows to Find Selectors For
-    [Include parsed workflow steps with persona attribution]
-
-    ## What to Search For
-
-    For each step, find the BEST available selector using this priority:
-
-    **Selector Priority (best to worst):**
-    1. data-testid="..."     <- Most stable, explicitly for testing
-    2. getByRole("...")      <- Accessible and semantic
-    3. getByText("...")      <- Readable but fragile if text changes
-    4. getByTestId("...")    <- Alias for data-testid patterns
-    5. CSS selector          <- Last resort, very fragile
-
-    ## Search Strategy
-
-    1. **Component Selectors**
-       - Use Grep to search for React/Vue component names mentioned in steps
-       - Find data-testid attributes: `data-testid=`
-       - Search for role-based patterns: `role=`, `aria-label=`
-
-    2. **Persona-Specific Views**
-       - Host/Admin views may have different components than Guest/Member views
-       - Search for role-based rendering (e.g., `isAdmin`, `isHost`, `role ===`)
-       - Identify shared vs. persona-specific components
-
-    3. **Real-Time Elements**
-       - Search for elements that update via WebSocket/SSE
-       - Find counters, presence indicators, live feeds
-       - These need extended timeout selectors
-
-    4. **Text-Based Selectors**
-       - Match button text to actual button implementations
-       - Find aria-labels: `aria-label=`
-       - Locate placeholder text for inputs
-
-    ## Return Format
-
-    Return a structured mapping:
-    ```
-    ## Selector Mapping
-
-    ### Workflow: [Name]
-
-    | Step | Persona | Element Description | Recommended Selector | Confidence | Notes |
-    |------|---------|---------------------|---------------------|------------|-------|
-    | 1.1  | Host    | Create button       | [data-testid="create-btn"] | High | Found in HostDashboard.tsx:45 |
-    | 2.1  | Guest   | Join link           | getByRole("link", { name: "Join" }) | High | Found in JoinPage.tsx:23 |
-    | 3.1  | Host    | Member count        | getByText(/\d+ watching/) | Medium | Dynamic text, regex needed |
-
-    ### Ambiguous Selectors (need user input)
-    - Step 3.2 "member count selector": Found multiple matches:
-      1. [data-testid="member-count"] in HostView.tsx
-      2. [data-testid="viewer-count"] in SharedHeader.tsx
-      - Recommendation: Ask user which one
-
-    ### Missing Selectors (not found)
-    - Step 4.1 "notification badge": Could not find element, may need manual inspection
-    ```
+node_modules/
+playwright/.auth/
+playwright-report/
+test-results/
 ```
 
-**After agent returns:**
+### Step 4g: Generate tests/workflows.spec.ts
 
-**Update selector task with findings:**
-```
-TaskUpdate:
-- taskId: [selector task ID]
-- status: "completed"
-- metadata: {
-    "selectorsFound": [count],
-    "highConfidence": [count],
-    "mediumConfidence": [count],
-    "ambiguous": [count],
-    "missing": [count]
-  }
-```
+This is the largest and most complex file. Each workflow becomes a `test.describe()` block, and each workflow step is mapped to the corresponding persona's browser context and page.
 
-### Phase 4: Resolve Ambiguities
+#### Multi-Context Test Pattern
 
-**For each ambiguous selector, create a BLOCKING resolution task:**
-```
-For each ambiguous selector:
-
-TaskCreate:
-- subject: "Resolve: [element description] selector"
-- description: |
-    Step [N.M] (Persona: [persona]): "[step text]"
-    Found multiple matches:
-    1. [selector option 1] (in [file])
-    2. [selector option 2] (in [file])
-    Awaiting user decision.
-- activeForm: "Awaiting selector choice"
-
-TaskUpdate:
-- taskId: [resolve task ID]
-- addBlockedBy: [selector task ID]
-- status: "in_progress"
-```
-
-**Ask user to resolve ambiguous selectors:**
-Present each ambiguous selector to the user. After user responds:
-```
-TaskUpdate:
-- taskId: [resolve task ID]
-- status: "completed"
-- metadata: {"chosenSelector": "[user's choice]", "reason": "[if provided]"}
-```
-
-Use the selector mapping to generate accurate Playwright test code. For missing selectors, flag for manual verification with TODO comments.
-
-### Phase 5: Generate Spec File [DELEGATE TO AGENT]
-
-**Purpose:** Generate the Playwright test file using the multi-context pattern. Delegate to an agent for focused code generation.
-
-**Create code generation task:**
-```
-TaskCreate:
-- subject: "Generate: Playwright multi-context tests"
-- description: |
-    Generate e2e/multi-user-workflows.spec.ts from workflows and selector mapping.
-    Workflows: [count]
-    Personas: [list]
-    Selectors resolved: [count]
-    Ambiguous resolved: [count]
-- activeForm: "Generating Playwright multi-context tests"
-
-TaskUpdate:
-- taskId: [generate task ID]
-- addBlockedBy: [main task ID]
-- status: "in_progress"
-```
-
-**Use the Task tool to spawn a code generation agent:**
-
-```
-Task tool parameters:
-- subagent_type: "general-purpose"
-- model: "sonnet" (good balance for code generation)
-- prompt: |
-    You are generating a Playwright E2E test file for multi-user workflows using
-    multiple browser contexts.
-
-    ## Input Data
-
-    **Workflows:**
-    [Include parsed workflow data with persona attribution]
-
-    **Selector Mapping:**
-    [Include selector mapping from Phase 3 agent]
-
-    **Existing Test File (if updating):**
-    [Include existing test content if this is an update, or "None - new file"]
-
-    ## Your Task
-
-    Generate `e2e/multi-user-workflows.spec.ts` following the multi-context pattern below.
-
-    ## Multi-Context Test Pattern
-
-    Each workflow becomes a `test.describe` block with:
-    - `beforeEach`: creates browser contexts per persona, sets up auth
-    - `afterEach`: closes all contexts
-    - Tests that switch between pages (pageA, pageB, etc.)
-    - Cross-context assertions with extended timeouts
-
-    ## Code Style Requirements
-
-    - Use the recommended selectors from the mapping
-    - Add comments for each substep with persona attribution
-    - Include API helper functions for precondition setup
-    - Mark ambiguous selectors with TODO comments
-    - Use { timeout: 10000 } for cross-user sync assertions
-    - Follow Playwright best practices
-
-    ## Handle Special Cases
-
-    - [MANUAL] steps -> `test.skip()` with explanation
-    - Ambiguous selectors -> Use best guess + TODO comment
-    - Missing selectors -> Use descriptive text selector + TODO
-    - External service steps (email, push) -> `test.skip()` with explanation
-    - Steps needing prior state -> Add setup within test or use API helpers
-
-    ## Return Format
-
-    Return the complete test file content ready to write.
-    Also return a summary:
-    ```
-    ## Generation Summary
-    - Workflows: [count]
-    - Total tests: [count]
-    - Personas: [list]
-    - Skipped (manual/external): [count]
-    - TODOs for review: [count]
-    ```
-```
-
-**After agent returns:**
-
-**Update generation task with summary:**
-```
-TaskUpdate:
-- taskId: [generate task ID]
-- status: "completed"
-- metadata: {
-    "workflowsTranslated": [count],
-    "totalTests": [count],
-    "personas": [list],
-    "skippedManual": [count],
-    "todosForReview": [count],
-    "linesOfCode": [count]
-  }
-```
-
-Review any TODOs with the user before writing the file.
-
-## Generated Test Structure
-
-The generated test file follows this multi-context pattern:
+Unlike desktop tests that use a single `{ page }` fixture, multi-user tests use the `{ browser }` fixture to create per-persona browser contexts with pre-authenticated storage state.
 
 ```typescript
-/**
- * Multi-User Workflow Tests
- *
- * Auto-generated from /workflows/multi-user-workflows.md
- * Generated: [timestamp]
- *
- * To regenerate: Run multi-user-workflow-to-playwright skill
- * To update workflows: Edit /workflows/multi-user-workflows.md and re-run
- */
+import { test, expect } from '@playwright/test';
 
-import { test, expect, BrowserContext, Page } from '@playwright/test'
+test.describe('Core Workflows', () => {
 
-// ============================================================================
-// API HELPERS
-// Use these to set up preconditions quickly instead of driving the UI
-// ============================================================================
+  test.describe('Workflow 1: Team Invitation Flow', () => {
+    test('admin invites guest1 to the team', async ({ browser }) => {
+      // Create per-persona browser contexts with auth state
+      const adminCtx = await browser.newContext({
+        storageState: 'playwright/.auth/admin.json',
+      });
+      const guest1Ctx = await browser.newContext({
+        storageState: 'playwright/.auth/guest1.json',
+      });
+      const adminPage = await adminCtx.newPage();
+      const guest1Page = await guest1Ctx.newPage();
 
-async function createUserViaAPI(email: string, password: string) {
-  const response = await fetch('/api/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  })
-  return response.json()
+      // Step 1: [Admin] Navigate to the team management page
+      await adminPage.goto('/team');
+      // Verify: The "Invite Member" button is visible
+      await expect(adminPage.getByRole('button', { name: 'Invite Member' })).toBeVisible();
+
+      // Step 2: [Admin] Click the "Invite Member" button and enter Guest1's email
+      await adminPage.getByRole('button', { name: 'Invite Member' }).click();
+      await adminPage.getByLabel('Email').fill(process.env.GUEST1_EMAIL || 'guest1@example.com');
+      await adminPage.getByRole('button', { name: 'Send Invitation' }).click();
+      // Verify: Invitation sent successfully
+      await expect(adminPage.getByText('Invitation sent')).toBeVisible();
+
+      // Step 3: [Guest1] Check for the invitation notification
+      // Sync Verification: Within 10 seconds, verify Guest1 sees the invitation
+      await guest1Page.goto('/notifications');
+      await expect(guest1Page.getByText(/invitation/i)).toBeVisible({ timeout: 10000 });
+
+      // Step 4: [Guest1] Accept the invitation
+      await guest1Page.getByRole('button', { name: /accept/i }).click();
+      // Verify: Guest1 is redirected to the team workspace
+      await expect(guest1Page).toHaveURL(/.*\/team/);
+
+      // Step 5: [Admin] Verify the team member list is updated
+      // Sync Verification: Within 5 seconds, Admin sees Guest1 in the member list
+      await expect(adminPage.getByText('Guest1')).toBeVisible({ timeout: 5000 });
+
+      // Clean up contexts
+      await adminCtx.close();
+      await guest1Ctx.close();
+    });
+  });
+
+  // ... more core workflow describe blocks
+
+});
+
+test.describe('Feature Workflows', () => {
+  // ... feature workflow describe blocks
+});
+
+test.describe('Edge Case Workflows', () => {
+  // ... edge case workflow describe blocks
+});
+```
+
+#### Structure Rules
+
+1. **Top-level groups** -- `test.describe('Core Workflows', ...)`, `test.describe('Feature Workflows', ...)`, and `test.describe('Edge Case Workflows', ...)` mirror the priority tiers from the workflow file.
+2. **Workflow blocks** -- Each workflow becomes a `test.describe('Workflow N: Name', ...)` nested inside the appropriate priority group.
+3. **Single test per workflow** -- Each workflow is a single `test()` call containing all steps in sequence. This keeps each workflow atomic -- it either passes or fails as a whole.
+4. **Context setup at test start** -- Each test creates browser contexts for every persona involved in that workflow. Only create contexts for personas that appear in the workflow's `<!-- personas: ... -->` list.
+5. **Context cleanup at test end** -- Every test closes all browser contexts in a finally-safe pattern or at the end of the test.
+6. **Step comments** -- Every step from the workflow is preceded by a comment (`// Step N: [Persona] ...`) and its verification (`// Verify: ...` or `// Sync Verification: ...`).
+
+#### Persona Tag to Context Mapping
+
+The `[PersonaName]` prefix in each workflow step determines which page variable to use:
+
+| Workflow Tag | Context Variable | Page Variable |
+|-------------|-----------------|---------------|
+| `[Admin]` | `adminCtx` | `adminPage` |
+| `[Host]` | `hostCtx` | `hostPage` |
+| `[Guest1]` | `guest1Ctx` | `guest1Page` |
+| `[Guest2]` | `guest2Ctx` | `guest2Page` |
+| `[Guest3]` | `guest3Ctx` | `guest3Page` |
+| `[Viewer]` | `viewerCtx` | `viewerPage` |
+
+General rule: the context variable is the lowercased persona name + `Ctx`, and the page variable is the lowercased persona name + `Page`.
+
+#### Sync Verification Translation
+
+Workflow sync verification steps translate to Playwright assertions with explicit timeouts:
+
+```typescript
+// Workflow: **Sync Verification:** Within 5 seconds, verify Guest1 sees the document
+// Playwright:
+await expect(guest1Page.getByText('Document Title')).toBeVisible({ timeout: 5000 });
+
+// Workflow: **Sync Verification:** Within 10 seconds, verify Admin sees Guest1 in the list
+// Playwright:
+await expect(adminPage.getByText('Guest1')).toBeVisible({ timeout: 10000 });
+
+// Workflow: **Sync Verification:** Guest1 refreshes the page and verifies the change
+// Playwright:
+await guest1Page.reload();
+await expect(guest1Page.getByText('Updated Content')).toBeVisible();
+```
+
+#### Handling Parallel Actions
+
+When a workflow step says two personas act simultaneously (e.g., "[Host] and [Guest1] Open the same shared document simultaneously"), use `Promise.all()`:
+
+```typescript
+// Step 1: [Host] and [Guest1] Open the same shared document simultaneously
+await Promise.all([
+  hostPage.goto('/documents/shared-doc'),
+  guest1Page.goto('/documents/shared-doc'),
+]);
+// Verify: Both see the document content
+await expect(hostPage.getByRole('heading', { name: 'Shared Document' })).toBeVisible();
+await expect(guest1Page.getByRole('heading', { name: 'Shared Document' })).toBeVisible();
+```
+
+#### Handling MANUAL Steps
+
+Workflow steps marked `[MANUAL]` cannot be automated. Generate a skipped or annotated test step:
+
+```typescript
+// Step 4: [Guest1] [MANUAL] Verify the invitation email arrives in the inbox
+// This step requires manual verification -- cannot be automated with Playwright.
+// Consider using a test email service (e.g., Mailosaur, Mailhog) for automation.
+```
+
+Do NOT generate `test.skip()` for the entire workflow if only one step is manual. Instead, add the comment and continue with subsequent automatable steps.
+
+#### Handling Preconditions
+
+If a workflow has preconditions beyond per-persona authentication, generate them as inline setup code at the start of the test:
+
+```typescript
+test.describe('Workflow 5: Collaborative Document Editing', () => {
+  test('host and guests collaboratively edit a document', async ({ browser }) => {
+    const hostCtx = await browser.newContext({
+      storageState: 'playwright/.auth/host.json',
+    });
+    const guest1Ctx = await browser.newContext({
+      storageState: 'playwright/.auth/guest1.json',
+    });
+    const hostPage = await hostCtx.newPage();
+    const guest1Page = await guest1Ctx.newPage();
+
+    // Precondition: A shared document named "Test Doc" exists
+    await hostPage.goto('/documents');
+    const docExists = await hostPage.getByText('Test Doc').isVisible();
+    if (!docExists) {
+      await hostPage.getByRole('button', { name: 'New Document' }).click();
+      await hostPage.getByLabel('Title').fill('Test Doc');
+      await hostPage.getByRole('button', { name: 'Create' }).click();
+    }
+
+    // Step 1: [Host] Open the shared document
+    await hostPage.getByText('Test Doc').click();
+    // ...
+
+    await hostCtx.close();
+    await guest1Ctx.close();
+  });
+});
+```
+
+#### Vercel Bypass Headers in Contexts
+
+When creating browser contexts, apply Vercel bypass headers if the environment variable is set:
+
+```typescript
+const extraHTTPHeaders = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+  ? {
+      'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+      'x-vercel-set-bypass-cookie': 'samesitenone',
+    }
+  : {};
+
+const adminCtx = await browser.newContext({
+  storageState: 'playwright/.auth/admin.json',
+  extraHTTPHeaders,
+});
+```
+
+Generate a shared `createContext` helper at the top of the spec file to avoid repetition:
+
+```typescript
+import { test, expect, Browser, BrowserContext } from '@playwright/test';
+
+async function createAuthContext(
+  browser: Browser,
+  persona: string,
+): Promise<BrowserContext> {
+  const extraHTTPHeaders = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+    ? {
+        'x-vercel-protection-bypass': process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+        'x-vercel-set-bypass-cookie': 'samesitenone',
+      }
+    : {};
+  return browser.newContext({
+    storageState: `playwright/.auth/${persona}.json`,
+    extraHTTPHeaders,
+  });
 }
-
-async function loginViaAPI(page: Page, email: string, password: string) {
-  // TODO: Replace with your app's auth mechanism
-  const response = await fetch('/api/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  })
-  const { token } = await response.json()
-  await page.evaluate((t) => localStorage.setItem('token', t), token)
-}
-
-// ============================================================================
-// WORKFLOW: Party Create and Join
-// Generated from: multi-user-workflows.md
-// Last updated: [timestamp]
-// ============================================================================
-
-test.describe('Multi-User: Party Create and Join', () => {
-  let contextA: BrowserContext
-  let contextB: BrowserContext
-  let pageA: Page
-  let pageB: Page
-
-  test.beforeEach(async ({ browser }) => {
-    // Create isolated browser contexts for each persona
-    contextA = await browser.newContext()
-    contextB = await browser.newContext()
-    pageA = await contextA.newPage()
-    pageB = await contextB.newPage()
-
-    // Auth setup per persona
-    // TODO: Replace with actual auth for your app
-    await loginViaAPI(pageA, 'host@example.com', 'password')
-    await loginViaAPI(pageB, 'guest@example.com', 'password')
-  })
-
-  test.afterEach(async () => {
-    await contextA.close()
-    await contextB.close()
-  })
-
-  test('Step 1: Host creates a party', async () => {
-    // Substep: Host navigates to create page
-    await pageA.goto('/create')
-
-    // Substep: Host fills in party details
-    await pageA.locator('[data-testid="party-name"]').fill('Test Party')
-
-    // Substep: Host clicks create
-    await pageA.locator('[data-testid="create-btn"]').click()
-
-    // Substep: Verify party page loads
-    await expect(pageA.getByText('Test Party')).toBeVisible()
-  })
-
-  test('Step 2: Guest joins the party', async () => {
-    // Setup: Host creates a party first (independent test)
-    await pageA.goto('/create')
-    await pageA.locator('[data-testid="party-name"]').fill('Test Party')
-    await pageA.locator('[data-testid="create-btn"]').click()
-
-    // Substep: Guest navigates to join page
-    await pageB.goto('/join')
-
-    // Substep: Guest searches for the party
-    await pageB.locator('[data-testid="search-input"]').fill('Test Party')
-
-    // Substep: Guest clicks join
-    await pageB.locator('[data-testid="join-btn"]').click()
-
-    // Substep: Verify guest sees the party
-    await expect(pageB.getByText('Test Party')).toBeVisible()
-  })
-
-  test('Step 3: Host sees updated member count', async () => {
-    // Setup: Create party and have guest join
-    await pageA.goto('/create')
-    await pageA.locator('[data-testid="party-name"]').fill('Test Party')
-    await pageA.locator('[data-testid="create-btn"]').click()
-    await pageB.goto('/join')
-    await pageB.locator('[data-testid="search-input"]').fill('Test Party')
-    await pageB.locator('[data-testid="join-btn"]').click()
-
-    // Substep: Host checks member count (cross-context assertion)
-    // Extended timeout for real-time sync propagation
-    await expect(pageA.getByText('2 watching')).toBeVisible({ timeout: 10000 })
-  })
-
-  test.skip('Step 4: Guest receives email notification', async () => {
-    // SKIP: Requires real email delivery service
-    // Original: "Guest receives a confirmation email with party details"
-  })
-})
-
-// ============================================================================
-// WORKFLOW: [Next Workflow Name]
-// ============================================================================
-
-// test.describe('Multi-User: [Next Name]', () => {
-//   // ... follows same pattern
-// })
 ```
 
-## Selector Priority
+Then each test uses:
 
-When choosing selectors for multi-user workflow elements, follow this priority order:
-
-| Priority | Selector Type | Example | When to Use |
-|----------|--------------|---------|-------------|
-| 1 (Best) | `data-testid` | `[data-testid="create-btn"]` | Most stable, explicitly for testing |
-| 2 | `getByRole` | `getByRole('button', { name: 'Create' })` | Semantic and accessible |
-| 3 | `getByText` | `getByText('2 watching')` | Readable but fragile if text changes |
-| 4 | `getByTestId` | `getByTestId('member-count')` | Alias for data-testid patterns |
-| 5 (Worst) | CSS selector | `.member-count-badge` | Last resort, very fragile |
-
-For dynamic text (counters, timestamps), prefer regex patterns:
 ```typescript
-await expect(pageA.getByText(/\d+ watching/)).toBeVisible({ timeout: 10000 })
+const adminCtx = await createAuthContext(browser, 'admin');
+const guest1Ctx = await createAuthContext(browser, 'guest1');
 ```
 
-### Phase 6: User Approval
+### Step 4h: Update the Generation Task
 
-**Create approval task:**
-```
-TaskCreate:
-- subject: "Approval: Review generated tests"
-- description: |
-    Review generated Playwright multi-context tests before writing.
-    Tests: [count]
-    Personas: [list]
-    TODOs: [count]
-    Awaiting user approval.
-- activeForm: "Awaiting test approval"
+Mark `"Generate: Playwright project"` as completed with metadata for files generated, test describe count, steps translated, sync verifications, manual steps skipped, persona setup files, and parallel action blocks.
 
-TaskUpdate:
-- taskId: [approval task ID]
-- addBlockedBy: [main task ID]
-- status: "in_progress"
-```
+---
 
-Before writing the file:
+## Action Mapping Reference
 
-1. **Show translation summary (from task metadata):**
-   ```
-   Workflows to translate: 5 (from parse task metadata)
-   - Workflow A: 8 steps (7 translated, 1 manual) — Personas: Host, Guest
-   - Workflow B: 6 steps (6 translated) — Personas: Admin, Member
-   - Workflow C: 10 steps (8 translated, 2 need selector help) — Personas: Sender, Receiver
+This table provides the complete mapping from multi-user workflow language to Playwright code. The key difference from desktop mappings is that every action targets a persona-specific page variable.
 
-   Selectors: [from selector task metadata]
-   - High confidence: [count]
-   - Medium confidence: [count]
-   - Resolved by user: [count from resolve tasks]
+| Workflow Language | Playwright Code |
+|---|---|
+| [Admin] Navigate to /dashboard | `await adminPage.goto('/dashboard')` |
+| [Host] Click the "Save" button | `await hostPage.getByRole('button', { name: 'Save' }).click()` |
+| [Guest1] Click the "Settings" link | `await guest1Page.getByRole('link', { name: 'Settings' }).click()` |
+| [Admin] Type "hello" in the email field | `await adminPage.getByLabel('Email').fill('hello')` |
+| [Guest2] Type "query" in the search box | `await guest2Page.getByPlaceholder('Search...').fill('query')` |
+| [Viewer] Verify heading "Dashboard" visible | `await expect(viewerPage.getByRole('heading', { name: 'Dashboard' })).toBeVisible()` |
+| [Host] Verify text "Success" appears | `await expect(hostPage.getByText('Success')).toBeVisible()` |
+| [Guest1] Verify URL contains /settings | `await expect(guest1Page).toHaveURL(/.*\/settings/)` |
+| [Admin] Select "Editor" from role dropdown | `await adminPage.getByLabel('Role').selectOption('Editor')` |
+| [Host] Check "Allow editing" checkbox | `await hostPage.getByLabel('Allow editing').check()` |
+| [Admin] Uncheck "Notifications" checkbox | `await adminPage.getByLabel('Notifications').uncheck()` |
+| [Guest1] Wait for loading to disappear | `await expect(guest1Page.getByText('Loading')).toBeHidden()` |
+| [Host] Wait for URL to contain /document | `await hostPage.waitForURL('**/document')` |
+| [Guest1] Upload "file.pdf" | `await guest1Page.getByLabel('Upload').setInputFiles('file.pdf')` |
+| [Host] Press Escape | `await hostPage.keyboard.press('Escape')` |
+| [Admin] Hover over "Settings" menu item | `await adminPage.getByRole('menuitem', { name: 'Settings' }).hover()` |
+| [Viewer] Scroll to comments section | `await viewerPage.getByText('Comments').scrollIntoViewIfNeeded()` |
+| **Sync Verification:** Within 5s | `await expect(...).toBeVisible({ timeout: 5000 })` |
+| [Host] and [Guest1] simultaneously open /doc | `await Promise.all([hostPage.goto('/doc'), guest1Page.goto('/doc')])` |
+| [Guest1] Refresh the page | `await guest1Page.reload()` |
+| [Viewer] Verify element is NOT visible | `await expect(viewerPage.getByRole('button', { name: 'Delete' })).toBeHidden()` |
+| [Admin] Drag "Task A" to "Done" column | `await adminPage.getByText('Task A').dragTo(adminPage.getByText('Done'))` |
+| [Host] Clear the search field | `await hostPage.getByLabel('Search').clear()` |
 
-   Tests generated: [from generate task metadata]
-   - Total tests: [count]
-   - Skipped (manual/external): [count]
-   - TODOs for review: [count]
-   - Cross-user assertions: [count]
-   ```
+---
 
-2. **Any remaining ambiguous selectors** should have been resolved via resolve tasks in Phase 4.
-   If any were skipped, ask now.
+## Example Translation
 
-3. **Confirm before writing:**
-   - Show diff if updating existing file (from check task metadata)
-   - List any workflows being added/removed
-   - Get explicit approval
+Below is a complete worked example showing how a multi-user workflow from `multi-user-workflows.md` is converted into Playwright test code with per-persona contexts.
 
-**After user approves:**
-```
-TaskUpdate:
-- taskId: [approval task ID]
-- status: "completed"
-- metadata: {"decision": "approved"}
-```
+### Input Workflow
 
-## Phase 7: Write
+```markdown
+## Workflow 3: Collaborative Document Editing
+<!-- auth: required -->
+<!-- priority: core -->
+<!-- personas: Host, Guest1, Guest2 -->
+<!-- estimated-steps: 10 -->
+<!-- sync-points: 4 -->
 
-**Create write task and write the file:**
-```
-TaskCreate:
-- subject: "Write: e2e/multi-user-workflows.spec.ts"
-- description: "Write approved Playwright multi-context test file"
-- activeForm: "Writing test file"
+> Tests real-time collaborative editing where multiple users edit a shared
+> document simultaneously and verify cross-user sync.
 
-TaskUpdate:
-- taskId: [write task ID]
-- status: "in_progress"
-```
+**Preconditions:**
+- Host is logged in as Host persona (HOST_EMAIL / HOST_PASSWORD)
+- Guest1 is logged in as Guest1 persona (GUEST1_EMAIL / GUEST1_PASSWORD)
+- Guest2 is logged in as Guest2 persona (GUEST2_EMAIL / GUEST2_PASSWORD)
+- A shared document named "Project Plan" exists (created by Host)
 
-**Write the file to `e2e/multi-user-workflows.spec.ts`**
+**Steps:**
 
-**Mark write task complete:**
-```
-TaskUpdate:
-- taskId: [write task ID]
-- status: "completed"
-- metadata: {"outputPath": "e2e/multi-user-workflows.spec.ts", "testsWritten": [count]}
-```
+1. [Host] Navigate to /documents and click "Project Plan"
+   - Verify the document editor loads with title "Project Plan"
 
-**Mark main task complete:**
-```
-TaskUpdate:
-- taskId: [main task ID]
-- status: "completed"
-- metadata: {
-    "outputPath": "e2e/multi-user-workflows.spec.ts",
-    "workflowsTranslated": [count],
-    "totalTests": [count],
-    "personas": [list],
-    "skippedManual": [count],
-    "selectorsResolved": [count],
-    "ambiguousResolved": [count],
-    "crossUserAssertions": [count]
-  }
-```
+2. [Guest1] Navigate to /documents and click "Project Plan"
+   - Verify the document editor loads with title "Project Plan"
+   - **Sync Verification:** Within 3 seconds, verify Guest1 sees Host's presence
+     indicator in the editor
 
-**Final summary from task data:**
-```
-## Multi-User Playwright Tests Generated
+3. [Guest2] Navigate to /documents and click "Project Plan"
+   - Verify the document editor loads with title "Project Plan"
+   - **Sync Verification:** Within 3 seconds, verify Guest2 sees both Host
+     and Guest1 presence indicators
 
-**Output:** e2e/multi-user-workflows.spec.ts
-**Workflows:** [from parse task] -> [from generate task] tests
-**Personas:** [from parse task metadata]
+4. [Host] Type "Introduction section" in the document body
+   - **Sync Verification:** Within 2 seconds, verify Guest1 sees
+     "Introduction section" appear in the document
+   - **Sync Verification:** Within 2 seconds, verify Guest2 sees
+     "Introduction section" appear in the document
 
-### Translation Summary
-| Workflow | Personas | Steps | Tests | Manual | TODOs |
-|----------|----------|-------|-------|--------|-------|
-[Generated from task metadata]
+5. [Guest1] Type "Added by Guest1" below Host's text
+   - **Sync Verification:** Within 2 seconds, verify Host sees
+     "Added by Guest1" appear in the document
 
-### Selector Resolution
-- High confidence: [from selector task]
-- User-resolved: [count of completed resolve tasks]
-- Missing (TODO): [from selector task]
+6. [Host] Click the "Save" button
+   - Verify success message "Document saved" appears
 
-### Next Steps
-1. Run tests: `npx playwright test e2e/multi-user-workflows.spec.ts`
-2. Review any TODO comments in the file
-3. Verify API helper functions match your app's auth endpoints
-4. Add to CI pipeline
+7. [Guest1] Verify the save indicator shows "Saved"
 
-The multi-context tests are ready to run with Playwright.
+8. [Guest2] Refresh the page
+   - Verify both "Introduction section" and "Added by Guest1" are visible
+
+**Postconditions:**
+- Document contains content from both Host and Guest1
+- All three personas see consistent document state
 ```
 
-## Handling Updates
+### Output Test Code
 
-When updating existing tests:
-
-1. **Parse existing test file** to extract:
-   - Workflow names and their test blocks
-   - Persona-to-context mappings
-   - Any custom modifications (marked with `// CUSTOM:`)
-
-2. **Compare with workflow markdown:**
-   - Hash each workflow's content to detect changes
-   - Track workflow names for additions/removals
-   - Detect persona changes (added/removed personas)
-
-3. **Update strategy:**
-   ```
-   Workflow in MD | Workflow in Tests | Action
-   ---------------|-------------------|--------
-   Present        | Missing           | ADD new test block
-   Present        | Present (same)    | SKIP (no change)
-   Present        | Present (diff)    | UPDATE test block
-   Missing        | Present           | ASK user: remove or keep?
-   ```
-
-4. **Preserve custom code:**
-   - Look for `// CUSTOM:` comments
-   - Keep custom assertions, API helpers, or setup
-   - Warn user if custom code conflicts with updates
-   - Preserve custom API helper functions at the top of the file
-
-## Anti-Patterns
-
-Avoid these common mistakes when generating multi-user Playwright tests:
-
-### 1. Sharing Contexts Between Personas
 ```typescript
-// BAD: Both users share the same context (shared cookies/auth)
-const page1 = await context.newPage()
-const page2 = await context.newPage()
+test.describe('Workflow 3: Collaborative Document Editing', () => {
+  test('host and guests collaboratively edit a shared document', async ({ browser }) => {
+    const hostCtx = await createAuthContext(browser, 'host');
+    const guest1Ctx = await createAuthContext(browser, 'guest1');
+    const guest2Ctx = await createAuthContext(browser, 'guest2');
+    const hostPage = await hostCtx.newPage();
+    const guest1Page = await guest1Ctx.newPage();
+    const guest2Page = await guest2Ctx.newPage();
 
-// GOOD: Each user gets their own context
-contextA = await browser.newContext()
-contextB = await browser.newContext()
-pageA = await contextA.newPage()
-pageB = await contextB.newPage()
+    // Step 1: [Host] Navigate to /documents and click "Project Plan"
+    await hostPage.goto('/documents');
+    await hostPage.getByText('Project Plan').click();
+    await expect(hostPage.getByRole('heading', { name: 'Project Plan' })).toBeVisible();
+
+    // Step 2: [Guest1] Navigate to /documents and click "Project Plan"
+    await guest1Page.goto('/documents');
+    await guest1Page.getByText('Project Plan').click();
+    await expect(guest1Page.getByRole('heading', { name: 'Project Plan' })).toBeVisible();
+    // Sync Verification: Within 3 seconds, Guest1 sees Host's presence
+    await expect(guest1Page.getByTestId('presence-indicator')).toBeVisible({ timeout: 3000 });
+
+    // Step 3: [Guest2] Navigate to /documents and click "Project Plan"
+    await guest2Page.goto('/documents');
+    await guest2Page.getByText('Project Plan').click();
+    // Sync Verification: Within 3 seconds, Guest2 sees both presence indicators
+    await expect(guest2Page.locator('[data-testid="presence-indicator"]')).toHaveCount(2, { timeout: 3000 });
+
+    // Step 4: [Host] Type "Introduction section" in the document body
+    await hostPage.getByLabel('Content').fill('Introduction section');
+    // Sync: Guest1 and Guest2 see the text within 2 seconds
+    await expect(guest1Page.getByText('Introduction section')).toBeVisible({ timeout: 2000 });
+    await expect(guest2Page.getByText('Introduction section')).toBeVisible({ timeout: 2000 });
+
+    // Step 5: [Guest1] Type "Added by Guest1" below Host's text
+    await guest1Page.getByLabel('Content').pressSequentially('Added by Guest1');
+    await expect(hostPage.getByText('Added by Guest1')).toBeVisible({ timeout: 2000 });
+
+    // Step 6: [Host] Click the "Save" button
+    await hostPage.getByRole('button', { name: 'Save' }).click();
+    await expect(hostPage.getByText('Document saved')).toBeVisible();
+
+    // Step 7-8: [Guest1] verify saved, [Guest2] refresh and verify
+    await expect(guest1Page.getByText('Saved')).toBeVisible();
+    await guest2Page.reload();
+    await expect(guest2Page.getByText('Introduction section')).toBeVisible();
+    await expect(guest2Page.getByText('Added by Guest1')).toBeVisible();
+
+    await hostCtx.close();
+    await guest1Ctx.close();
+    await guest2Ctx.close();
+  });
+});
 ```
 
-### 2. Missing Sync Timeouts on Cross-User Assertions
-```typescript
-// BAD: Default timeout too short for real-time propagation
-await expect(pageA.getByText('2 watching')).toBeVisible()
+### Translation Notes
 
-// GOOD: Extended timeout for WebSocket/SSE/polling propagation
-await expect(pageA.getByText('2 watching')).toBeVisible({ timeout: 10000 })
+Key patterns: step comments preserve persona tags for cross-referencing, sync verification steps use explicit `{ timeout: N }` matching the workflow's timing expectations, each persona operates on its own page variable, the `createAuthContext` helper handles Vercel bypass headers and storage state, `Promise.all()` is used for simultaneous actions, and context cleanup happens at the end of each test.
+
+---
+
+## Phase 5: Review with User (REQUIRED)
+
+This phase is mandatory. You must never write files without user approval.
+
+### Present Generated Tests for Review
+
+Use `AskUserQuestion` to present the generated project. Include: project structure listing, test summary (counts by priority, sync verifications, manual steps), persona-to-credential mapping, and the complete `workflows.spec.ts` and `playwright.config.ts` contents. Ask the user to review test translations, selectors, sync timeouts, persona mappings, and auth flows. Request "approved" to proceed or feedback for revision.
+
+### Create the Approval Task
+
+Create `"Approval: Review generated tests"` (in_progress) with iteration number and counts.
+
+### Handling Feedback
+
+If the user provides feedback instead of approving: apply changes, mark the current approval task as completed with `result: "changes_requested"` and feedback summary, create a new approval task for iteration N+1 with list of changes made, and re-present the revised tests. Repeat until the user approves.
+
+### On Approval
+
+Mark the approval task as completed with `result: "approved"` and final test/sync verification counts.
+
+---
+
+## Phase 6: Write Files
+
+Write all generated files to `e2e/multi-user/`.
+
+### Step 6a: Create Directory Structure
+
+```
+1. Ensure e2e/multi-user/ exists (create if not).
+2. Ensure e2e/multi-user/tests/ exists (create if not).
+3. Ensure .github/workflows/ exists (create if not).
 ```
 
-### 3. Forgetting to Close Contexts in afterEach
-```typescript
-// BAD: Context leak causes flaky tests and resource exhaustion
-test.afterEach(async () => {
-  // nothing here
-})
+### Step 6b: Write All Files
 
-// GOOD: Always close all contexts
-test.afterEach(async () => {
-  await contextA.close()
-  await contextB.close()
-})
-```
+Write each file: `playwright.config.ts`, `package.json`, one `<persona>.setup.ts` per persona, `workflows.spec.ts`, `.gitignore` (all inside `e2e/multi-user/`), and `.github/workflows/e2e-multi-user.yml` at the repo root.
 
-### 4. UI-Driven Precondition Setup for Every Test
-```typescript
-// BAD: Slow, fragile, repeats UI flows for setup
-test('guest joins', async () => {
-  // 20 lines of UI steps to create user, login, create party...
-  await pageA.goto('/register')
-  await pageA.fill('[name="email"]', 'host@example.com')
-  // ... many more UI steps ...
-})
+### Step 6c: Verify Files
 
-// GOOD: Use API helpers for fast precondition setup
-test('guest joins', async () => {
-  const party = await createPartyViaAPI('host-token', 'Test Party')
-  await pageB.goto(`/join/${party.code}`)
-  // Test only the guest join flow
-})
-```
+After writing, read back each file to confirm it was written correctly.
 
-### 5. Testing External Service Delivery
-```typescript
-// BAD: Trying to assert on email/push/SMS delivery
-await expect(pageB.getByText('Email received')).toBeVisible()
+### Step 6d: Update Tasks
 
-// GOOD: Skip flows requiring real external services
-test.skip('guest receives email notification', async () => {
-  // SKIP: Requires real email delivery service
-  // Test email content via unit tests instead
-})
-```
+Create `"Write: e2e/multi-user/"` (completed) with files written count, output directory, CI workflow path, and persona setup file count. Mark the main task `"Convert: Multi-User Workflows to Playwright"` as completed with full summary metadata.
 
-### 6. Hardcoded User Credentials in Test Body
-```typescript
-// BAD: Credentials scattered across tests
-test('host creates', async () => {
-  await pageA.fill('[name="email"]', 'host@example.com')
-  await pageA.fill('[name="password"]', 'secret123')
-})
+### Final Summary
 
-// GOOD: Centralized auth via API helpers or test fixtures
-test.beforeEach(async ({ browser }) => {
-  await loginViaAPI(pageA, TEST_USERS.host.email, TEST_USERS.host.password)
-  await loginViaAPI(pageB, TEST_USERS.guest.email, TEST_USERS.guest.password)
-})
-```
+Present the user with: output directory, CI workflow path, files written (with counts for test blocks, steps, sync verifications), summary of workflows converted by priority tier, personas and setup file count, manual steps commented, selectors from codebase, review iterations, and next steps (install, run locally, configure GitHub secrets for all personas, push to trigger CI).
 
-### 7. Sequential Page Actions Without Waiting
-```typescript
-// BAD: Race condition between users
-await pageA.locator('[data-testid="send-btn"]').click()
-await pageB.locator('[data-testid="message"]').click()  // May not exist yet
-
-// GOOD: Wait for cross-user propagation before acting
-await pageA.locator('[data-testid="send-btn"]').click()
-await expect(pageB.locator('[data-testid="message"]')).toBeVisible({ timeout: 10000 })
-await pageB.locator('[data-testid="message"]').click()
-```
+---
 
 ## Session Recovery
 
-If resuming from an interrupted session:
+If the skill is invoked and an existing task list is found, use this decision tree to determine where to resume.
 
-**Recovery decision tree:**
+### Decision Tree
+
 ```
-TaskList shows:
-├── Main task in_progress, no parse task
-│   └── Start Phase 1 (parse workflows)
-├── Main task in_progress, parse completed, no check task
-│   └── Start Phase 2 (check existing tests)
-├── Main task in_progress, check completed, no selector task
-│   └── Start Phase 3 (selector discovery)
-├── Main task in_progress, selector completed, resolve tasks pending
-│   └── Phase 4: Ask user to resolve remaining ambiguous selectors
-├── Main task in_progress, all resolve tasks completed, no generate task
-│   └── Start Phase 5 (code generation)
-├── Main task in_progress, generate completed, no approval task
-│   └── Start Phase 6 (user review)
-├── Main task in_progress, approval completed, no write task
-│   └── Phase 7: Write the file
-├── Main task completed
-│   └── Show final summary
-└── No tasks exist
-    └── Fresh start (Phase 1)
-```
+Check TaskList for "Convert: Multi-User Workflows to Playwright"
 
-**Resuming with partial selector resolution:**
-If some ambiguous selector tasks are completed but others pending:
-1. Read completed resolve tasks to get user's selector choices
-2. Present remaining ambiguous selectors to user
-3. Continue after all resolved
+CASE 1: No task list exists
+  -> Start from Phase 1
 
-**Always inform user when resuming:**
-```
-Resuming multi-user Playwright conversion session:
-- Workflows parsed: [count from parse task]
-- Personas found: [list from parse task]
-- Existing tests: [from check task]
-- Selectors found: [from selector task]
-- Ambiguous resolved: [count completed resolve tasks]/[total]
-- Code generated: [yes/no from generate task]
-- Resuming: [next action]
-```
+CASE 2: Parse task is "completed", no Check task
+  -> Workflow file has been parsed, Persona Map is available
+  -> Resume from Phase 2 (check existing project)
 
-## Selector Discovery Prompts
+CASE 3: Check task is "completed", no Selector task
+  -> Existing project has been checked
+  -> Resume from Phase 3 (selector discovery)
 
-When exploring the codebase for multi-user workflows, use these search patterns:
+CASE 4: Selector task is "in_progress"
+  -> Agent may have timed out
+  -> Re-spawn the Explore agent
+  -> Resume from Phase 3 (partial)
 
-**For persona-specific elements:**
-```
-Search: component name + persona role (e.g., "HostDashboard", "GuestView")
-Look for: data-testid, role-based rendering, conditional displays
+CASE 5: Selector task is "completed", no Generate task
+  -> Selectors have been discovered
+  -> Resume from Phase 4 (generate project)
+
+CASE 6: Generate task is "completed", no Approval task
+  -> Files were generated but not reviewed
+  -> Resume from Phase 5 (review with user)
+
+CASE 7: Approval task exists with result "changes_requested"
+  -> User gave feedback but revisions were not completed
+  -> Read the feedback from task metadata
+  -> Apply changes and re-present for review
+  -> Resume from Phase 5 (next iteration)
+
+CASE 8: Approval task is "completed" with result "approved", no Write task
+  -> Tests were approved but files were not written
+  -> Resume from Phase 6 (write files)
+
+CASE 9: Write task is "completed"
+  -> Everything is done
+  -> Show the final summary and ask if the user wants to make changes
 ```
 
-**For real-time elements:**
-```
-Search: "WebSocket" OR "SSE" OR "useSubscription" OR "onMessage"
-Look for: Live counters, presence indicators, notification badges
-```
+### Always Inform the User When Resuming
 
-**For shared state elements:**
 ```
-Search: "members" OR "participants" OR "viewers" OR "count"
-Look for: data-testid on counter elements, dynamic text patterns
-```
+I found an existing session for multi-user workflow-to-Playwright conversion.
 
-**For buttons:**
-```
-Search: "button" + "[text from workflow]"
-Look for: data-testid, aria-label, className, onClick handler name
+Current state: [describe where things left off]
+Last completed phase: [phase name]
+Personas from parse: [list of personas]
+
+I will resume from [next phase]. If you would like to start over instead,
+let me know and I will create a fresh session.
 ```
 
-**For inputs:**
+---
+
+## Handling Updates
+
+When the user chooses "Update" mode (modifying existing tests to match changed workflows), follow these rules.
+
+### Rules for Updating Existing Tests
+
+1. **Preserve custom modifications** -- If the user has manually edited a generated test (added custom helpers, changed selectors, added extra assertions), preserve those edits. Look for comments like `// CUSTOM:` or any code that does not match the generated pattern.
+
+2. **Match workflows to test blocks** -- Use the `test.describe('Workflow N: ...')` naming convention to match existing test blocks to their source workflows. This is why consistent naming is critical.
+
+3. **Update changed workflows** -- If a workflow's steps, persona assignments, or sync timings have changed since the last generation, regenerate only that workflow's `test.describe` block. Preserve the position of the block within the file.
+
+4. **Add new workflows** -- New workflows are added to the appropriate priority group (`Core Workflows`, `Feature Workflows`, `Edge Case Workflows`). They are appended to the end of their group.
+
+5. **Mark removed workflows** -- If a workflow has been deprecated since the last generation, comment out its test block rather than deleting it:
+
+```typescript
+// DEPRECATED: Workflow 9 -- Legacy Shared Calendar
+// Reason: Calendar feature removed in v3.0
+// Date: 2025-01-15
+// test.describe('Workflow 9: Legacy Shared Calendar', () => { ... });
 ```
-Search: "input" + "[field name]" OR "TextField" + "[label]"
-Look for: name, id, placeholder, aria-label, data-testid
+
+6. **Add new persona setup files** -- If new personas have been added to the Persona Registry, generate new setup files and add corresponding projects to `playwright.config.ts` and CI env vars.
+
+7. **Deprecate removed persona setup files** -- Do NOT delete removed persona setup files. Add a `// DEPRECATED` comment at the top instead.
+
+8. **Regenerate config files** -- `playwright.config.ts`, `package.json`, `.gitignore`, and the CI workflow are always regenerated (they should not contain custom modifications). Update the `dependencies` array and CI env vars to reflect current personas.
+
+9. **Preserve auth.setup.ts customizations** -- If the user has customized any persona setup file (different login flow, MFA, OAuth), preserve their version. Only regenerate if explicitly requested.
+
+### Update Summary
+
+After an update operation, present a change summary covering: test blocks preserved/updated/deprecated/added, details of each changed workflow, persona additions/removals, new setup files, files regenerated vs preserved.
+
+---
+
+## Selector Strategy Reference
+
+When translating workflow steps to Playwright code, always prefer the most resilient selector available. This table shows the preferred order, matching Playwright's official recommendation. In multi-user tests, the same selector strategies apply -- only the page variable changes per persona.
+
+| Priority | Strategy | When to Use | Example (Admin persona) |
+|----------|----------|-------------|---------|
+| 1 | `getByRole` | Buttons, links, headings, checkboxes, radio buttons, and any element with an explicit ARIA role | `adminPage.getByRole('button', { name: 'Submit' })` |
+| 2 | `getByLabel` | Form inputs that have an associated `<label>` element or `aria-label` attribute | `hostPage.getByLabel('Email address')` |
+| 3 | `getByPlaceholder` | Inputs without labels but with placeholder text | `guest1Page.getByPlaceholder('Search...')` |
+| 4 | `getByText` | Non-interactive elements identified by their visible text content | `guest2Page.getByText('Welcome back')` |
+| 5 | `getByTestId` | Elements with `data-testid` attributes, useful when other selectors are ambiguous | `viewerPage.getByTestId('sidebar-nav')` |
+| 6 | CSS selector | Last resort when no semantic selector is available | `hostPage.locator('.custom-widget > .action-btn')` |
+
+### Selector Anti-Patterns
+
+Avoid in generated tests: ID selectors (`#submit-btn`), class selectors (`.btn-primary`), structural selectors (`div > span:nth-child(3)`), and attribute selectors (`[onclick="save()"]`). All of these are fragile and break on refactors. Always prefer the semantic locators in the priority table above.
+
+---
+
+## Multi-User Testing Patterns Reference
+
+### Pattern 1: Sequential Cross-Persona Actions
+
+One persona acts, then another verifies. This is the most common pattern.
+
+```typescript
+await adminPage.getByRole('button', { name: 'Invite' }).click();
+await expect(guest1Page.getByText(/invitation/i)).toBeVisible({ timeout: 5000 });
 ```
 
-## Error Handling
+### Pattern 2: Parallel Actions with Promise.all
 
-If translation fails:
+When multiple personas must act simultaneously:
 
-1. **Missing workflow file:** Inform user, suggest running multi-user-workflow-generator first
-2. **Unparseable workflow:** Show which workflow failed, ask for clarification
-3. **No selectors found:** List the step and persona, ask user for selector
-4. **Conflicting selectors:** Show options, let user choose
-5. **Persona auth unclear:** Ask user how each persona authenticates
-6. **Playwright not configured:** Offer to set up Playwright config
+```typescript
+await Promise.all([
+  hostPage.goto('/documents/shared-doc'),
+  guest1Page.goto('/documents/shared-doc'),
+]);
+```
 
-## Output Files
+### Pattern 3: Polling-Based Sync Verification
 
-Primary output:
-- `e2e/multi-user-workflows.spec.ts` - The generated multi-context test file
+For features using polling rather than push updates, use `toPass()` for retry-based assertions:
 
-Optional outputs:
-- `e2e/multi-user-workflows.helpers.ts` - Extracted API helper functions for reuse
-- `.claude/multi-user-workflow-test-mapping.json` - Mapping of workflows to tests for diff tracking
+```typescript
+await expect(async () => {
+  await guest1Page.reload();
+  await expect(guest1Page.getByText('Updated Content')).toBeVisible();
+}).toPass({ timeout: 15000, intervals: [1000, 2000, 3000] });
+```
+
+### Pattern 4: Role-Based Visibility Checks
+
+```typescript
+await expect(adminPage.getByRole('button', { name: 'Delete' })).toBeVisible();
+await expect(viewerPage.getByRole('button', { name: 'Delete' })).toBeHidden();
+```
+
+### Pattern 5: Context Lifecycle
+
+Only create contexts for personas in the workflow. Always close contexts at test end:
+
+```typescript
+test('workflow with Admin and Guest1 only', async ({ browser }) => {
+  const adminCtx = await createAuthContext(browser, 'admin');
+  const guest1Ctx = await createAuthContext(browser, 'guest1');
+  const adminPage = await adminCtx.newPage();
+  const guest1Page = await guest1Ctx.newPage();
+  // ... test steps ...
+  await adminCtx.close();
+  await guest1Ctx.close();
+});
+```
+
+---
+
+## Constraints
+
+- **Tools allowed** -- This skill only uses Read, Write, Glob, Grep, and the Task/Explore tools. Do NOT use Chrome MCP, iOS Simulator MCP, Playwright MCP, or any other browser automation tool. All browser interactions are generated as code, never executed during conversion.
+- **Output location** -- All test files go to `e2e/multi-user/`. The CI workflow goes to `.github/workflows/e2e-multi-user.yml` at the repository root.
+- **Per-persona auth is always generated** -- A setup file is generated for every persona in the Persona Registry, even if not all personas appear in every workflow. Each setup file gracefully handles missing credentials.
+- **Vercel headers are always included** -- The `x-vercel-protection-bypass` and `x-vercel-set-bypass-cookie` headers are conditionally applied in both `playwright.config.ts` and the `createAuthContext` helper when the environment variable is set.
+- **No runtime dependencies on workflows** -- The generated test project is fully self-contained. It does not read or import from the workflow markdown file at runtime.
+- **Playwright best practices** -- Use `getByRole`, `getByLabel`, `getByText`, `getByPlaceholder`, and `getByTestId` in that order. Avoid CSS and XPath selectors unless absolutely necessary.
+- **Multi-context best practices** -- Use `browser.newContext()` (not `browser.newPage()`) to get isolated per-persona contexts with separate storage state. Close all contexts at test end.
+- **Sequential by default** -- Set `fullyParallel: false` because multi-user tests within a workflow are inherently sequential (step N depends on step N-1). Use `Promise.all()` only for explicitly simultaneous actions.
+- **Persona variable naming** -- Always use the convention `<lowercase-persona>Ctx` and `<lowercase-persona>Page` for consistency across all generated tests.
