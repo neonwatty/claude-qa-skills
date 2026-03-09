@@ -449,7 +449,9 @@ The live walkthrough requires a running app. Please provide the URL
 
 ### Ask for Authentication Setup (if needed)
 
-If Phase 2 discovered auth-gated routes, ask how to authenticate:
+If Phase 2 discovered auth-gated routes, ask how to authenticate.
+
+Use `AskUserQuestion`:
 
 ```
 Some journeys require authentication. How should I log in?
@@ -515,6 +517,13 @@ Are these the right actions? Any to add, remove, or adjust?
 
 Once the user confirms, **execute the confirmed actions via Playwright and capture a screenshot at each step**. The user does not interact during Playwright execution.
 
+### Data for Form Fields
+
+When Playwright fills form fields during execution:
+- For authentication forms, use the credentials obtained in Phase 4.
+- For non-auth forms that require specific data (e.g., creating an item, filling a profile), use reasonable test data.
+- If a form requires domain-specific input that cannot be guessed, flag it during 5c and ask the user what values to use.
+
 Playwright execution sequence:
 
 ```
@@ -528,6 +537,18 @@ Playwright execution sequence:
    b. browser_take_screenshot to capture the result
 4. Store each screenshot with its step number for use in 5c
 ```
+
+### Handling Playwright Failures
+
+If an action fails during execution (element not found, timeout, navigation error):
+
+1. Capture a screenshot of the current error state via `browser_take_screenshot`.
+2. Continue to the next action if possible.
+3. In Phase 5c, flag the failed step by presenting the error state screenshot and explaining what went wrong.
+4. Use `AskUserQuestion` to ask the user whether to:
+   - Retry with adjusted selectors or actions
+   - Skip the step and continue
+   - Abort the journey entirely
 
 ### 5c: Co-Author Verifications + Edge Cases
 
@@ -581,6 +602,28 @@ Example output for the step above:
    1b. [Edge Case] Type "not-an-email" in the email field and click "Sign In"
        - Verify a validation message appears for invalid email format
 ```
+
+### Per-Workflow Template
+
+When assembling workflows in Phase 6, wrap each journey's confirmed steps in this template:
+
+~~~markdown
+## Workflow [N]: [Journey Name]
+<!-- auth: required/no -->
+<!-- priority: core/feature/edge -->
+<!-- estimated-steps: [count] -->
+
+> [One-sentence description]
+
+**Preconditions:**
+- [Required state from Phase 5a/5b]
+
+**Steps:**
+[Confirmed steps from Phase 5c]
+
+**Postconditions:**
+- [Final expected state after all steps complete]
+~~~
 
 ### After Each Journey Completes
 
@@ -846,31 +889,33 @@ CASE 2: Explore tasks are "in_progress"
   -> Re-spawn only the incomplete agents
   -> Resume from Phase 2 (partial)
 
-CASE 3: All Explore tasks are "completed", no Walkthrough task
-  -> Code exploration is done, journeys not yet confirmed
+CASE 3a: All Explore tasks are completed, journeys_confirmed is NOT set
   -> Resume from Phase 3 (journey discovery)
 
-CASE 4: Walkthrough task is "in_progress"
+CASE 3b: All Explore tasks are completed, journeys_confirmed is set, no Walkthrough task
+  -> Resume from Phase 4 (app URL + auth setup)
+
+CASE 5: Walkthrough task is "in_progress"
   -> Some journeys were completed, others remain
   -> Read completed_journeys and current_journey from task metadata
   -> Inform user which journeys are done and which is next
   -> Resume from Phase 5 at the next incomplete journey
 
-CASE 5: Walkthrough task is "completed", no Approval task
+CASE 6: Walkthrough task is "completed", no Approval task
   -> All journeys walked through but document not yet reviewed
   -> Resume from Phase 6 (final review)
 
-CASE 6: Approval task exists with result "changes_requested"
+CASE 7: Approval task exists with result "changes_requested"
   -> User gave feedback but revisions were not completed
   -> Read the feedback from task metadata
   -> Apply changes and re-present for review
   -> Resume from Phase 6 (next iteration)
 
-CASE 7: Approval task is "completed" with result "approved", no Write task
+CASE 8: Approval task is "completed" with result "approved", no Write task
   -> Document was approved but file was not written
   -> Resume from Phase 7 (write file)
 
-CASE 8: Write task is "completed"
+CASE 9: Write task is "completed"
   -> Everything is done
   -> Show the final summary and ask if the user wants to make changes
 ```
