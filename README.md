@@ -20,7 +20,7 @@ Generators  →  workflow markdown  ──┤
                                     └→  Runner (Playwright MCP)  →  interactive local testing
 ```
 
-1. **Generate** — Explore your codebase (+ optional Playwright crawl) to create workflow documentation
+1. **Generate** — Explore your codebase, then walk through the live app with you step-by-step via Playwright to co-author workflow documentation
 2. **Convert** — Translate workflows into self-contained Playwright test projects with auth and CI
 3. **Run** — Execute workflows interactively via Playwright MCP, or run generated tests in CI
 
@@ -30,9 +30,9 @@ Generators  →  workflow markdown  ──┤
 
 | Skill | Trigger | Description |
 |-------|---------|-------------|
-| **desktop-workflow-generator** | "generate desktop workflows" | Explores codebase, discovers routes and features, creates desktop workflow docs |
-| **mobile-workflow-generator** | "generate mobile workflows" | Same with mobile viewport focus, iOS HIG awareness, and UX anti-pattern flagging |
-| **multi-user-workflow-generator** | "generate multi-user workflows" | Interviews user about personas, explores multi-user patterns, creates persona-tagged workflows |
+| **desktop-workflow-generator** | "generate desktop workflows" | Explores codebase, walks the live app with you step-by-step, co-authors verifications and edge cases |
+| **mobile-workflow-generator** | "generate mobile workflows" | Same with mobile viewport (393x852), iOS HIG awareness, and UX anti-pattern detection |
+| **multi-user-workflow-generator** | "generate multi-user workflows" | Interviews about personas, walks the app with per-persona contexts, co-authors sync verifications |
 
 ### Converters — 3 skills
 
