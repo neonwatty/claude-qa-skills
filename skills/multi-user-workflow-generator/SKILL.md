@@ -1,13 +1,13 @@
 ---
 name: multi-user-workflow-generator
-description: Generates multi-user workflow documentation by interviewing the user about personas and roles, then exploring the codebase for multi-user patterns. Use when the user says "generate multi-user workflows", "create multi-user workflows", or "generate concurrent user workflows". Produces persona-tagged workflow markdown that feeds into the multi-user converter and Playwright runner.
+description: Generates multi-user workflow documentation by interviewing the user about personas, exploring the codebase for multi-user patterns, then walking through the live app with per-persona Playwright browser contexts to co-author interleaved, persona-tagged workflows. Use when the user says "generate multi-user workflows", "create multi-user workflows", or "generate concurrent user workflows". Produces persona-tagged workflow markdown that feeds into the multi-user converter and Playwright runner.
 ---
 
 # Multi-User Workflow Generator
 
 You are a senior QA engineer specializing in multi-user, concurrent, and real-time testing. Your job is to generate comprehensive, persona-tagged workflow documentation for applications where multiple users interact simultaneously -- collaborative editors, shared dashboards, role-based admin panels, invitation flows, and any feature where one user's actions affect another user's experience. Every workflow you produce must clearly label which persona performs each action and include explicit sync-verification steps so that another engineer -- or an automated Playwright multi-context script -- can follow it without ambiguity.
 
-Your process is unique: you interview the user about personas and credentials BEFORE exploring the codebase, because the persona list drives which code paths matter. You then use parallel Explore agents tuned for auth/roles, multi-user features, and real-time sync patterns. An optional live crawl logs in as each persona to discover role-specific routes and visibility differences.
+You combine a persona interview, static codebase analysis (via parallel Explore agents tuned for auth/roles, multi-user features, and real-time sync), and a required live interactive walkthrough (via Playwright MCP with per-persona browser contexts) to co-author each workflow step with the user. The walkthrough uses Playwright to navigate the running app as each persona, capture screenshots at each step, and present them to the user for verification, sync timing decisions, and edge case choices.
 
 ---
 
@@ -31,8 +31,7 @@ Every run of this skill creates the following task tree. Tasks are completed in 
   +-- [Explore Task]   "Explore: Auth & Roles"               (agent)
   +-- [Explore Task]   "Explore: Multi-User Features"         (agent)
   +-- [Explore Task]   "Explore: Real-Time Sync"              (agent)
-  +-- [Crawl Task]     "Crawl: Live App"                      (optional, Playwright MCP)
-  +-- [Generate Task]  "Generate: Workflow Drafts"
+  +-- [Walkthrough Task] "Walkthrough: Multi-User Journeys"   (Playwright MCP)
   +-- [Approval Task]  "Approval: User Review #1"
   +-- [Write Task]     "Write: multi-user-workflows.md"
 ```
@@ -586,42 +585,73 @@ Merge all three agent reports into a single unified Multi-User Application Map t
 
 ---
 
-## Phase 4: Identify Multi-User Journeys
+## Phase 4: Journey Discovery + User Confirmation
 
-Using the unified Multi-User Application Map from Phase 3 and the Persona Registry from Phase 2, categorize all discoverable multi-user journeys into three tiers.
+Using the unified Multi-User Application Map from Phase 3 and the Persona Registry from Phase 2, identify all discoverable multi-user journeys and present them to the user as persona-tagged route sequences in INTERLEAVED order, grouped by priority.
 
-### Core Multi-User Journeys
+### Present Journeys for Confirmation
 
-These are the critical multi-user paths. If any of these break, the collaborative or multi-user aspects of the application are fundamentally unusable.
+Use `AskUserQuestion` to present the discovered journeys. Each journey shows the interleaved persona actions at route level:
 
-Examples:
-- Admin invites a new user and the user accepts the invitation
-- Two users simultaneously view a shared resource and both see accurate data
-- User A creates a resource and User B can see it (basic cross-user visibility)
-- Role-based access control works correctly (admin sees admin controls, viewer does not)
-- Login as each persona and verify role-appropriate content
+```
+Discovered multi-user journeys (ordered by priority):
 
-### Feature Multi-User Journeys
+Core:
+1. Team Invitation Flow:
+   [Admin] /team/settings -> /team/invite
+   [Guest1] /inbox (receives invitation)
+   [Admin] /team/members (sees updated list)
 
-These cover specific multi-user features that add value but are not part of the critical path.
+2. Role-Based Access Verification:
+   [Admin] /dashboard (full controls)
+   [Editor] /dashboard (edit controls only)
+   [Viewer] /dashboard (read-only view)
 
-Examples:
-- Real-time collaborative editing with sync verification
-- Presence indicators update when users join and leave
-- Cross-user notifications arrive within expected time
-- Permission changes take effect immediately for the affected user
-- Activity feed shows other users' recent actions
+3. Login as Each Persona:
+   [Admin] /login -> /dashboard
+   [Host] /login -> /dashboard
+   [Guest1] /login -> /dashboard
+   [Viewer] /login -> /dashboard
 
-### Edge Case Multi-User Journeys
+Feature:
+4. Collaborative Document Editing:
+   [Host] /docs/:id (creates content)
+   [Guest1] /docs/:id (sees content appear)
+   [Host] /docs/:id (sees Guest1's cursor)
 
-These cover race conditions, conflict resolution, and unusual but valid concurrent scenarios.
+5. Real-Time Presence:
+   [Host] /docs/:id (opens document)
+   [Guest1] /docs/:id (joins, presence indicator appears for Host)
+   [Guest1] leaves /docs/:id (presence indicator disappears for Host)
 
-Examples:
-- Two users edit the same field simultaneously (conflict resolution)
-- User A deletes a resource while User B is editing it
-- Network interruption during collaborative editing (reconnect and sync)
-- User's role is changed while they are actively using the application
-- Invitation link used after the inviter revokes access
+6. Permission Change Propagation:
+   [Admin] /team/members (changes Guest1 role to Editor)
+   [Guest1] /dashboard (sees new edit controls without re-login)
+
+Edge Case:
+7. Concurrent Edit Conflict:
+   [Host] /docs/:id (edits paragraph 1)
+   [Guest1] /docs/:id (edits paragraph 1 simultaneously)
+   [Host] /docs/:id (conflict resolution UI)
+
+8. Resource Deleted While Viewing:
+   [Host] /docs/:id (deletes document)
+   [Guest1] /docs/:id (sees deletion notification)
+
+Should I add, remove, or reorder any of these journeys?
+```
+
+Each journey is presented as a numbered list item with a short name and its interleaved persona-route sequence. Do not include detailed steps, verifications, or preconditions at this stage -- those are co-authored during the walkthrough in Phase 6.
+
+### Apply User Feedback
+
+If the user wants changes:
+- **Add**: Append new journeys to the appropriate priority group.
+- **Remove**: Drop the specified journeys from the list.
+- **Reorder**: Move journeys between priority groups or change their sequence.
+- **Adjust**: Modify the route sequence or persona assignments for a specific journey.
+
+Re-present the updated list for final confirmation before proceeding.
 
 ### Update Task Metadata
 
@@ -629,265 +659,295 @@ Examples:
 TaskUpdate:
   title: "Generate: Multi-User Workflows"
   metadata:
-    core_journeys: 6
-    feature_journeys: 10
-    edge_case_journeys: 8
-    total_journeys: 24
+    core_journeys: 3
+    feature_journeys: 3
+    edge_case_journeys: 2
+    total_journeys: 8
     personas_involved: 4
+    journeys_confirmed: true
 ```
 
 ---
 
-## Phase 5: Optional Live Crawl
+## Phase 5: App URL + Per-Persona Auth Setup
 
-After completing static code exploration, offer the user a live crawl to supplement findings. The multi-user crawl is different from desktop/mobile crawls because it logs in as EACH persona to discover role-specific routes and visibility differences.
+The live walkthrough requires a running application. This phase is **required** -- there is no option to skip.
 
-### Ask the User
+### Ask for the App URL
 
 Use `AskUserQuestion`:
 
 ```
-Code exploration is complete. I found [N] auth-gated routes, [M] shared resources,
-and [K] real-time sync patterns.
-
-Would you like to supplement with a live crawl of the running app?
-This uses Playwright to log in as EACH persona and discover:
-- Role-specific routes and UI differences
-- Which elements are visible/hidden per role
-- Real-time features in action
-
-If yes, provide:
-1. The base URL (e.g., http://localhost:3000)
-2. Confirm that test credentials are set in environment variables
-
-If no, I will proceed to workflow generation using code analysis only.
+The live walkthrough requires a running app. Please provide the URL
+(e.g., http://localhost:3000, https://preview.example.com, or https://app.example.com).
 ```
 
-### If the User Says Yes
+### Ask for Per-Persona Authentication Setup
 
-Create the crawl task:
+For multi-user workflows, you need credentials for EACH persona in the Persona Registry.
+
+Use `AskUserQuestion`:
 
 ```
-TaskCreate:
-  title: "Crawl: Live App"
-  status: "in_progress"
-  metadata:
-    base_url: "http://localhost:3000"
-    personas_to_crawl: ["Admin", "Host", "Guest1", "Viewer"]
-    pages_visited: 0
+For multi-user workflows, I need credentials for each persona:
+
+- Admin: ADMIN_EMAIL / ADMIN_PASSWORD
+- Host: HOST_EMAIL / HOST_PASSWORD
+- Guest1: GUEST1_EMAIL / GUEST1_PASSWORD
+- Guest2: GUEST2_EMAIL / GUEST2_PASSWORD
+- Guest3: GUEST3_EMAIL / GUEST3_PASSWORD
+- Viewer: VIEWER_EMAIL / VIEWER_PASSWORD
+
+Please provide values or confirm I should use these env var names.
 ```
 
-Use Playwright MCP tools to crawl the application as each persona:
+### Create Per-Persona Browser Contexts
+
+Create a separate Playwright browser context for each persona with its own `storageState`. This ensures each persona has an independent, authenticated session.
 
 ```
 For each persona in the Persona Registry:
-
-  1. browser_navigate to the login page
-  2. browser_snapshot to capture the login form
-  3. Log in using the persona's credentials from environment variables
-  4. browser_snapshot to capture the post-login state
-  5. Record:
-     - Which nav items are visible for this persona
-     - Which buttons/actions are available
-     - Which routes are accessible
-     - What data is visible
-  6. For each route discovered in Phase 3:
-     a. browser_navigate to the route
-     b. browser_snapshot to capture the page as this persona
-     c. Record role-specific differences (elements present/absent,
-        data visible/hidden, actions available/disabled)
-  7. Log out before switching to the next persona
-
-After all personas have been crawled:
-  - Build a Persona Visibility Matrix showing which elements each persona can see
-  - Flag any discrepancies between code analysis and live behavior
-  - Note any routes where role-based rendering differs from expectations
+  1. Create a new Playwright BrowserContext
+  2. Navigate to the login page
+  3. Authenticate using the persona's credentials
+  4. Save the storageState for the context
+  5. Associate the context with the persona name
 ```
 
-Merge crawl findings into the Multi-User Application Map.
-
-```
-TaskUpdate:
-  title: "Crawl: Live App"
-  status: "completed"
-  metadata:
-    personas_crawled: 4
-    pages_visited_per_persona: 12
-    total_pages_visited: 48
-    visibility_differences_found: 7
-    discrepancies: 1
-```
-
-### If the User Says No
-
-Skip this phase entirely. Mark the crawl task as skipped:
+### Create the Walkthrough Task
 
 ```
 TaskCreate:
-  title: "Crawl: Live App"
-  status: "completed"
+  title: "Walkthrough: Multi-User Journeys"
+  status: "in_progress"
   metadata:
-    skipped: true
-    reason: "User opted out"
+    base_url: "http://localhost:3000"
+    auth_method: "credentials"
+    personas_authenticated: ["Admin", "Host", "Guest1", "Guest2", "Guest3", "Viewer"]
+    total_journeys: 8
+    completed_journeys: 0
+    current_journey: 1
 ```
 
 ---
 
-## Phase 6: Generate Workflows
+## Phase 6: Iterative Walkthrough [PER JOURNEY]
 
-Using the Multi-User Application Map (code exploration + optional crawl) and the Persona Registry, generate persona-tagged workflow documents.
+This is the core phase. For each confirmed journey from Phase 4, walk through the live app with the user to co-author the workflow steps using per-persona Playwright browser contexts. Repeat sub-phases 6a, 6b, and 6c for every journey.
 
-### Create the Generation Task
+### 6a: Confirm Screen Flow
+
+Present the journey's screens as an interleaved persona-route sequence. The user already approved the journey list in Phase 4, but this is the per-journey confirmation before Playwright starts navigating.
+
+Use `AskUserQuestion`:
 
 ```
-TaskCreate:
-  title: "Generate: Workflow Drafts"
-  status: "in_progress"
-  metadata:
-    target_count: 24
-    personas: ["Admin", "Host", "Guest1", "Guest2", "Guest3", "Viewer"]
+Journey 1: Team Invitation Flow
+
+Screen flow (interleaved by persona):
+  [Admin] /team/settings -> /team/invite
+  [Guest1] /inbox (receives invitation)
+  [Admin] /team/members (sees updated list)
+
+Is this the right screen flow, or should I adjust it?
 ```
 
-### Multi-User Workflow Format
+If the user wants to add intermediate screens or change persona ordering, update the flow before proceeding.
 
-Every multi-user workflow follows this exact structure. The key difference from single-user workflows is the `<!-- personas: ... -->` metadata and the `[PersonaName]` prefix on each step.
+### 6b: Confirm Actions + Playwright Captures
+
+Present the proposed actions at each transition, with persona tags. These proposals are informed by the code exploration results from Phase 3 (e.g., the Auth & Roles agent found an invite form, the Multi-User Features agent found an invitation acceptance flow).
+
+When the persona changes between consecutive steps, Playwright switches to that persona's browser context.
+
+Use `AskUserQuestion`:
+
+```
+Journey 1: Team Invitation Flow
+
+Proposed actions:
+  Step 1: [Admin] Navigate to /team/settings
+  Step 2: [Admin] Click "Invite Member" button -> Fill email field with Guest1's email -> Click "Send Invite"
+  Step 3: [Guest1] Navigate to /inbox  (switching to Guest1's browser context)
+  Step 4: [Guest1] Click the invitation notification -> Click "Accept"
+  Step 5: [Admin] Navigate to /team/members  (switching back to Admin's browser context)
+
+Are these the right actions? Any to add, remove, or adjust?
+```
+
+Once the user confirms, **execute the confirmed actions via Playwright and capture a screenshot at each step**. The user does not interact during Playwright execution. Each step executes in the correct persona's browser context.
+
+### Data for Form Fields
+
+When Playwright fills form fields during execution:
+- For authentication forms, use the credentials obtained in Phase 5.
+- For invitation forms, use the target persona's email from the Persona Registry.
+- For non-auth forms that require specific data (e.g., creating a document, filling settings), use reasonable test data.
+- If a form requires domain-specific input that cannot be guessed, flag it during 6c and ask the user what values to use.
+
+Playwright execution sequence:
+
+```
+1. Identify the persona for this step
+2. Switch to that persona's browser context
+3. browser_navigate to the target route (if navigating)
+4. browser_take_screenshot to capture the state in this persona's context
+5. For each action in this step:
+   a. Execute the action:
+      - browser_click for clicks
+      - browser_type or browser_fill_form for text input
+      - browser_navigate for direct navigation
+   b. browser_take_screenshot to capture the result
+6. Store each screenshot with its step number and persona name for use in 6c
+```
+
+### Handling Playwright Failures
+
+If an action fails during execution (element not found, timeout, navigation error):
+
+1. Capture a screenshot of the current error state via `browser_take_screenshot`.
+2. Continue to the next action if possible.
+3. In Phase 6c, flag the failed step by presenting the error state screenshot and explaining what went wrong.
+4. Use `AskUserQuestion` to ask the user whether to:
+   - Retry with adjusted selectors or actions
+   - Skip the step and continue
+   - Abort the journey entirely
+
+### 6c: Co-Author Verifications + Edge Cases
+
+For each screenshot captured in 6b, present it to the user with proposed verifications and edge case suggestions. Verifications are informed by:
+- The screenshot itself (what is visually present on screen)
+- Code exploration results (what components, validation, and state were found)
+- Anti-pattern detection (see the Multi-User UX Anti-Patterns section below)
+- The Timing Expectations by Feature Type table (for sync verifications at persona handoff points)
+
+Present one step at a time. Do not batch or group steps.
+
+At **persona handoff points** (where the active persona changes between consecutive steps), ALSO propose sync timing verifications informed by the Timing Expectations table.
+
+Use `AskUserQuestion` for each step:
+
+```
+Journey 1: Team Invitation Flow -- Step 3
+[Guest1] /inbox
+[screenshot from Guest1's browser context]
+
+I see Guest1's inbox page. There is a notification area at the top and
+an invitation card from Admin.
+
+Proposed verifications:
+- Verify invitation notification appears in Guest1's inbox
+- Verify the invitation shows the correct team name
+- Verify the invitation shows Admin as the inviter
+
+Should I add, remove, or change any of these verifications?
+
+Sync verification (persona handoff from Admin to Guest1):
+- Sync verification: invitation notification visible within 5 seconds
+  of Admin's invite action
+
+Edge cases:
+- Guest1 already on inbox page when invite sent -- appears without refresh?
+- Guest1 has notifications disabled -- alternative way to see invite?
+- Invitation link expires before Guest1 clicks it -- error message?
+
+Which edge cases should I include? (list numbers, "all", or "none")
+```
+
+### Building the Workflow Steps
+
+Each confirmed verification becomes a workflow step. Edge cases become sub-steps numbered with a letter suffix (3a, 3b, etc.). Sync verifications are included inline using the standard format.
+
+Example output for the step above:
 
 ```markdown
-## Workflow [N]: [Descriptive Name]
+3. [Guest1] Navigate to /inbox
+   - Verify invitation notification appears in Guest1's inbox
+   - Verify the invitation shows the correct team name and Admin as the inviter
+   - **Sync Verification:** Within 5 seconds, verify Guest1 sees the
+     invitation notification after Admin's invite action
+
+   3a. [Edge Case] Guest1 is already on the inbox page when Admin sends the invite
+       - Verify the invitation appears in real-time without page refresh
+
+   3b. [Edge Case] Invitation link has expired
+       - Verify a clear expiration message is shown when Guest1 clicks the link
+```
+
+### Per-Workflow Template
+
+When assembling workflows in Phase 7, wrap each journey's confirmed steps in this template:
+
+~~~markdown
+## Workflow [N]: [Journey Name]
 <!-- auth: required -->
-<!-- priority: core -->
-<!-- personas: Admin, Host, Guest1 -->
-<!-- estimated-steps: 10 -->
-<!-- sync-points: 3 -->
+<!-- priority: core/feature/edge -->
+<!-- personas: Admin, Guest1 -->
+<!-- estimated-steps: [count] -->
+<!-- sync-points: [count] -->
 
 > [One-sentence description of what this workflow tests and why it matters
 > for multi-user scenarios.]
 
 **Preconditions:**
 - Admin is logged in as Admin persona (ADMIN_EMAIL / ADMIN_PASSWORD)
-- Host is logged in as Host persona (HOST_EMAIL / HOST_PASSWORD)
 - Guest1 is logged in as Guest1 persona (GUEST1_EMAIL / GUEST1_PASSWORD)
 - [Any required data state]
 
 **Steps:**
-
-1. [Admin] Navigate to the team management page
-   - Verify the "Invite Member" button is visible
-
-2. [Admin] Click the "Invite Member" button and enter Guest1's email address
-   - Verify the invitation is sent successfully
-   - Verify a success toast appears with message "Invitation sent"
-
-3. [Guest1] Check for the invitation notification
-   - **Sync Verification:** Within 10 seconds, verify Guest1 sees the
-     invitation notification or email
-   - Verify the invitation shows the correct team name and inviter
-
-4. [Guest1] Accept the invitation
-   - Verify Guest1 is redirected to the team workspace
-   - Verify Guest1 appears in the team member list
-
-5. [Admin] Verify the team member list is updated
-   - **Sync Verification:** Within 5 seconds, verify Admin sees Guest1
-     in the member list without refreshing
-   - Verify Guest1's role is shown as "Member" (not Admin or Owner)
-
-6. [Host] Verify the team member list is updated
-   - **Sync Verification:** Within 5 seconds, verify Host sees Guest1
-     in the member list without refreshing
+[Confirmed steps from Phase 6c]
 
 **Postconditions:**
-- Guest1 is a member of the team
-- All personas see the updated member list
-- Admin retains admin privileges
-```
+- [Final expected state after all steps complete]
+- [State from each persona's perspective]
+~~~
 
-### Persona Tagging Rules
+### After Each Journey Completes
 
-Follow these rules strictly when tagging workflow steps with personas:
-
-1. **Every action step must be prefixed with `[PersonaName]`** -- No exceptions. If a step is a system event (like a timer firing), prefix with `[System]`.
-
-2. **Verification steps that check another persona's view must name both personas** -- For example: "[Guest1] Verify that the document edited by [Host] shows the updated title."
-
-3. **Sync verification steps must include timing expectations** -- Always specify the maximum acceptable delay. Use the format: "**Sync Verification:** Within N seconds, verify [condition]."
-
-4. **Context switches must be explicit** -- When consecutive steps switch between personas, add a visual separator comment if the switch might be non-obvious:
-
-```markdown
-3. [Admin] Grant edit permissions to Guest1
-   - Verify permission change is confirmed
-
-   <!-- Context switch: now acting as Guest1 -->
-
-4. [Guest1] Refresh the document page
-   - Verify edit controls are now visible
-```
-
-5. **Persona counts in metadata must be accurate** -- The `<!-- personas: ... -->` comment must list EVERY persona that appears in the workflow steps. Do not list personas that are not involved.
-
-6. **Credential env vars in preconditions** -- Always show the exact environment variable names for each persona in the preconditions block.
-
-### Sync Verification Patterns
-
-Use these standard patterns for verifying cross-user synchronization:
-
-| Pattern | When to Use | Template |
-|---------|------------|----------|
-| Immediate sync | Real-time features (WebSocket, SSE) | "**Sync Verification:** Within 2 seconds, verify [Persona B] sees [change made by Persona A]" |
-| Near-real-time sync | Polling-based or eventually consistent features | "**Sync Verification:** Within 10 seconds, verify [Persona B] sees [change made by Persona A]" |
-| Triggered sync | Changes visible on next page load or action | "**Sync Verification:** [Persona B] refreshes the page and verifies [change made by Persona A] is visible" |
-| Absence verification | Verifying a persona does NOT see something | "**Sync Verification:** [Persona B] verifies the [element] is NOT visible (role restriction)" |
-
-### Timing Expectations by Feature Type
-
-Use these default timing expectations unless the code exploration reveals specific values:
-
-| Feature Type | Expected Sync Time | Rationale |
-|-------------|-------------------|-----------|
-| WebSocket push | Within 2 seconds | Real-time transport, near-instant |
-| SSE push | Within 3 seconds | Slight overhead vs WebSocket |
-| Polling (short interval) | Within polling interval + 2 seconds | Depends on interval |
-| Database trigger + notification | Within 5 seconds | DB event -> notification pipeline |
-| Email notification | Within 30 seconds | Email delivery is inherently slower |
-| Invitation link generation | Within 5 seconds | Server-side generation |
-| Permission change propagation | Within 5 seconds | Auth cache invalidation |
-| Presence update | Within 3 seconds | Real-time presence channel |
-
-### Workflow Writing Guidelines
-
-When writing steps, follow these rules in addition to the persona tagging rules above:
-
-1. **Be specific** -- Never write "[Admin] click the button." Write "[Admin] Click the 'Invite Member' button in the team settings page."
-2. **Include expected outcomes** -- Every action step should have a verification sub-step stating what should happen.
-3. **Use consistent verb language** -- See the Workflow Writing Standards table at the end of this document.
-4. **Specify selectors when known** -- If a `data-testid` was found during exploration, reference it: "[Admin] Click the 'Delete' button (`data-testid='delete-member-btn'`)."
-5. **Note auth requirements** -- Use the `<!-- auth: required -->` comment (almost always "required" for multi-user workflows).
-6. **Mark priority** -- Use `<!-- priority: core -->`, `<!-- priority: feature -->`, or `<!-- priority: edge -->`.
-7. **Number sequentially** -- Workflows are numbered starting at 1 with no gaps.
-8. **Group by journey type** -- Core journeys first, then feature journeys, then edge cases.
-9. **Include sync point count** -- The `<!-- sync-points: N -->` comment counts how many Sync Verification steps are in the workflow.
-
-### Update Task on Completion
+Update the walkthrough task metadata and inform the user before moving to the next journey:
 
 ```
 TaskUpdate:
-  title: "Generate: Workflow Drafts"
+  title: "Walkthrough: Multi-User Journeys"
+  metadata:
+    completed_journeys: 1
+    current_journey: 2
+    journey_1_steps: 6
+    journey_1_edge_cases: 3
+    journey_1_sync_points: 2
+```
+
+Use `AskUserQuestion`:
+
+```
+Journey 1 (Team Invitation Flow) is complete: 6 steps, 3 edge cases, 2 sync points.
+
+Moving to Journey 2: Role-Based Access Verification
+  [Admin] /dashboard (full controls)
+  [Editor] /dashboard (edit controls only)
+  [Viewer] /dashboard (read-only view)
+
+Ready to continue?
+```
+
+### When All Journeys Are Complete
+
+```
+TaskUpdate:
+  title: "Walkthrough: Multi-User Journeys"
   status: "completed"
   metadata:
-    workflows_generated: 24
-    core: 6
-    feature: 10
-    edge: 8
-    total_sync_points: 42
-    personas_used: ["Admin", "Host", "Guest1", "Guest2", "Guest3", "Viewer"]
+    completed_journeys: 8
+    total_steps: 48
+    total_edge_cases: 18
+    total_sync_points: 14
 ```
 
 ---
 
-## Phase 7: Organize and Write
+## Phase 7: Final Review
 
-Structure the full workflow document with a clear table of contents, persona registry, and logical grouping.
+Assemble the complete workflow document and present it for holistic review. Because every step was individually co-authored with the user during the walkthrough, this review is expected to be lighter -- it focuses on the document as a whole rather than individual steps, with special attention to multi-user-specific concerns.
 
 ### Document Structure
 
@@ -960,43 +1020,12 @@ Structure the full workflow document with a clear table of contents, persona reg
 [Summary table from Agent 3]
 
 ### Persona Visibility Matrix
-[Matrix from optional crawl, or derived from code analysis]
+[Matrix derived from code analysis and walkthrough observations]
 ```
 
----
+### Present for Review
 
-## Phase 8: Review with User (REQUIRED)
-
-This phase is mandatory. You must never write the final file without user approval.
-
-### Present Workflows for Review
-
-Use `AskUserQuestion` to present the generated workflows:
-
-```
-I have generated [N] multi-user workflows involving [P] personas:
-- [X] Core workflows (authentication, basic cross-user visibility, role verification)
-- [Y] Feature workflows (collaboration, real-time sync, notifications)
-- [Z] Edge case workflows (conflicts, race conditions, permission changes)
-- [S] total sync verification points across all workflows
-
-Personas used: [list of persona names]
-
-Here is the full draft:
-
-[Paste the complete workflow document]
-
-Please review and let me know:
-1. Are any multi-user scenarios missing?
-2. Are the persona assignments correct for each workflow?
-3. Are the sync timing expectations reasonable?
-4. Should any workflows be removed or combined?
-5. Any other changes needed?
-
-Reply "approved" to write the file, or provide feedback for revision.
-```
-
-### Create the Approval Task
+Create the approval task and present the assembled document:
 
 ```
 TaskCreate:
@@ -1004,16 +1033,42 @@ TaskCreate:
   status: "in_progress"
   metadata:
     iteration: 1
-    workflows_presented: 24
+    workflows_presented: 8
     personas_used: 6
-    sync_points: 42
+    sync_points: 14
+```
+
+Use `AskUserQuestion`:
+
+```
+I have assembled [N] multi-user workflows from our walkthrough:
+- [X] Core workflows
+- [Y] Feature workflows
+- [Z] Edge case workflows
+- [S] total sync verification points
+
+Personas used: [list of persona names]
+
+Here is the full document:
+
+[Paste the complete workflow document]
+
+Please review the overall document:
+1. Are any multi-user journeys missing that we should add?
+2. Are the persona assignments correct for each workflow?
+3. Are the sync timing expectations reasonable?
+4. Does the persona count in metadata match actual usage?
+5. Should any workflows be combined or split?
+6. Any other changes needed?
+
+Reply "approved" to write the file, or provide feedback for revision.
 ```
 
 ### Handling Feedback
 
 If the user provides feedback instead of approving:
 
-1. Apply the requested changes to the workflow drafts.
+1. Apply the requested changes to the workflow document.
 2. Update the approval task:
 
 ```
@@ -1035,10 +1090,10 @@ TaskCreate:
   metadata:
     iteration: 2
     changes_made: ["added concurrent deletion workflow", "adjusted presence sync timing to 3s"]
-    workflows_presented: 25
+    workflows_presented: 9
 ```
 
-4. Present the revised draft to the user again.
+4. Present the revised document to the user again.
 
 Repeat until the user replies with "approved" or equivalent affirmation.
 
@@ -1051,13 +1106,13 @@ TaskUpdate:
   metadata:
     iteration: N
     result: "approved"
-    final_workflow_count: 25
-    final_sync_points: 45
+    final_workflow_count: 8
+    final_sync_points: 14
 ```
 
 ---
 
-## Phase 9: Write File and Complete
+## Phase 8: Write File and Complete
 
 ### Write the File
 
@@ -1078,7 +1133,7 @@ TaskCreate:
   metadata:
     file_path: "/workflows/multi-user-workflows.md"
     file_size_lines: 620
-    workflows_written: 25
+    workflows_written: 8
     personas_documented: 6
 ```
 
@@ -1090,17 +1145,19 @@ TaskUpdate:
   status: "completed"
   metadata:
     mode: "create"
-    total_workflows: 25
-    core: 6
-    feature: 11
-    edge: 8
+    total_workflows: 8
+    core: 3
+    feature: 3
+    edge: 2
     personas: ["Admin", "Host", "Guest1", "Guest2", "Guest3", "Viewer"]
-    total_sync_points: 45
+    total_sync_points: 14
     output_path: "/workflows/multi-user-workflows.md"
     exploration_agents: 3
     interview_completed: true
-    live_crawl: true
-    review_iterations: 2
+    walkthrough_journeys: 8
+    total_steps: 48
+    total_edge_cases: 18
+    review_iterations: 1
 ```
 
 ### Final Summary
@@ -1113,16 +1170,18 @@ Multi-user workflow generation complete.
 File: /workflows/multi-user-workflows.md
 
 Summary:
-- Total workflows: 25
-- Core workflows: 6
-- Feature workflows: 11
-- Edge case workflows: 8
+- Total workflows: 8
+- Core workflows: 3
+- Feature workflows: 3
+- Edge case workflows: 2
 - Personas: Admin, Host, Guest1, Guest2, Guest3, Viewer (6 total)
-- Total sync verification points: 45
+- Total sync verification points: 14
 - Exploration agents used: 3 (Auth & Roles, Multi-User Features, Real-Time Sync)
 - Interview completed: yes
-- Live crawl: yes (48 pages visited across 4 personas)
-- Review iterations: 2
+- Walkthrough journeys completed: 8
+- Total steps: 48
+- Total edge cases: 18
+- Review iterations: 1
 
 Next steps:
 - Run "convert multi-user workflows to playwright" to generate multi-context E2E test files
@@ -1153,26 +1212,33 @@ CASE 3: Interview task is "completed", Explore tasks are "in_progress"
   -> Re-spawn only the incomplete agents (pass the stored Persona Registry)
   -> Resume from Phase 3 (partial)
 
-CASE 4: All Explore tasks are "completed", no Crawl or Generate task
-  -> Code exploration is done
-  -> Resume from Phase 5 (offer live crawl) or Phase 6 (generate)
+CASE 4a: All Explore tasks are "completed", journeys_confirmed is NOT set
+  -> Code exploration is done but journeys not yet presented
+  -> Resume from Phase 4 (journey discovery)
 
-CASE 5: Crawl task exists and is "completed" or skipped, no Generate task
-  -> Resume from Phase 6 (generate workflows)
+CASE 4b: All Explore tasks are "completed", journeys_confirmed is set, no Walkthrough task
+  -> Journeys confirmed but walkthrough not started
+  -> Resume from Phase 5 (app URL + per-persona auth setup)
 
-CASE 6: Generate task is "completed", no Approval task
-  -> Workflows were generated but not reviewed
-  -> Resume from Phase 8 (review with user)
+CASE 5: Walkthrough task is "in_progress"
+  -> Some journeys were completed, others remain
+  -> Read completed_journeys and current_journey from task metadata
+  -> Inform user which journeys are done and which is next
+  -> Resume from Phase 6 at the next incomplete journey
+
+CASE 6: Walkthrough task is "completed", no Approval task
+  -> All journeys walked through but document not yet reviewed
+  -> Resume from Phase 7 (final review)
 
 CASE 7: Approval task exists with result "changes_requested"
   -> User gave feedback but revisions were not completed
   -> Read the feedback from task metadata
   -> Apply changes and re-present for review
-  -> Resume from Phase 8 (next iteration)
+  -> Resume from Phase 7 (next iteration)
 
 CASE 8: Approval task is "completed" with result "approved", no Write task
-  -> Workflows were approved but file was not written
-  -> Resume from Phase 9 (write file)
+  -> Document was approved but file was not written
+  -> Resume from Phase 8 (write file)
 
 CASE 9: Write task is "completed"
   -> Everything is done
@@ -1191,6 +1257,64 @@ Persona Registry: [list of personas from the interview]
 I will resume from [next phase]. If you would like to start over instead,
 let me know and I will create a fresh session.
 ```
+
+---
+
+## Persona Tagging Rules
+
+Follow these rules strictly when tagging workflow steps with personas:
+
+1. **Every action step must be prefixed with `[PersonaName]`** -- No exceptions. If a step is a system event (like a timer firing), prefix with `[System]`.
+
+2. **Verification steps that check another persona's view must name both personas** -- For example: "[Guest1] Verify that the document edited by [Host] shows the updated title."
+
+3. **Sync verification steps must include timing expectations** -- Always specify the maximum acceptable delay. Use the format: "**Sync Verification:** Within N seconds, verify [condition]."
+
+4. **Context switches must be explicit** -- When consecutive steps switch between personas, add a visual separator comment if the switch might be non-obvious:
+
+```markdown
+3. [Admin] Grant edit permissions to Guest1
+   - Verify permission change is confirmed
+
+   <!-- Context switch: now acting as Guest1 -->
+
+4. [Guest1] Refresh the document page
+   - Verify edit controls are now visible
+```
+
+5. **Persona counts in metadata must be accurate** -- The `<!-- personas: ... -->` comment must list EVERY persona that appears in the workflow steps. Do not list personas that are not involved.
+
+6. **Credential env vars in preconditions** -- Always show the exact environment variable names for each persona in the preconditions block.
+
+---
+
+## Sync Verification Patterns
+
+Use these standard patterns for verifying cross-user synchronization:
+
+| Pattern | When to Use | Template |
+|---------|------------|----------|
+| Immediate sync | Real-time features (WebSocket, SSE) | "**Sync Verification:** Within 2 seconds, verify [Persona B] sees [change made by Persona A]" |
+| Near-real-time sync | Polling-based or eventually consistent features | "**Sync Verification:** Within 10 seconds, verify [Persona B] sees [change made by Persona A]" |
+| Triggered sync | Changes visible on next page load or action | "**Sync Verification:** [Persona B] refreshes the page and verifies [change made by Persona A] is visible" |
+| Absence verification | Verifying a persona does NOT see something | "**Sync Verification:** [Persona B] verifies the [element] is NOT visible (role restriction)" |
+
+---
+
+## Timing Expectations by Feature Type
+
+Use these default timing expectations unless the code exploration reveals specific values:
+
+| Feature Type | Expected Sync Time | Rationale |
+|-------------|-------------------|-----------|
+| WebSocket push | Within 2 seconds | Real-time transport, near-instant |
+| SSE push | Within 3 seconds | Slight overhead vs WebSocket |
+| Polling (short interval) | Within polling interval + 2 seconds | Depends on interval |
+| Database trigger + notification | Within 5 seconds | DB event -> notification pipeline |
+| Email notification | Within 30 seconds | Email delivery is inherently slower |
+| Invitation link generation | Within 5 seconds | Server-side generation |
+| Permission change propagation | Within 5 seconds | Auth cache invalidation |
+| Presence update | Within 3 seconds | Real-time presence channel |
 
 ---
 
