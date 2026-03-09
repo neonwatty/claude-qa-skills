@@ -895,27 +895,27 @@ CASE 3a: All Explore tasks are completed, journeys_confirmed is NOT set
 CASE 3b: All Explore tasks are completed, journeys_confirmed is set, no Walkthrough task
   -> Resume from Phase 4 (app URL + auth setup)
 
-CASE 5: Walkthrough task is "in_progress"
+CASE 4: Walkthrough task is "in_progress"
   -> Some journeys were completed, others remain
   -> Read completed_journeys and current_journey from task metadata
   -> Inform user which journeys are done and which is next
   -> Resume from Phase 5 at the next incomplete journey
 
-CASE 6: Walkthrough task is "completed", no Approval task
+CASE 5: Walkthrough task is "completed", no Approval task
   -> All journeys walked through but document not yet reviewed
   -> Resume from Phase 6 (final review)
 
-CASE 7: Approval task exists with result "changes_requested"
+CASE 6: Approval task exists with result "changes_requested"
   -> User gave feedback but revisions were not completed
   -> Read the feedback from task metadata
   -> Apply changes and re-present for review
   -> Resume from Phase 6 (next iteration)
 
-CASE 8: Approval task is "completed" with result "approved", no Write task
+CASE 7: Approval task is "completed" with result "approved", no Write task
   -> Document was approved but file was not written
   -> Resume from Phase 7 (write file)
 
-CASE 9: Write task is "completed"
+CASE 8: Write task is "completed"
   -> Everything is done
   -> Show the final summary and ask if the user wants to make changes
 ```

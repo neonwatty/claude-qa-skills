@@ -607,20 +607,19 @@ Once the user confirms, **configure the Playwright browser context with a mobile
 
 ### Mobile Viewport Setup
 
-Before navigating to the first route, configure the Playwright browser context for mobile:
+Before navigating, configure the mobile viewport:
 
-```
-1. Set viewport to mobile dimensions:
-   - Use browser_resize with width: 393, height: 852
-   - Or configure via Playwright context options:
-     const context = await browser.newContext({
-       viewport: { width: 393, height: 852 },
-       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) ...',
-       isMobile: true,
-       hasTouch: true,
-     });
-2. Verify the viewport is correctly set before proceeding
-```
+1. Set viewport to mobile dimensions using `browser_resize` with width 393 and height 852.
+
+> **Note for converter skill:** When generating Playwright test files, use context options instead:
+> ```javascript
+> const context = await browser.newContext({
+>   viewport: { width: 393, height: 852 },
+>   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)...',
+>   isMobile: true,
+>   hasTouch: true,
+> });
+> ```
 
 ### Data for Form Fields
 
@@ -636,7 +635,7 @@ Playwright execution sequence:
 2. browser_take_screenshot to capture the initial state at mobile dimensions
 3. For each subsequent action:
    a. Execute the action:
-      - browser_click for taps
+      - browser_click for taps (Playwright MCP uses browser_click for both click and tap; the mobile viewport context handles touch simulation)
       - browser_type or browser_fill_form for text input
       - browser_navigate for direct navigation
    b. browser_take_screenshot to capture the result
@@ -1027,27 +1026,27 @@ CASE 3a: All Explore tasks are completed, journeys_confirmed is NOT set
 CASE 3b: All Explore tasks are completed, journeys_confirmed is set, no Walkthrough task
   -> Resume from Phase 4 (app URL + auth setup)
 
-CASE 5: Walkthrough task is "in_progress"
+CASE 4: Walkthrough task is "in_progress"
   -> Some journeys were completed, others remain
   -> Read completed_journeys and current_journey from task metadata
   -> Inform user which journeys are done and which is next
   -> Resume from Phase 5 at the next incomplete journey
 
-CASE 6: Walkthrough task is "completed", no Approval task
+CASE 5: Walkthrough task is "completed", no Approval task
   -> All journeys walked through but document not yet reviewed
   -> Resume from Phase 6 (final review)
 
-CASE 7: Approval task exists with result "changes_requested"
+CASE 6: Approval task exists with result "changes_requested"
   -> User gave feedback but revisions were not completed
   -> Read the feedback from task metadata
   -> Apply changes and re-present for review
   -> Resume from Phase 6 (next iteration)
 
-CASE 8: Approval task is "completed" with result "approved", no Write task
+CASE 7: Approval task is "completed" with result "approved", no Write task
   -> Document was approved but file was not written
   -> Resume from Phase 7 (write file)
 
-CASE 9: Write task is "completed"
+CASE 8: Write task is "completed"
   -> Everything is done
   -> Show the final summary and ask if the user wants to make changes
 ```
