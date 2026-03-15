@@ -51,7 +51,7 @@ At skill start, call TaskList. If a `Trust Builder Audit` task exists in_progres
 | Some explore tasks complete | Spawn remaining agents |
 | All explore complete, no generate | Start Phase 3 |
 | Generate complete, no prioritize | Start Phase 4 |
-| Prioritize complete, no verify | Start Phase 5 or 6 |
+| Prioritize complete, no verify | Check Interview metadata for Phase 5 preference — start Phase 5 if opted in, otherwise Phase 6 |
 | Verify complete, no approval | Start Phase 6 |
 | Approval in_progress | Re-present summary |
 | Approval approved, no write | Start Phase 7 |
@@ -65,14 +65,16 @@ Create main task and mark in_progress. Create Interview task.
 
 1. Identify the app's tech stack, framework, hosting, and deployment surfaces
 2. Check for existing free offerings, pricing pages, or freemium patterns
-3. Ask the user 3-5 targeted questions via AskUserQuestion:
+3. Ask the user for the app's **base URL** for live browser exploration (required — browser exploration is a core phase)
+4. Ask the user 3-5 targeted questions via AskUserQuestion:
    - Who is the primary audience for this app?
    - What's the current or planned monetization model?
    - What does "trust" mean for your users? (e.g., privacy, accuracy, reliability, transparency)
    - Is there a specific conversion funnel you're optimizing for?
    - Are there any constraints on what you can offer for free? (e.g., API costs, compute limits)
-4. Record answers in Interview task metadata
-5. Mark Interview task completed
+5. Ask if the user wants **competitive verification** (Phase 5) — exploring competitor/comparable apps to validate that proposed free features are differentiated
+6. Record answers (including base URL and Phase 5 preference) in Interview task metadata
+7. Mark Interview task completed
 
 ### Phase 2: Explore the Application [DELEGATE TO AGENTS]
 
@@ -113,9 +115,9 @@ Rank opportunities by impact-vs-effort matrix:
 | **Nice-to-have** | Lower impact or high effort, but strategically interesting |
 | **Backlog** | Good ideas that need more validation or are premature for current app state |
 
-### Phase 5: Interactive Verification (Optional)
+### Phase 5: Competitive Verification (Optional — based on Phase 1 preference)
 
-If the user wants, spawn a browser agent to:
+If the user opted into competitive verification in Phase 1, spawn a browser agent to:
 
 1. Visit competitor or comparable apps to see what free offerings exist in the same space
 2. Validate that proposed free features don't already exist elsewhere (avoiding "me too" offerings)
@@ -209,10 +211,8 @@ The following reference documents will be created in `skills/trust-builder/refer
 ### 1. `agent-prompts.md`
 Full prompts for the three Phase 2 exploration agents:
 - **Codebase Architecture Agent** — explores features, tech stack, server/client capabilities, business docs
-- **Live App Experience Agent** — browser-based first-time user experience analysis via Chrome MCP
+- **Live App Experience Agent** — browser-based first-time user experience analysis via Chrome MCP (uses base URL from Phase 1)
 - **Technology Opportunities Agent** — cross-references app domain against technology catalog
-
-Also includes the optional Phase 5 verification agent prompt.
 
 ### 2. `technology-catalog.md`
 Curated catalog of free-value-capable technologies organized by domain:
@@ -234,10 +234,13 @@ The structured interview questions for Phase 1, with guidance on when to ask eac
 - Conversion funnel goals
 - Free-offering constraints
 
-### 4. `report-structure.md`
+### 4. `verification-prompts.md`
+Prompt for the optional Phase 5 competitive verification agent — how to explore competitor apps, what free offerings to look for, how to compare against the proposed opportunities, and evidence capture guidance.
+
+### 5. `report-structure.md`
 Full report template with section descriptions, formatting guidelines, and instructions for the report generation phase.
 
-### 5. `trust-patterns.md`
+### 6. `trust-patterns.md`
 Catalog of proven trust-building patterns from the Mean Weasel portfolio:
 - **Bleep That Sh*t — Browser Mode:** Free in-browser transcription and bleeping via WASM/ONNX. Zero signup, zero server. Files never leave the device. Funnel: browser mode (short clips) -> signup grant (180 free cloud minutes) -> paid subscription.
 - **Phone Lunk Alarm — Full Free Demo:** Entire app runs client-side with TensorFlow.js. No account needed. Trust through immediate utility and privacy.
