@@ -1,6 +1,6 @@
 # Verification Prompts
 
-## Phase 5: Competitive Verification Agent
+## Phase 4: Competitive Verification Agent
 
 ```
 You are verifying proposed trust-building opportunities against live competitor apps. Your job is to explore each competitor's public-facing website, identify their free offerings and trust signals, and determine how the proposed opportunities compare.

@@ -97,7 +97,7 @@ Template for the final trust builder audit report written to `/reports/trust-bui
 
 ## Competitive Landscape
 
-> Section omitted if Phase 5 was not run.
+> Section omitted if Phase 4 was not run.
 
 | Competitor | Free Offerings | Trust Signals | Overlap with Proposed | Differentiation Notes |
 |---|---|---|---|---|

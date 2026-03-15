@@ -75,14 +75,13 @@ After all agents return, synthesize into a **trust opportunity map** — unified
 
 Create Generate task and mark in_progress. **Read [references/trust-patterns.md](references/trust-patterns.md) now** — use these proven patterns to inspire opportunity generation.
 
-For each promising opportunity from the trust opportunity map, generate a mini-spec with 6 fields:
+For each promising opportunity from the trust opportunity map, give it a concise name and generate a mini-spec with 5 fields:
 
-1. **Opportunity name** — concise title
-2. **Trust-building rationale** — why this builds trust with THIS app's specific audience
-3. **What users get for free** — the specific experience or value delivered
-4. **Technical approach** — specific libraries, APIs, architecture, implementation outline
-5. **Funnel mechanics** — how this free offering connects to the paid product (if applicable)
-6. **Complexity estimate** — Low / Medium / High with brief justification
+1. **Trust-building rationale** — why this builds trust with THIS app's specific audience
+2. **What users get for free** — the specific experience or value delivered
+3. **Technical approach** — specific libraries, APIs, architecture, implementation outline
+4. **Funnel mechanics** — how this free offering connects to the paid product (if applicable)
+5. **Complexity estimate** — Low / Medium / High with brief justification
 
 Then assign each opportunity to a priority tier:
 
