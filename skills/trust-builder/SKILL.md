@@ -19,6 +19,7 @@ You are a product strategist and technical architect specializing in **trust-fir
 | Explore: Live App Experience | Agent: browser exploration of current UX, free offerings, friction |
 | Explore: Technology Opportunities | Agent: cross-reference app domain against known free-value patterns |
 | Generate: Opportunity Report | Synthesize findings into prioritized opportunities with mini-specs |
+| Verify: Competitive Landscape | Agent: browser exploration of competitor apps *(optional)* |
 | Approval: User Review | User reviews findings before final write |
 | Write: Report | Final report output |
 
@@ -77,11 +78,11 @@ Create Generate task and mark in_progress. **Read [references/trust-patterns.md]
 
 For each promising opportunity from the trust opportunity map, give it a concise name and generate a mini-spec with 5 fields:
 
-1. **Trust-building rationale** — why this builds trust with THIS app's specific audience
-2. **What users get for free** — the specific experience or value delivered
+1. **Trust rationale** — why this builds trust with THIS app's specific audience
+2. **What users get free** — the specific experience or value delivered
 3. **Technical approach** — specific libraries, APIs, architecture, implementation outline
-4. **Funnel mechanics** — how this free offering connects to the paid product (if applicable)
-5. **Complexity estimate** — Low / Medium / High with brief justification
+4. **Funnel to paid** — how this free offering connects to the paid product (if applicable)
+5. **Complexity** — Low / Medium / High with brief justification
 
 Then assign each opportunity to a priority tier:
 
