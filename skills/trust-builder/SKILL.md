@@ -78,13 +78,13 @@ Create Generate task and mark in_progress.
 
 For each promising opportunity from the trust opportunity map, generate a mini-spec with 7 fields:
 
-1. **Opportunity name**
-2. **Trust-building rationale**
-3. **What users get for free**
-4. **Technical approach**
-5. **Funnel mechanics**
-6. **Complexity estimate** — Small / Medium / Large
-7. **Priority score** — Impact vs. Effort
+1. **Opportunity name** — concise title
+2. **Trust-building rationale** — why this builds trust with THIS app's specific audience
+3. **What users get for free** — the specific experience or value delivered
+4. **Technical approach** — specific libraries, APIs, architecture, implementation outline
+5. **Funnel mechanics** — how this free offering connects to the paid product (if applicable)
+6. **Complexity estimate** — Small / Medium / Large with brief justification
+7. **Priority score** — Impact (trust-building potential x audience relevance) vs. Effort
 
 ### Phase 4: Prioritize & Score
 
@@ -102,7 +102,7 @@ Rank opportunities by impact-vs-effort matrix:
 If the user opted into competitive verification in Phase 1, spawn a browser agent to:
 
 1. Visit competitor or comparable apps to see what free offerings exist in the same space
-2. Validate that proposed free features don't already exist elsewhere
+2. Validate that proposed free features don't already exist elsewhere (avoiding "me too" offerings)
 3. Test any existing free features on the user's app for quality and friction
 
 ### Phase 6: Review with User (REQUIRED)
