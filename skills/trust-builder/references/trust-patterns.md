@@ -1,6 +1,6 @@
-# Trust Patterns — Mean Weasel Portfolio
+# Trust Patterns
 
-Proven trust-building patterns from the Mean Weasel / Neonwatty portfolio. Use these as reference when generating opportunities for new apps.
+Proven trust-building patterns illustrated with real-world examples from the Mean Weasel / Neonwatty portfolio. These patterns are generalizable — use them as reference when generating opportunities for any web app, adapting the specific technologies and funnel mechanics to the target app's domain.
 
 ## Pattern 1: Free In-Browser Processing (Bleep That Sh*t)
 

@@ -6,9 +6,9 @@ Structured questions for Phase 1. Ask via AskUserQuestion tool, one at a time or
 
 **Ask:** "What is the app's base URL for live browser exploration?"
 
-**Why this matters:** The Live App Experience agent needs a target URL. Browser exploration is a core phase, not optional.
+**Why this matters:** The Live App Experience agent needs a target URL to explore the app as a first-time user.
 
-**How this informs analysis:** The base URL determines what the browser agent explores. If the app isn't deployed yet, browser exploration is skipped and codebase-only analysis is performed.
+**How this informs analysis:** The base URL determines what the browser agent explores. If the app isn't deployed yet, the Live App Experience agent is skipped and the analysis relies on codebase exploration only. Record "no URL" in Interview task metadata so Phase 2 knows to skip the browser agent.
 
 ## Question 2: Primary Audience
 
@@ -88,7 +88,7 @@ Structured questions for Phase 1. Ask via AskUserQuestion tool, one at a time or
 
 **How this informs analysis:** Acts as a filter on opportunity feasibility.
 
-## Question 7: Competitive Verification (Phase 5)
+## Question 7: Competitive Verification (Phase 4)
 
 **Ask:** "Would you like me to also explore competitor apps to verify your free offerings would be differentiated?"
 
@@ -98,4 +98,4 @@ Structured questions for Phase 1. Ask via AskUserQuestion tool, one at a time or
 
 **Why this matters:** Competitive verification ensures proposed free features aren't "me too" offerings.
 
-**How this informs analysis:** Determines whether Phase 5 runs. Store preference in Interview task metadata as `phase5_opted_in: true/false`.
+**How this informs analysis:** Determines whether Phase 4 runs. Store preference in Interview task metadata as `phase4_opted_in: true/false`.

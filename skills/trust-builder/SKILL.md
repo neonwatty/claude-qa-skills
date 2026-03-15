@@ -1,11 +1,11 @@
 ---
 name: trust-builder
-description: Analyzes web apps for free-value trust-building opportunities — features, tools, and offerings that demonstrate genuine utility before asking for commitment. Use this when the user says "trust builder", "trust audit", "find free offerings", "free value analysis", "trust building opportunities", or "how can I build trust with users". Explores the codebase and live app, interviews the user about audience and goals, then generates a prioritized report with full mini-specs for the top trust-building features. Tailored to the Mean Weasel / Neonwatty portfolio.
+description: Analyzes web apps for free-value trust-building opportunities — features, tools, and offerings that demonstrate genuine utility before asking for commitment. Use this when the user says "trust builder", "trust audit", "find free offerings", "free value analysis", "trust building opportunities", or "how can I build trust with users". Explores the codebase and live app, interviews the user about audience and goals, then generates a prioritized report with full mini-specs for the top trust-building features.
 ---
 
 # Trust Builder Skill
 
-You are a product strategist and technical architect specializing in **trust-first growth** — the strategy of offering genuine free value to users before asking for commitment. Free value can take many forms: fully client-side tools (WASM, Web Workers, local ML models), free API-backed features, limited free tiers, ungated utilities, downloadable resources, or any experience that lets users see the product's value with minimal friction. This skill is tailored to the Mean Weasel / Neonwatty portfolio of apps.
+You are a product strategist and technical architect specializing in **trust-first growth** — the strategy of offering genuine free value to users before asking for commitment. Free value can take many forms: fully client-side tools (WASM, Web Workers, local ML models), free API-backed features, limited free tiers, ungated utilities, downloadable resources, or any experience that lets users see the product's value with minimal friction. The reference patterns in `references/trust-patterns.md` are drawn from real-world examples in the Mean Weasel / Neonwatty portfolio, but the analysis approach works for any web app.
 
 ## Task List Integration
 
@@ -32,11 +32,10 @@ At skill start, call TaskList. If a `Trust Builder Audit` task exists in_progres
 | Main in_progress, no explore tasks | Start Phase 2 |
 | Some explore tasks complete | Spawn remaining agents |
 | All explore complete, no generate | Start Phase 3 |
-| Generate complete, no prioritize | Start Phase 4 |
-| Prioritize complete, no verify | Check Interview metadata for Phase 5 preference — start Phase 5 if opted in, otherwise Phase 6 |
-| Verify complete, no approval | Start Phase 6 |
+| Generate complete, no verify | Check Interview metadata for Phase 4 preference — start Phase 4 if opted in, otherwise Phase 5 |
+| Verify complete, no approval | Start Phase 5 |
 | Approval in_progress | Re-present summary |
-| Approval approved, no write | Start Phase 7 |
+| Approval approved, no write | Start Phase 6 |
 | Main completed | Show final summary |
 
 ## Process
@@ -47,48 +46,45 @@ Create main task and mark in_progress. Create Interview task.
 
 1. Identify the app's tech stack, framework, hosting, and deployment surfaces
 2. Check for existing free offerings, pricing pages, or freemium patterns
-3. Ask the user for the app's **base URL** for live browser exploration (required — browser exploration is a core phase)
-4. Ask the user 3-5 targeted questions via AskUserQuestion:
+3. Ask the user for the app's **base URL** for live browser exploration. If the app isn't deployed yet, skip the Live App Experience agent in Phase 2 and rely on codebase analysis only.
+4. Ask the user targeted questions via AskUserQuestion (see [references/interview-questions.md](references/interview-questions.md) for the full question set):
    - Who is the primary audience for this app?
    - What's the current or planned monetization model?
    - What does "trust" mean for your users? (e.g., privacy, accuracy, reliability, transparency)
    - Is there a specific conversion funnel you're optimizing for?
    - Are there any constraints on what you can offer for free? (e.g., API costs, compute limits)
-5. Ask if the user wants **competitive verification** (Phase 5) — exploring competitor/comparable apps to validate that proposed free features are differentiated
-6. Record answers (including base URL and Phase 5 preference) in Interview task metadata
+5. Ask if the user wants **competitive verification** (Phase 4) — exploring competitor/comparable apps to validate that proposed free features are differentiated
+6. Record answers (including base URL and Phase 4 preference) in Interview task metadata
 7. Mark Interview task completed
 
 ### Phase 2: Explore the Application [DELEGATE TO AGENTS]
 
-Create three exploration tasks, spawn three agents in parallel (all in a single message).
+Create exploration tasks and spawn agents in parallel (all in a single message). If no base URL was provided in Phase 1, skip the Live App Experience agent.
 
 | Agent | Focus | Key Outputs |
 |-------|-------|-------------|
 | **Codebase Architecture** | Map all features, identify which are server-dependent vs. could work client-side, find existing free/ungated features, review business docs (PRD, business-rules, pricing) | Feature map with server/client classification, existing free offerings list, tech stack capabilities |
-| **Live App Experience** | Visit the live app as a first-time user via Chrome MCP — what's free? what requires signup? what friction exists? what trust signals are visible (privacy messaging, open source badges, methodology disclosure)? what's the onboarding experience? | First-time user experience report, friction map, existing trust signal inventory |
-| **Technology Opportunities** | Cross-reference the app's domain and feature set against the technology catalog in `references/technology-catalog.md` — what free-value patterns are feasible given the app's domain? | Opportunity candidates with feasibility notes |
+| **Live App Experience** | Visit the live app as a first-time user via Chrome MCP — what's free? what requires signup? what friction exists? what trust signals are visible (privacy messaging, open source badges, methodology disclosure)? what's the onboarding experience? *(Skip if no base URL)* | First-time user experience report, friction map, existing trust signal inventory |
+| **Technology Opportunities** | Explore the codebase (package.json, app routes, imports) and cross-reference the app's domain and feature set against the technology catalog in `references/technology-catalog.md` — what free-value patterns are feasible given the app's domain? | Opportunity candidates with feasibility notes |
 
 See [references/agent-prompts.md](references/agent-prompts.md) for full agent prompt templates.
 
 After all agents return, synthesize into a **trust opportunity map** — unified view of what free value is possible, what's already offered, and where the gaps are.
 
-### Phase 3: Generate Opportunity Mini-Specs
+### Phase 3: Generate & Prioritize Opportunities
 
 Create Generate task and mark in_progress.
 
-For each promising opportunity from the trust opportunity map, generate a mini-spec with 7 fields:
+For each promising opportunity from the trust opportunity map, generate a mini-spec with 6 fields:
 
 1. **Opportunity name** — concise title
 2. **Trust-building rationale** — why this builds trust with THIS app's specific audience
 3. **What users get for free** — the specific experience or value delivered
 4. **Technical approach** — specific libraries, APIs, architecture, implementation outline
 5. **Funnel mechanics** — how this free offering connects to the paid product (if applicable)
-6. **Complexity estimate** — Small / Medium / Large with brief justification
-7. **Priority score** — Impact (trust-building potential x audience relevance) vs. Effort
+6. **Complexity estimate** — Low / Medium / High with brief justification
 
-### Phase 4: Prioritize & Score
-
-Rank opportunities by impact-vs-effort matrix:
+Then assign each opportunity to a priority tier:
 
 | Priority | Criteria |
 |----------|----------|
@@ -97,7 +93,7 @@ Rank opportunities by impact-vs-effort matrix:
 | **Nice-to-have** | Lower impact or high effort, but strategically interesting |
 | **Backlog** | Good ideas that need more validation or are premature for current app state |
 
-### Phase 5: Competitive Verification (Optional — based on Phase 1 preference)
+### Phase 4: Competitive Verification (Optional — based on Phase 1 preference)
 
 If the user opted into competitive verification in Phase 1, spawn a browser agent to:
 
@@ -105,7 +101,7 @@ If the user opted into competitive verification in Phase 1, spawn a browser agen
 2. Validate that proposed free features don't already exist elsewhere (avoiding "me too" offerings)
 3. Test any existing free features on the user's app for quality and friction
 
-### Phase 6: Review with User (REQUIRED)
+### Phase 5: Review with User (REQUIRED)
 
 Present summary: total opportunities found, top 3 by priority, coverage of trust dimensions.
 
@@ -113,7 +109,7 @@ Use AskUserQuestion with options: **Approve** / **Deep-dive on specific opportun
 
 If changes requested, iterate. Only write final report after explicit approval.
 
-### Phase 7: Write Report and Complete
+### Phase 6: Write Report and Complete
 
 Write the approved report to `/reports/trust-builder-audit.md`. Mark all tasks completed.
 
@@ -145,5 +141,5 @@ Write the approved report to `/reports/trust-builder-audit.md`. Mark all tasks c
 - [references/interview-questions.md](references/interview-questions.md) — Structured interview questions for Phase 1
 - [references/verification-prompts.md](references/verification-prompts.md) — Competitive verification agent prompt
 - [references/report-structure.md](references/report-structure.md) — Full report template with section descriptions
-- [references/trust-patterns.md](references/trust-patterns.md) — Proven trust-building patterns from Mean Weasel portfolio
+- [references/trust-patterns.md](references/trust-patterns.md) — Proven trust-building patterns with real-world examples
 - [examples/trust-builder-example.md](examples/trust-builder-example.md) — Complete example report

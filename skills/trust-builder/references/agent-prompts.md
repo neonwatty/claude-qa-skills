@@ -77,19 +77,23 @@ Find and document:
    - Look in: the file at references/technology-catalog.md relative to the skill root
    - Document: all technology categories and entries present in the catalog
 
-2. **Assess category applicability**: For each technology category in the catalog, assess whether it's applicable to the app's domain.
-   - Look in: the feature inventory produced by the Codebase Architecture Agent
+2. **Explore the codebase**: Independently survey the app's tech stack, features, and architecture to understand what it does and how.
+   - Look in: package.json (dependencies), app routes, API routes, imports, Web Workers, WASM modules, browser API usage
+   - Document: app domain, key features, current tech stack, existing client-side capabilities
+
+3. **Assess category applicability**: For each technology category in the catalog, assess whether it's applicable to the app's domain.
+   - Look in: the codebase exploration findings above
    - Document: which categories are relevant, which are out of scope, and why
 
-3. **Identify specific opportunities**: For each applicable category, identify concrete features the app could add or migrate.
-   - Look in: the app's existing feature list, current server-side implementations that could move client-side
+4. **Identify specific opportunities**: For each applicable category, identify concrete features the app could add or migrate.
+   - Look in: the app's existing features, current server-side implementations that could move client-side
    - Document: proposed feature name, which catalog technology enables it, what user problem it solves
 
-4. **Assess feasibility**: For each opportunity, evaluate how easy it would be to implement given the existing stack.
-   - Look in: package.json, existing imports, current tech stack documented by the Codebase Architecture Agent
+5. **Assess feasibility**: For each opportunity, evaluate how easy it would be to implement given the existing stack.
+   - Look in: package.json, existing imports, current framework and dependencies
    - Document: whether the app already uses similar tech, whether the library is compatible with the existing framework, estimated integration effort (low/medium/high)
 
-5. **Match to free-tier and content-marketing patterns**: Note which opportunities could serve as free tools, demos, or content-marketing entry points that build user trust.
+6. **Match to free-tier and content-marketing patterns**: Note which opportunities could serve as free tools, demos, or content-marketing entry points that build user trust.
    - Look in: the app's pricing model, current free tier, competitor free offerings
    - Document: which opportunities fit a free-tool or freemium pattern, what audience segment they attract, how they connect to the paid product
 
