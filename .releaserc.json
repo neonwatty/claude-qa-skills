@@ -3,6 +3,13 @@
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
+    ["@semantic-release/exec", {
+      "prepareCmd": "./scripts/update-version.sh ${nextRelease.version}"
+    }],
+    ["@semantic-release/git", {
+      "assets": ["package.json", ".claude-plugin/plugin.json"],
+      "message": "chore(release): ${nextRelease.version}"
+    }],
     "@semantic-release/github"
   ]
 }
