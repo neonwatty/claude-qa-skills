@@ -4,6 +4,7 @@
   "private": true,
   "description": "Claude Code QA testing pipeline — generate workflows, execute them, convert to Playwright CI tests",
   "scripts": {
+    "prepare": "husky",
     "validate": "npm run validate:md && npm run validate:skills && npm run validate:links",
     "validate:md": "npx markdownlint-cli2 'skills/**/*.md' 'README.md'",
     "validate:skills": "./scripts/validate-skills.sh",
@@ -11,7 +12,14 @@
     "validate:plugin": "claude plugin validate ."
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/github": "^11.0.6",
+    "@semantic-release/release-notes-generator": "^14.1.0",
+    "husky": "^9.1.7",
     "markdown-link-check": "^3.14.2",
-    "markdownlint-cli2": "^0.14.0"
+    "markdownlint-cli2": "^0.14.0",
+    "semantic-release": "^24.2.9"
   }
 }
