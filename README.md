@@ -2,6 +2,8 @@
 
 QA testing pipeline for [Claude Code](https://claude.ai/code) — generate user workflow documentation, convert to Playwright E2E tests, and run them interactively or in CI. Supports desktop, mobile, and multi-user flows with built-in authentication.
 
+> **Read the full walkthrough:** [Claude Code Browser Testing and iOS Automation with MCP Workflows](https://neonwatty.com/posts/claude-code-workflow-testing-mcp/) — how these skills fit into a practical testing workflow.
+
 ## Installation
 
 ```bash
