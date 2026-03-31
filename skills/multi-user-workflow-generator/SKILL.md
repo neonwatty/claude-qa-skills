@@ -684,13 +684,54 @@ The live walkthrough requires a running app. Please provide the URL
 
 ### Ask for Per-Persona Authentication Setup
 
-For multi-user workflows, you need credentials for EACH persona in the Persona Registry.
+For multi-user workflows, you need authenticated sessions for EACH persona in the Persona Registry. Check for saved profiles first.
+
+**Step 1: Check for saved profiles**
+
+```
+1. Check if .playwright/profiles.json exists at the project root.
+2. If it exists, read the profile list and match persona names to profile names.
+3. For each matching profile, check if the storageState file exists
+   at .playwright/profiles/<role-name>.json.
+```
+
+**If profiles exist for all personas:**
+
+Load each profile into a separate browser context automatically:
+
+```
+For each persona in the Persona Registry:
+  1. Read .playwright/profiles/<persona-name>.json
+  2. Create a new Playwright BrowserContext
+  3. Use browser_run_code to restore cookies from the storageState
+  4. Navigate to the base URL and verify the session is valid
+  5. If redirected to loginUrl, the session has expired -- note it for the user
+  6. Associate the context with the persona name
+```
+
+Inform the user which profiles were loaded and whether any sessions have expired. For expired sessions, suggest running `/setup-profiles` to refresh them.
+
+**If profiles exist for some but not all personas:**
+
+Load the available profiles and inform the user which personas are missing:
+
+```
+Loaded profiles for: Admin, Host
+Missing profiles for: Guest1, Guest2, Viewer
+
+Run /setup-profiles to create the missing profiles, or provide credentials below.
+```
+
+**If no profiles exist:**
 
 Use `AskUserQuestion`:
 
 ```
-For multi-user workflows, I need credentials for each persona:
+For multi-user workflows, I need authenticated sessions for each persona.
 
+Recommended: Run /setup-profiles to create persistent profiles for each persona.
+
+Or provide credentials for each:
 - Admin: ADMIN_EMAIL / ADMIN_PASSWORD
 - Host: HOST_EMAIL / HOST_PASSWORD
 - Guest1: GUEST1_EMAIL / GUEST1_PASSWORD
@@ -698,12 +739,24 @@ For multi-user workflows, I need credentials for each persona:
 - Guest3: GUEST3_EMAIL / GUEST3_PASSWORD
 - Viewer: VIEWER_EMAIL / VIEWER_PASSWORD
 
-Please provide values or confirm I should use these env var names.
+Please provide values, confirm env var names, or run /setup-profiles first.
 ```
 
 ### Create Per-Persona Browser Contexts
 
 Create a separate Playwright browser context for each persona with its own `storageState`. This ensures each persona has an independent, authenticated session.
+
+**If using profiles:**
+
+```
+For each persona in the Persona Registry:
+  1. Read .playwright/profiles/<persona-name>.json
+  2. Create a new Playwright BrowserContext
+  3. Restore cookies via browser_run_code
+  4. Associate the context with the persona name
+```
+
+**If using credentials:**
 
 ```
 For each persona in the Persona Registry:
@@ -722,7 +775,7 @@ TaskCreate:
   status: "in_progress"
   metadata:
     base_url: "http://localhost:3000"
-    auth_method: "credentials"
+    auth_method: "profiles"
     personas_authenticated: ["Admin", "Host", "Guest1", "Guest2", "Guest3", "Viewer"]
     total_journeys: 8
     completed_journeys: 0
