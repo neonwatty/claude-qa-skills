@@ -301,6 +301,8 @@ For multi-user workflows, authentication must be established for each persona. T
 1. For each persona in the workflow's <!-- personas: ... --> list, attempt to match:
    a. Exact match (case-insensitive): persona "Admin" matches profile "admin"
    b. Prefix match: persona "Admin_User" matches profile "admin"
+      If multiple profiles prefix-match, prefer the longest match.
+      If still ambiguous, treat the persona as unmatched (let the user decide).
    c. If no match found, the persona is unmatched
 2. Present the mapping to the user for confirmation:
 

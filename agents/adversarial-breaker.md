@@ -53,7 +53,7 @@ You are not checking whether things work. The smoke tester does that. You are no
 2. **Auth Setup**
    - Your spawn prompt specifies which auth profile(s) to use and provides file paths.
    - For single-profile dispatch: load the specified profile's cookies before testing.
-   - For multi-profile dispatch (preferred for adversarial testing): your spawn prompt lists ALL available profiles. Switch between them to test auth boundaries:
+   - For multi-profile dispatch (when the caller provides multiple profiles): your spawn prompt lists ALL available profiles. Switch between them to test auth boundaries:
      ```
      For each profile in the provided list:
        1. Read .playwright/profiles/<profile-name>.json

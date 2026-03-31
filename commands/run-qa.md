@@ -107,7 +107,8 @@ For each discovered route, record:
 - Whether it appears to require auth
 
 **Auth detection** — scan for these framework-specific patterns:
-- Next.js App Router: check `middleware.{ts,js}` at project root for `config.matcher` patterns that define protected routes
+- Next.js App Router: check `middleware.{ts,js}` at project root for `config.matcher` patterns that define protected routes. Also check `layout.{ts,tsx}` files for auth checks (`getServerSession`, `auth()`, `redirect`) — if a layout enforces auth, propagate `auth_required: true` to all child routes under that layout.
+- Next.js Pages Router: grep inside `getServerSideProps` for `getServerSession`, `getSession`, `requireAuth`, or redirect-to-login patterns. Each page file with an auth-guarded `getServerSideProps` is auth-required.
 - Generic: look for `requireAuth`, `isAuthenticated`, `getServerSession`, `auth()`, protected route wrappers, auth HOCs
 
 ### Step 2c: Scan Existing Workflows
@@ -131,7 +132,25 @@ Combine codebase routes and workflow-referenced screens into a single list. For 
   "source_file": "app/dashboard/page.tsx",
   "discovered_from": ["codebase", "workflow"],
   "workflow_refs": ["WF01-Step3", "WF05-Step1"],
+  "params": {},
+  "example_url": "/dashboard",
   "notes": ""
+}
+```
+
+For routes with dynamic segments, populate `params` with the segment names as keys (values left empty until the user provides them in Step 2e):
+
+```json
+{
+  "url": "/users/[id]/settings",
+  "name": "User Settings",
+  "auth_required": true,
+  "source_file": "app/users/[id]/settings/page.tsx",
+  "discovered_from": ["codebase"],
+  "workflow_refs": [],
+  "params": { "id": "" },
+  "example_url": "",
+  "notes": "dynamic — needs example values"
 }
 ```
 
@@ -155,6 +174,13 @@ Use `AskUserQuestion` with the full screen list:
 | 4 | /login | No | Both | WF01 |
 | ... | | | | |
 
+### Dynamic Routes — need example values ([N])
+These routes have dynamic segments. Provide example values so agents can navigate to real pages:
+| Route | Params | Example URL |
+|-------|--------|-------------|
+| /users/[id]/settings | id=? | /users/___/settings |
+| /posts/[...slug] | slug=? | /posts/___ |
+
 ### Coverage Gaps — routes in code but not in workflows ([N])
 These screens exist in the codebase but are not covered by any workflow:
 - /settings/notifications (app/settings/notifications/page.tsx)
@@ -173,7 +199,7 @@ Iterate until the user confirms. Every add/remove/edit the user makes gets appli
 
 ### Step 2f: Save the Manifest
 
-Write the confirmed manifest to `/workflows/qa-manifest.json`:
+Create the `/workflows/` directory if it does not already exist, then write the confirmed manifest to `/workflows/qa-manifest.json`:
 
 ```json
 {
@@ -187,7 +213,19 @@ Write the confirmed manifest to `/workflows/qa-manifest.json`:
       "auth_required": true,
       "source_file": "app/dashboard/page.tsx",
       "discovered_from": ["codebase", "workflow"],
-      "workflow_refs": ["WF01-Step3", "WF05-Step1"]
+      "workflow_refs": ["WF01-Step3", "WF05-Step1"],
+      "params": {},
+      "example_url": "/dashboard"
+    },
+    {
+      "url": "/users/[id]/settings",
+      "name": "User Settings",
+      "auth_required": true,
+      "source_file": "app/users/[id]/settings/page.tsx",
+      "discovered_from": ["codebase"],
+      "workflow_refs": [],
+      "params": { "id": "123" },
+      "example_url": "/users/123/settings"
     }
   ]
 }
@@ -248,6 +286,22 @@ The adversarial-breaker benefits from testing with multiple profiles (and unauth
 
 Record the profile assignment — it will be passed to each agent in the dispatch template.
 
+**Session validation** — before dispatching, verify that each assigned profile's session is still active. For each unique profile in the assignment:
+
+1. Read the storageState JSON file
+2. Load its cookies into a Playwright page via `browser_run_code`
+3. Navigate to `[base_url]`
+4. Check if the browser was redirected to the profile's `loginUrl`
+
+If any session has expired, warn the user immediately:
+
+```
+⚠ Profile "[name]" session has expired (redirected to login page).
+Run /setup-profiles to refresh it before proceeding.
+```
+
+This pre-flight check prevents wasting agent dispatches on expired sessions.
+
 **If profiles exist but some storageState files are missing:**
 
 ```
@@ -299,7 +353,7 @@ For each screen in the manifest, spawn the selected agent(s) using the Agent too
 
 ### Dispatch Strategy
 
-**For smoke-tester:** Dispatch one agent per workflow (not per screen), since the smoke tester follows workflow steps sequentially. If a screen appears in multiple workflows, it gets tested in each.
+**For smoke-tester:** Dispatch one agent per workflow (not per screen), since the smoke tester follows workflow steps sequentially. If a screen appears in multiple workflows, it gets tested in each. For coverage-gap screens (in manifest but not in any workflow), dispatch an additional smoke-tester agent with a simple instruction: "Navigate to [example_url], verify the page loads without errors (no 500, no blank page, no redirect loop), and report pass/fail."
 
 **For ux-auditor:** Dispatch one agent per screen. Each agent gets the screen URL, name, and any context from the manifest (auth required, related workflows).
 
@@ -342,10 +396,12 @@ your system prompt.
 
 **UX-auditor and adversarial-breaker template** (dispatched per screen or per flow):
 
+Use `example_url` from the manifest (not the raw `url` with dynamic segments) so agents receive a navigable path.
+
 ```
 You are operating as the [agent-name] QA agent.
 
-Target: [screen name] at [base_url][url_path]
+Target: [screen name] at [base_url][example_url]
 Auth required: [yes/no]
 Auth profile to use: [exact profile name, e.g., "admin"]
 Auth profile path: .playwright/profiles/[profile-name].json
@@ -413,7 +469,7 @@ Merge all agent outputs into a structured report organized by screen, then by ag
 
 ### Step 5b: Write the Report
 
-Write the report to `/workflows/qa-report.md`:
+Ensure `/workflows/` exists, then write the report to `/workflows/qa-report.md`:
 
 ```markdown
 # QA Report — [App Name]

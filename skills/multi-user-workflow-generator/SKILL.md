@@ -694,6 +694,8 @@ For multi-user workflows, you need authenticated sessions for EACH persona in th
 3. For each persona in the Persona Registry, attempt to match to a profile:
    a. Exact match (case-insensitive): persona "Admin" matches profile "admin"
    b. Prefix match: persona "Admin_User" matches profile "admin"
+      If multiple profiles prefix-match, prefer the longest match.
+      If still ambiguous, treat the persona as unmatched (let the user decide).
    c. If no match found, the persona is unmatched
 4. For each matched profile, check if the storageState file exists
    at .playwright/profiles/<profile-name>.json.
