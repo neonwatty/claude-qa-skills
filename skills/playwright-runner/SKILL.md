@@ -194,22 +194,60 @@ Scan parsed workflows for:
 
 If no workflows require auth, skip to Phase 3.
 
-### Step 2b: Ask User for Auth Strategy
+### Step 2b: Check for Saved Profiles
+
+Before asking the user for credentials, check if Playwright authentication profiles have already been set up for this project.
+
+```
+1. Check if .playwright/profiles.json exists at the project root.
+2. If it exists, read it to discover available profiles.
+3. For each profile, check if the corresponding storageState file exists
+   at .playwright/profiles/<role-name>.json.
+```
+
+**If profiles are found with valid storageState files:**
+
+- For standard auth: Match workflow auth requirements to available profiles. If a single profile exists, use it automatically. If multiple profiles exist, ask the user which one to use for the run.
+- For multi-user auth: Match persona names from `<!-- personas: admin, user, guest -->` to profile names. If all personas have matching profiles, load them automatically. If some are missing, inform the user which personas need profiles and suggest running `/setup-profiles`.
+
+Load each profile by reading the storageState JSON and using `browser_run_code` to restore cookies:
+
+```javascript
+async (page) => {
+  const state = <contents of .playwright/profiles/<role-name>.json>;
+  await page.context().addCookies(state.cookies);
+  return 'Profile loaded: <role-name>';
+}
+```
+
+After loading, navigate to the base URL and verify the session is valid. If the browser is redirected to the profile's `loginUrl`, the session has expired -- inform the user and suggest running `/setup-profiles` to refresh it.
+
+**If profiles are found but storageState files are missing:**
+
+Inform the user: "This project has Playwright profiles configured but the authentication state files are missing (they are gitignored and need to be created locally). Run `/setup-profiles` to authenticate."
+
+**If no profiles exist**, proceed to Step 2c to ask the user for an auth strategy.
+
+### Step 2c: Ask User for Auth Strategy
 
 Use `AskUserQuestion` to determine how to handle authentication:
 
 ```
 [N] of your workflows require authentication. How would you like to handle login?
 
-1. **Provide credentials now** -- I will use Playwright to log in via the app's login page
-2. **Use existing storageState** -- Provide a path to an auth JSON file
-3. **Use persistent browser profile** -- Reuse an existing logged-in session
+1. **Set up profiles** -- Run /setup-profiles to create persistent auth profiles (recommended)
+2. **Provide credentials now** -- I will use Playwright to log in via the app's login page
+3. **Use existing storageState** -- Provide a path to an auth JSON file
 4. **App does not need auth** -- Skip authentication setup
 ```
 
-### Step 2c: Execute Auth Strategy
+### Step 2d: Execute Auth Strategy
 
-**Strategy 1: Credentials Login**
+**Strategy 1: Setup Profiles**
+
+Inform the user to run `/setup-profiles` first, then re-invoke this skill. Profiles persist across sessions and eliminate repeated logins.
+
+**Strategy 2: Credentials Login**
 
 Ask the user for email and password via `AskUserQuestion`:
 
@@ -232,36 +270,28 @@ Then perform the login via Playwright MCP:
 7. Record the authenticated browser state for subsequent workflows
 ```
 
-**Strategy 2: Existing storageState**
+**Strategy 3: Existing storageState**
 
 Ask the user for the JSON file path, then read and apply it. Use `browser_evaluate` to set cookies and localStorage from the JSON.
-
-**Strategy 3: Persistent Browser Profile**
-
-Inform the user that the current Playwright MCP session will reuse whatever browser state already exists. If the browser is already logged in from a previous session, proceed directly.
 
 **Strategy 4: Skip Auth**
 
 Log that auth was skipped. Workflows marked `<!-- auth: required -->` will be attempted without auth -- they may fail at steps that require a logged-in state, which is useful for testing auth-gate behavior.
 
-### Step 2d: Multi-User Auth
+### Step 2e: Multi-User Auth
 
 For multi-user workflows, authentication must be established for each persona. The runner uses separate browser tabs -- one per persona.
 
-```
-For each persona in <!-- personas: admin, user, guest -->:
-  1. browser_tabs action="new" to create a dedicated tab
-  2. In that tab, perform the login flow with persona-specific credentials
-  3. Record the tab index for this persona
-  4. Log: "Authenticated as [persona] in tab [index]"
-```
+**If profiles exist** for each persona, load them into separate tabs automatically (see Step 2b). This is the preferred path.
 
-Ask the user for credentials for each persona via `AskUserQuestion`:
+**If profiles do not exist**, ask the user for credentials for each persona via `AskUserQuestion`:
 
 ```
 Multi-user workflows require authentication for [N] personas: admin, user, guest.
 
-Please provide credentials for each:
+You can either:
+1. Run /setup-profiles to create persistent profiles for each persona (recommended)
+2. Provide credentials now for each:
 
 1. admin -- Email: [?] Password: [?]
 2. user -- Email: [?] Password: [?]

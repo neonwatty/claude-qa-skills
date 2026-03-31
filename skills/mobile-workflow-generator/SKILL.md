@@ -536,16 +536,40 @@ Please provide the URL (e.g., http://localhost:3000, https://preview.example.com
 
 ### Ask for Authentication Setup (if needed)
 
-If Phase 2 discovered auth-gated routes, ask how to authenticate.
+If Phase 2 discovered auth-gated routes, check for saved profiles before asking the user for credentials.
+
+**Step 1: Check for saved profiles**
+
+```
+1. Check if .playwright/profiles.json exists at the project root.
+2. If it exists, read it and check for valid storageState files
+   at .playwright/profiles/<role-name>.json.
+```
+
+If profiles exist with valid storageState files, load the appropriate profile automatically:
+
+```javascript
+async (page) => {
+  const state = <contents of .playwright/profiles/<role-name>.json>;
+  await page.context().addCookies(state.cookies);
+  return 'Profile loaded: <role-name>';
+}
+```
+
+Navigate to the base URL and verify the session is valid. If the browser is redirected to the profile's `loginUrl`, the session has expired -- inform the user and suggest running `/setup-profiles` to refresh it.
+
+If profiles are configured but storageState files are missing, inform the user and suggest running `/setup-profiles`.
+
+**Step 2: If no profiles exist, ask the user**
 
 Use `AskUserQuestion`:
 
 ```
 Some journeys require authentication. How should I log in?
 
-1. **Credentials** -- Provide email and password, and I will log in via the app's login form
-2. **Storage state** -- Provide a path to a Playwright storageState JSON file
-3. **Persistent profile** -- Use an existing browser profile that is already logged in
+1. **Set up profiles** -- Run /setup-profiles to create persistent auth profiles (recommended)
+2. **Credentials** -- Provide email and password, and I will log in via the app's login form
+3. **Storage state** -- Provide a path to a Playwright storageState JSON file
 ```
 
 ### Create the Walkthrough Task
@@ -556,7 +580,7 @@ TaskCreate:
   status: "in_progress"
   metadata:
     base_url: "http://localhost:3000"
-    auth_method: "credentials"
+    auth_method: "profiles"
     viewport: "393x852"
     total_journeys: 10
     completed_journeys: 0

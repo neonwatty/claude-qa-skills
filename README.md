@@ -1,6 +1,6 @@
 # Claude QA Skills
 
-QA testing pipeline for [Claude Code](https://claude.ai/code) — generate user workflow documentation, convert to Playwright E2E tests, and run them interactively or in CI. Supports desktop, mobile, and multi-user flows with built-in authentication.
+QA testing pipeline for [Claude Code](https://claude.ai/code) — set up authentication profiles, generate user workflow documentation, convert to Playwright E2E tests, and run them interactively or in CI. Supports desktop, mobile, and multi-user flows with built-in profile-based authentication.
 
 > **Read the full walkthrough:** [Claude Code Browser Testing and iOS Automation with MCP Workflows](https://neonwatty.com/posts/claude-code-workflow-testing-mcp/) — how these skills fit into a practical testing workflow.
 
@@ -17,16 +17,31 @@ claude plugin install qa-skills@neonwatty-qa
 ## The Pipeline
 
 ```
-                                    ┌→  Converters  →  .spec.ts  →  CI (GitHub Actions)
-Generators  →  workflow markdown  ──┤
-                                    └→  Runner (Playwright MCP)  →  interactive local testing
+                                              ┌→  Converters  →  .spec.ts  →  CI (GitHub Actions)
+/setup-profiles  →  Generators  →  workflow  ─┤
+                                    markdown   └→  Runner (Playwright MCP)  →  interactive local testing
 ```
 
-1. **Generate** — Explore your codebase, then walk through the live app with you step-by-step via Playwright to co-author workflow documentation
-2. **Convert** — Translate workflows into self-contained Playwright test projects with auth and CI
-3. **Run** — Execute workflows interactively via Playwright MCP, or run generated tests in CI
+1. **Authenticate** — Run `/setup-profiles` to create persistent browser profiles for each user role
+2. **Generate** — Explore your codebase, then walk through the live app with you step-by-step via Playwright to co-author workflow documentation
+3. **Convert** — Translate workflows into self-contained Playwright test projects with auth and CI
+4. **Run** — Execute workflows interactively via Playwright MCP, or run generated tests in CI
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `/setup-profiles` | Create or refresh Playwright authentication profiles for the current project |
+
+Run `/setup-profiles` in any project to set up persistent auth. Claude opens a headed browser for each role, you log in manually, and the session state is saved locally. All downstream skills (generators, runner) automatically detect and use these profiles.
 
 ## Skills
+
+### Profiles — 1 skill
+
+| Skill | Trigger | Description |
+|-------|---------|-------------|
+| **use-profiles** | Automatic when `.playwright/profiles.json` exists | Loads saved auth profiles before browser automation |
 
 ### Generators — 3 skills
 
@@ -55,6 +70,9 @@ Generators  →  workflow markdown  ──┤
 A typical QA cycle:
 
 ```bash
+# First-time setup: create auth profiles
+/setup-profiles
+
 # Desktop testing
 "generate desktop workflows"
 "convert desktop workflows to playwright"
@@ -65,7 +83,7 @@ A typical QA cycle:
 "convert mobile workflows to playwright"
 "run workflows mobile"
 
-# Multi-user testing
+# Multi-user testing (one profile per persona)
 "generate multi-user workflows"
 "convert multi-user workflows to playwright"
 "run workflows multi-user"
@@ -90,16 +108,29 @@ e2e/<platform>/
 
 ## Authentication
 
-All skills support Playwright storageState authentication:
+This plugin supports two authentication paths:
 
-- **Converters** always generate `auth.setup.ts` with `process.env` credential references
-- **Runner** detects `<!-- auth: required -->` in workflows and offers auth options
-- **Multi-user** supports arbitrary persona counts with per-persona credentials
+### Local / Interactive (Profiles)
+
+Run `/setup-profiles` once per project. All generators and the runner automatically detect `.playwright/profiles.json` and load saved sessions before navigating. No repeated logins.
+
+Per-project files:
+
+| File | Committed? | Purpose |
+|------|-----------|---------|
+| `.playwright/profiles.json` | Yes | Role names, login URLs, descriptions |
+| `.playwright/profiles/*.json` | No (gitignored) | storageState auth data |
+
+### CI (Environment Variables)
+
+Converters generate `auth.setup.ts` with `process.env` credential references for headless CI:
+
 - **CI** uses GitHub secrets for credentials and Vercel deployment protection bypass
+- **Multi-user** supports arbitrary persona counts with per-persona credentials
 
 ## Requirements
 
-- **Playwright MCP** — Install via Claude Code marketplace or configure manually
+- **Playwright MCP** — Bundled with this plugin via `.mcp.json` (no separate install needed)
 - **Playwright** — `npx playwright install` in generated test projects
 
 No other MCP dependencies required.
