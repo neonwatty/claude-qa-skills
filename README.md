@@ -32,8 +32,18 @@ claude plugin install qa-skills@neonwatty-qa
 | Command | Description |
 |---------|-------------|
 | `/setup-profiles` | Create or refresh Playwright authentication profiles for the current project |
+| `/run-qa` | Discover all screens, confirm manifest with user, dispatch QA agents |
 
-Run `/setup-profiles` in any project to set up persistent auth. Claude opens a headed browser for each role, you log in manually, and the session state is saved locally. All downstream skills (generators, runner) automatically detect and use these profiles.
+`/setup-profiles` — Set up persistent auth. Claude opens a headed browser for each role, you log in manually, and the session state is saved locally.
+
+`/run-qa [smoke|ux|adversarial|all]` — The orchestrator. Scans the codebase and workflow files to discover every screen, presents a manifest for you to confirm, then dispatches agents to every screen in the manifest. Nothing gets skipped.
+
+```
+/run-qa smoke                    # Quick pass/fail on all screens
+/run-qa ux --url http://localhost:3000  # Obsessive UX check
+/run-qa adversarial              # Try to break everything
+/run-qa all                      # Full QA suite
+```
 
 ## Skills
 
