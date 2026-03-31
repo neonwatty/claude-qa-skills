@@ -205,26 +205,39 @@ Before asking the user for credentials, check if Playwright authentication profi
    at .playwright/profiles/<role-name>.json.
 ```
 
-**If profiles are found with valid storageState files:**
+**If profiles are found with valid storageState files**, select which profile to use:
 
-- For standard auth: Match workflow auth requirements to available profiles. If a single profile exists, use it automatically. If multiple profiles exist, ask the user which one to use for the run.
-- For multi-user auth: Match persona names from `<!-- personas: admin, user, guest -->` to profile names. If all personas have matching profiles, load them automatically. If some are missing, inform the user which personas need profiles and suggest running `/setup-profiles`.
+- If only one profile exists, use it automatically.
+- If multiple profiles exist, present the available profiles with their descriptions and ask the user which one to use for the run:
 
-Load each profile by reading the storageState JSON and using `browser_run_code` to restore cookies:
+```
+I found [N] authentication profiles for this project:
+
+1. admin — Full admin permissions
+2. user — Standard user account
+3. viewer — Read-only access
+
+Which profile should I use for this workflow run?
+```
+
+Once a profile is selected, load it by reading the storageState JSON and using `browser_run_code` to restore cookies:
 
 ```javascript
 async (page) => {
-  const state = <contents of .playwright/profiles/<role-name>.json>;
+  const state = <contents of .playwright/profiles/<selected-profile>.json>;
   await page.context().addCookies(state.cookies);
-  return 'Profile loaded: <role-name>';
+  return 'Profile loaded: <selected-profile>';
 }
 ```
 
 After loading, navigate to the base URL and verify the session is valid. If the browser is redirected to the profile's `loginUrl`, the session has expired -- inform the user and suggest running `/setup-profiles` to refresh it.
 
-**If profiles are found but storageState files are missing:**
+**If profiles are configured but storageState files are missing**, inform the user:
 
-Inform the user: "This project has Playwright profiles configured but the authentication state files are missing (they are gitignored and need to be created locally). Run `/setup-profiles` to authenticate."
+```
+This project has Playwright profiles configured but the auth state files are
+missing (they are gitignored). Run /setup-profiles to authenticate.
+```
 
 **If no profiles exist**, proceed to Step 2c to ask the user for an auth strategy.
 
@@ -282,9 +295,50 @@ Log that auth was skipped. Workflows marked `<!-- auth: required -->` will be at
 
 For multi-user workflows, authentication must be established for each persona. The runner uses separate browser tabs -- one per persona.
 
-**If profiles exist** for each persona, load them into separate tabs automatically (see Step 2b). This is the preferred path.
+**If profiles exist**, match each persona to a profile:
 
-**If profiles do not exist**, ask the user for credentials for each persona via `AskUserQuestion`:
+```
+1. For each persona in the workflow's <!-- personas: ... --> list, attempt to match:
+   a. Exact match (case-insensitive): persona "Admin" matches profile "admin"
+   b. Prefix match: persona "Admin_User" matches profile "admin"
+   c. If no match found, the persona is unmatched
+2. Present the mapping to the user for confirmation:
+
+I matched your personas to saved profiles:
+
+| Persona | Profile | Description |
+|---------|---------|-------------|
+| Admin   | admin   | Full admin permissions |
+| Host    | host    | Event organizer account |
+| Guest1  | guest   | Standard attendee |
+
+Proceed with these mappings? (yes / adjust)
+```
+
+If all personas are matched and confirmed, load each matched profile into a separate browser tab.
+
+**If some personas are unmatched:**
+
+```
+Matched profiles:
+- Admin → admin (Full admin permissions)
+- Host → host (Event organizer account)
+
+No matching profile found for:
+- Guest1
+- Viewer
+
+Available unmatched profiles: [list any profiles not yet assigned]
+
+Options:
+1. Run /setup-profiles to create the missing profiles (recommended)
+2. Manually assign a profile to each unmatched persona
+3. Provide credentials for unmatched personas
+```
+
+If the user selects option 2, present each unmatched persona with the list of available unassigned profiles and ask the user to pick one.
+
+**If no profiles exist**, ask the user for credentials for each persona via `AskUserQuestion`:
 
 ```
 Multi-user workflows require authentication for [N] personas: admin, user, guest.

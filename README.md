@@ -85,7 +85,7 @@ Three specialized QA agents for different levels of testing depth. Agents are au
 | **ux-auditor** | "audit the UX of this page" | Obsessive — inspects every detail | Inconsistent spacing, missing states, bad error copy, accessibility gaps |
 | **adversarial-breaker** | "try to break the checkout flow" | Hostile — actively tries to break things | Auth bypasses, double-submits, state corruption, input abuse |
 
-All agents auto-detect and use saved auth profiles from `/setup-profiles`.
+When run via `/run-qa`, agents receive resolved auth profiles from the orchestrator. When run standalone, agents use the profile specified in the spawn prompt or skip auth if none is provided.
 
 ## Workflow
 

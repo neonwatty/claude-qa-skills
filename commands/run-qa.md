@@ -61,6 +61,12 @@ Use Glob and Grep to find every route definition. Adapt the search patterns to t
 Glob: app/**/page.{tsx,jsx,ts,js}
 Glob: app/**/layout.{tsx,jsx,ts,js}
 Extract route from directory path: app/dashboard/settings/page.tsx → /dashboard/settings
+
+Path normalization:
+- Strip route groups (parenthesized folders): app/(auth)/dashboard/page.tsx → /dashboard
+- Flag parallel routes (@modal, @sidebar) as non-navigable — exclude from manifest
+- Flag intercepting routes ((..), (..)(..)) as non-navigable — exclude from manifest
+- Note dynamic segments ([id], [...slug], [[...slug]]) — these need example values for agents to test
 ```
 
 **Next.js (Pages Router):**
@@ -70,7 +76,14 @@ Exclude: pages/api/**, pages/_app.*, pages/_document.*
 Extract route from file path: pages/dashboard/index.tsx → /dashboard
 ```
 
-**React Router / Remix:**
+**Remix (file-based routing):**
+```
+Glob: app/routes/**/*.{tsx,jsx,ts,js}
+Extract route from filename: app/routes/dashboard.settings.tsx → /dashboard/settings
+Note: Remix uses dots as path separators, $ for dynamic segments
+```
+
+**React Router (JSX-based):**
 ```
 Grep: <Route, createBrowserRouter, createRoutesFromElements
 Grep: path: ", path=", element:
@@ -91,7 +104,11 @@ Grep: /[a-z-]+(/[a-z-]+)* in router configs, navigation components, and link hre
 For each discovered route, record:
 - URL path
 - Source file
-- Whether it appears to require auth (look for auth middleware, guards, `requireAuth`, `isAuthenticated`, protected route wrappers)
+- Whether it appears to require auth
+
+**Auth detection** — scan for these framework-specific patterns:
+- Next.js App Router: check `middleware.{ts,js}` at project root for `config.matcher` patterns that define protected routes
+- Generic: look for `requireAuth`, `isAuthenticated`, `getServerSession`, `auth()`, protected route wrappers, auth HOCs
 
 ### Step 2c: Scan Existing Workflows
 
