@@ -1,6 +1,6 @@
 # Claude QA Skills
 
-QA testing pipeline for [Claude Code](https://claude.ai/code) — set up authentication profiles, generate user workflow documentation, convert to Playwright E2E tests, and run them interactively or in CI. Supports desktop, mobile, and multi-user flows with built-in profile-based authentication.
+QA testing pipeline for [Claude Code](https://claude.ai/code) — set up authentication profiles, generate user workflow documentation, convert to Playwright E2E tests, and run them interactively or in CI. Includes three specialized QA agents (smoke tester, UX auditor, adversarial breaker) for different levels of testing depth. Supports desktop, mobile, and multi-user flows with built-in profile-based authentication.
 
 > **Read the full walkthrough:** [Claude Code Browser Testing and iOS Automation with MCP Workflows](https://neonwatty.com/posts/claude-code-workflow-testing-mcp/) — how these skills fit into a practical testing workflow.
 
@@ -32,8 +32,18 @@ claude plugin install qa-skills@neonwatty-qa
 | Command | Description |
 |---------|-------------|
 | `/setup-profiles` | Create or refresh Playwright authentication profiles for the current project |
+| `/run-qa` | Discover all screens, confirm manifest with user, dispatch QA agents |
 
-Run `/setup-profiles` in any project to set up persistent auth. Claude opens a headed browser for each role, you log in manually, and the session state is saved locally. All downstream skills (generators, runner) automatically detect and use these profiles.
+`/setup-profiles` — Set up persistent auth. Claude opens a headed browser for each role, you log in manually, and the session state is saved locally.
+
+`/run-qa [smoke|ux|adversarial|all]` — The orchestrator. Scans the codebase and workflow files to discover every screen, presents a manifest for you to confirm, then dispatches agents to every screen in the manifest. Nothing gets skipped.
+
+```
+/run-qa smoke                    # Quick pass/fail on all screens
+/run-qa ux --url http://localhost:3000  # Obsessive UX check
+/run-qa adversarial              # Try to break everything
+/run-qa all                      # Full QA suite
+```
 
 ## Skills
 
@@ -64,6 +74,18 @@ Run `/setup-profiles` in any project to set up persistent auth. Claude opens a h
 | Skill | Trigger | Description |
 |-------|---------|-------------|
 | **playwright-runner** | "run workflows" | Executes workflow markdown interactively via Playwright MCP with auth support |
+
+## Agents
+
+Three specialized QA agents for different levels of testing depth. Agents are autonomous — they navigate the app, inspect screens, and produce structured reports.
+
+| Agent | Trigger | Mindset | What It Catches |
+|-------|---------|---------|-----------------|
+| **smoke-tester** | "smoke test the workflows" | Optimistic — follows happy path | Broken flows, 500s, dead links |
+| **ux-auditor** | "audit the UX of this page" | Obsessive — inspects every detail | Inconsistent spacing, missing states, bad error copy, accessibility gaps |
+| **adversarial-breaker** | "try to break the checkout flow" | Hostile — actively tries to break things | Auth bypasses, double-submits, state corruption, input abuse |
+
+When run via `/run-qa`, agents receive resolved auth profiles from the orchestrator. When run standalone, agents use the profile specified in the spawn prompt or skip auth if none is provided.
 
 ## Workflow
 

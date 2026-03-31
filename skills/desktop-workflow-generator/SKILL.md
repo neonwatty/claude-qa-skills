@@ -459,19 +459,39 @@ If Phase 2 discovered auth-gated routes, check for saved profiles before asking 
    at .playwright/profiles/<role-name>.json.
 ```
 
-If profiles exist with valid storageState files, load the appropriate profile automatically:
+**If profiles exist with valid storageState files**, select which profile to use:
+
+- If only one profile exists, use it automatically.
+- If multiple profiles exist, present the available profiles with their descriptions and ask the user which one to use for the walkthrough:
+
+```
+I found [N] authentication profiles for this project:
+
+1. admin — Full admin permissions
+2. user — Standard user account
+3. viewer — Read-only access
+
+Which profile should I use for the desktop walkthrough?
+```
+
+Once a profile is selected, load it:
 
 ```javascript
 async (page) => {
-  const state = <contents of .playwright/profiles/<role-name>.json>;
+  const state = <contents of .playwright/profiles/<selected-profile>.json>;
   await page.context().addCookies(state.cookies);
-  return 'Profile loaded: <role-name>';
+  return 'Profile loaded: <selected-profile>';
 }
 ```
 
 Navigate to the base URL and verify the session is valid. If the browser is redirected to the profile's `loginUrl`, the session has expired -- inform the user and suggest running `/setup-profiles` to refresh it.
 
-If profiles are configured but storageState files are missing, inform the user and suggest running `/setup-profiles`.
+**If profiles are configured but storageState files are missing**, inform the user:
+
+```
+This project has Playwright profiles configured but the auth state files are
+missing (they are gitignored). Run /setup-profiles to authenticate.
+```
 
 **Step 2: If no profiles exist, ask the user**
 

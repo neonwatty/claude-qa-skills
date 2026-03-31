@@ -690,18 +690,36 @@ For multi-user workflows, you need authenticated sessions for EACH persona in th
 
 ```
 1. Check if .playwright/profiles.json exists at the project root.
-2. If it exists, read the profile list and match persona names to profile names.
-3. For each matching profile, check if the storageState file exists
-   at .playwright/profiles/<role-name>.json.
+2. If it exists, read the profile list.
+3. For each persona in the Persona Registry, attempt to match to a profile:
+   a. Exact match (case-insensitive): persona "Admin" matches profile "admin"
+   b. Prefix match: persona "Admin_User" matches profile "admin"
+   c. If no match found, the persona is unmatched
+4. For each matched profile, check if the storageState file exists
+   at .playwright/profiles/<profile-name>.json.
 ```
 
 **If profiles exist for all personas:**
 
-Load each profile into a separate browser context automatically:
+Present the profile-to-persona mapping to the user for confirmation:
+
+```
+I matched your personas to saved profiles:
+
+| Persona | Profile | Description |
+|---------|---------|-------------|
+| Admin   | admin   | Full admin permissions |
+| Host    | host    | Event organizer account |
+| Guest1  | guest   | Standard attendee |
+
+Proceed with these mappings? (yes / adjust)
+```
+
+If the user confirms, load each profile into a separate browser context:
 
 ```
 For each persona in the Persona Registry:
-  1. Read .playwright/profiles/<persona-name>.json
+  1. Read .playwright/profiles/<matched-profile-name>.json
   2. Create a new Playwright BrowserContext
   3. Use browser_run_code to restore cookies from the storageState
   4. Navigate to the base URL and verify the session is valid
@@ -713,14 +731,37 @@ Inform the user which profiles were loaded and whether any sessions have expired
 
 **If profiles exist for some but not all personas:**
 
-Load the available profiles and inform the user which personas are missing:
+Load the available profiles and inform the user which personas are unmatched:
 
 ```
-Loaded profiles for: Admin, Host
-Missing profiles for: Guest1, Guest2, Viewer
+Matched profiles:
+- Admin → admin (Full admin permissions)
+- Host → host (Event organizer account)
 
-Run /setup-profiles to create the missing profiles, or provide credentials below.
+No matching profile found for:
+- Guest1
+- Guest2
+- Viewer
+
+Available unmatched profiles: [list any profiles not yet assigned]
+
+Options:
+1. Run /setup-profiles to create the missing profiles (recommended)
+2. Manually assign a profile to each unmatched persona
+3. Provide credentials for unmatched personas
 ```
+
+If the user selects option 2, present each unmatched persona with the list of available unassigned profiles and ask the user to pick one:
+
+```
+Assign a profile to each unmatched persona:
+
+- Guest1: [admin / host / (available profiles)]
+- Guest2: [admin / host / (available profiles)]
+- Viewer: [admin / host / (available profiles)]
+```
+
+Record the user's assignments and use those `<matched-profile-name>` values when loading browser contexts.
 
 **If no profiles exist:**
 
@@ -748,9 +789,11 @@ Create a separate Playwright browser context for each persona with its own `stor
 
 **If using profiles:**
 
+Use the profile-to-persona mapping confirmed in Step 1 above. Each persona's matched profile name may differ from the persona name (e.g., persona "Guest1" matched to profile "guest").
+
 ```
 For each persona in the Persona Registry:
-  1. Read .playwright/profiles/<persona-name>.json
+  1. Read .playwright/profiles/<matched-profile-name>.json
   2. Create a new Playwright BrowserContext
   3. Restore cookies via browser_run_code
   4. Associate the context with the persona name

@@ -8,6 +8,7 @@
   },
   "license": "MIT",
   "keywords": ["qa", "testing", "playwright", "e2e", "mobile", "multi-user", "authentication", "ci"],
+  "agents": "./agents",
   "commands": "./commands",
   "skills": "./skills",
   "repository": "https://github.com/neonwatty/claude-qa-skills"
