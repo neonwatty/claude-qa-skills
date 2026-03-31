@@ -57,7 +57,7 @@ See the full Session Recovery section near the end of this document for the comp
 
 Before generating anything, understand what already exists and what the user wants.
 
-### Step 1a: Check for Existing Workflows
+### Step 1: Check for Existing Workflows
 
 Look for an existing workflow file at `/workflows/mobile-workflows.md` relative to the project root.
 
@@ -70,7 +70,7 @@ Use Glob to search for:
 
 If a file exists, read it and summarize what it contains (number of workflows, coverage areas, last-modified date if available).
 
-### Step 1b: Ask the User Their Goal
+### Step 2: Ask the User Their Goal
 
 Use `AskUserQuestion` to determine intent:
 
@@ -85,7 +85,7 @@ I found [existing state]. What would you like to do?
 
 If no existing file is found, skip the question and proceed with "Create" mode.
 
-### Step 1c: Create the Main Task
+### Step 3: Create the Main Task
 
 ```
 TaskCreate:
@@ -93,7 +93,7 @@ TaskCreate:
   status: "in_progress"
   metadata:
     mode: "create"          # or update/refactor/audit
-    existing_workflows: 0   # count from step 1a
+    existing_workflows: 0   # count from step 1
     platform: "mobile"
     viewport: "393x852"
     output_path: "/workflows/mobile-workflows.md"
@@ -611,9 +611,9 @@ TaskCreate:
 
 ## Phase 5: Iterative Walkthrough [PER JOURNEY]
 
-This is the core phase. For each confirmed journey from Phase 3, walk through the live app with the user in a mobile viewport to co-author the workflow steps. Repeat sub-phases 5a, 5b, and 5c for every journey.
+This is the core phase. For each confirmed journey from Phase 3, walk through the live app with the user in a mobile viewport to co-author the workflow steps. Repeat Steps 1, 2, and 3 for every journey.
 
-### 5a: Confirm Screen Flow
+### Step 1: Confirm Screen Flow
 
 Present the journey's screens as a route sequence. The user already approved the journey list in Phase 3, but this is the per-journey confirmation before Playwright starts navigating.
 
@@ -630,7 +630,7 @@ Is this the right screen flow, or should I adjust it?
 
 If the user wants to add intermediate screens (e.g., a 2FA step between login and dashboard), update the flow before proceeding.
 
-### 5b: Confirm Actions + Playwright Captures
+### Step 2: Confirm Actions + Playwright Captures
 
 Present the proposed actions at each transition. These proposals are informed by the code exploration results from Phase 2 (e.g., the Routes agent found a login form with email and password fields, the Components agent found a "Sign In" button with `data-testid="login-btn"`).
 
@@ -670,7 +670,7 @@ Before navigating, configure the mobile viewport:
 When Playwright fills form fields during execution:
 - For authentication forms, use the credentials obtained in Phase 4.
 - For non-auth forms that require specific data (e.g., creating an item, filling a profile), use reasonable test data.
-- If a form requires domain-specific input that cannot be guessed, flag it during 5c and ask the user what values to use.
+- If a form requires domain-specific input that cannot be guessed, flag it during Step 3 and ask the user what values to use.
 
 Playwright execution sequence:
 
@@ -683,7 +683,7 @@ Playwright execution sequence:
       - browser_type or browser_fill_form for text input
       - browser_navigate for direct navigation
    b. browser_take_screenshot to capture the result
-4. Store each screenshot with its step number for use in 5c
+4. Store each screenshot with its step number for use in Step 3
 ```
 
 ### Handling Playwright Failures
@@ -692,15 +692,15 @@ If an action fails during execution (element not found, timeout, navigation erro
 
 1. Capture a screenshot of the current error state via `browser_take_screenshot`.
 2. Continue to the next action if possible.
-3. In Phase 5c, flag the failed step by presenting the error state screenshot and explaining what went wrong.
+3. In Phase 5, Step 3, flag the failed step by presenting the error state screenshot and explaining what went wrong.
 4. Use `AskUserQuestion` to ask the user whether to:
    - Retry with adjusted selectors or actions
    - Skip the step and continue
    - Abort the journey entirely
 
-### 5c: Co-Author Verifications + Edge Cases
+### Step 3: Co-Author Verifications + Edge Cases
 
-For each screenshot captured in 5b, present it to the user with proposed verifications and edge case suggestions. Verifications are informed by:
+For each screenshot captured in Step 2, present it to the user with proposed verifications and edge case suggestions. Verifications are informed by:
 - The screenshot itself (what is visually present on screen at mobile dimensions)
 - Code exploration results (what components, validation, and state were found)
 - Anti-pattern detection (see the Mobile UX Anti-Patterns section below)
@@ -780,10 +780,10 @@ When assembling workflows in Phase 6, wrap each journey's confirmed steps in thi
 
 **Preconditions:**
 - Viewport is set to 393x852 (mobile)
-- [Required state from Phase 5a/5b]
+- [Required state from Phase 5, Steps 1/2]
 
 **Steps:**
-[Confirmed steps from Phase 5c]
+[Confirmed steps from Phase 5, Step 3]
 
 **Postconditions:**
 - [Final expected state after all steps complete]
@@ -1064,33 +1064,33 @@ CASE 2: Explore tasks are "in_progress"
   -> Re-spawn only the incomplete agents
   -> Resume from Phase 2 (partial)
 
-CASE 3a: All Explore tasks are completed, journeys_confirmed is NOT set
+CASE 3: All Explore tasks are completed, journeys_confirmed is NOT set
   -> Resume from Phase 3 (journey discovery)
 
-CASE 3b: All Explore tasks are completed, journeys_confirmed is set, no Walkthrough task
+CASE 4: All Explore tasks are completed, journeys_confirmed is set, no Walkthrough task
   -> Resume from Phase 4 (app URL + auth setup)
 
-CASE 4: Walkthrough task is "in_progress"
+CASE 5: Walkthrough task is "in_progress"
   -> Some journeys were completed, others remain
   -> Read completed_journeys and current_journey from task metadata
   -> Inform user which journeys are done and which is next
   -> Resume from Phase 5 at the next incomplete journey
 
-CASE 5: Walkthrough task is "completed", no Approval task
+CASE 6: Walkthrough task is "completed", no Approval task
   -> All journeys walked through but document not yet reviewed
   -> Resume from Phase 6 (final review)
 
-CASE 6: Approval task exists with result "changes_requested"
+CASE 7: Approval task exists with result "changes_requested"
   -> User gave feedback but revisions were not completed
   -> Read the feedback from task metadata
   -> Apply changes and re-present for review
   -> Resume from Phase 6 (next iteration)
 
-CASE 7: Approval task is "completed" with result "approved", no Write task
+CASE 8: Approval task is "completed" with result "approved", no Write task
   -> Document was approved but file was not written
   -> Resume from Phase 7 (write file)
 
-CASE 8: Write task is "completed"
+CASE 9: Write task is "completed"
   -> Everything is done
   -> Show the final summary and ask if the user wants to make changes
 ```

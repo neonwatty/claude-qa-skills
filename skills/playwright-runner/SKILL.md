@@ -111,7 +111,7 @@ $ARGUMENTS = ""
 
 ## Phase 1: Discover and Parse Workflows
 
-### Step 1a: Locate the Workflow File
+### Step 1: Locate the Workflow File
 
 Based on the platform argument (or auto-detection), find and read the target workflow file.
 
@@ -129,7 +129,7 @@ No workflow file found at /workflows/[platform]-workflows.md.
 Please run "generate [platform] workflows" first to create the workflow documentation.
 ```
 
-### Step 1b: Parse Workflows
+### Step 2: Parse Workflows
 
 Read the entire workflow file. For each workflow, extract:
 
@@ -151,7 +151,7 @@ Skipped 2 deprecated: #7 (Legacy Export), #15 (Old Settings).
 Executing 23 active workflows.
 ```
 
-### Step 1c: Determine Base URL
+### Step 3: Determine Base URL
 
 If `--url` was provided, use it. Otherwise, ask the user via `AskUserQuestion`:
 
@@ -166,7 +166,7 @@ Examples:
 Note: The app must be running and accessible before I begin execution.
 ```
 
-### Step 1d: Create the Main Task
+### Step 4: Create the Main Task
 
 ```
 TaskCreate:
@@ -185,7 +185,7 @@ TaskCreate:
 
 Check all parsed workflows for auth requirements. If any workflow has `<!-- auth: required -->`, authentication must be established before execution begins.
 
-### Step 2a: Detect Auth Needs
+### Step 1: Detect Auth Needs
 
 Scan parsed workflows for:
 
@@ -194,7 +194,7 @@ Scan parsed workflows for:
 
 If no workflows require auth, skip to Phase 3.
 
-### Step 2b: Check for Saved Profiles
+### Step 2: Check for Saved Profiles
 
 Before asking the user for credentials, check if Playwright authentication profiles have already been set up for this project.
 
@@ -239,9 +239,9 @@ This project has Playwright profiles configured but the auth state files are
 missing (they are gitignored). Run /setup-profiles to authenticate.
 ```
 
-**If no profiles exist**, proceed to Step 2c to ask the user for an auth strategy.
+**If no profiles exist**, proceed to Step 3 to ask the user for an auth strategy.
 
-### Step 2c: Ask User for Auth Strategy
+### Step 3: Ask User for Auth Strategy
 
 Use `AskUserQuestion` to determine how to handle authentication:
 
@@ -254,7 +254,7 @@ Use `AskUserQuestion` to determine how to handle authentication:
 4. **App does not need auth** -- Skip authentication setup
 ```
 
-### Step 2d: Execute Auth Strategy
+### Step 4: Execute Auth Strategy
 
 **Strategy 1: Setup Profiles**
 
@@ -291,7 +291,7 @@ Ask the user for the JSON file path, then read and apply it. Use `browser_evalua
 
 Log that auth was skipped. Workflows marked `<!-- auth: required -->` will be attempted without auth -- they may fail at steps that require a logged-in state, which is useful for testing auth-gate behavior.
 
-### Step 2e: Multi-User Auth
+### Step 5: Multi-User Auth
 
 For multi-user workflows, authentication must be established for each persona. The runner uses separate browser tabs -- one per persona.
 
@@ -352,7 +352,7 @@ You can either:
 3. guest -- Email: [?] Password: [?]
 ```
 
-### Step 2e: Create Auth Task
+### Step 6: Create Auth Task
 
 ```
 TaskCreate:
@@ -392,7 +392,7 @@ browser_tabs action="list" to verify all persona tabs exist
 
 For each workflow:
 
-#### Step 3a: Create Workflow Task
+#### Step 1: Create Workflow Task
 
 ```
 TaskCreate:
@@ -406,7 +406,7 @@ TaskCreate:
     steps_failed: 0
 ```
 
-#### Step 3b: Check Preconditions
+#### Step 2: Check Preconditions
 
 Read the workflow's `**Preconditions:**` block. For each precondition:
 
@@ -414,7 +414,7 @@ Read the workflow's `**Preconditions:**` block. For each precondition:
 - **"At least N [items] exist"** -- Navigate to the relevant listing page and verify via `browser_snapshot`. If the precondition is not met, log a warning in the workflow task metadata.
 - **"Feature flag [name] is enabled"** -- Log as an unchecked precondition (cannot verify feature flags from the browser).
 
-#### Step 3c: Execute Each Step
+#### Step 3: Execute Each Step
 
 For each numbered step in the workflow, create a step task and execute the corresponding Playwright MCP action.
 
@@ -431,7 +431,7 @@ TaskCreate:
 
 **Interpretation and execution:** Read the natural-language step, determine the appropriate Playwright MCP tool call, execute it, then verify the expected outcome.
 
-#### Step 3d: Verify After Each Step
+#### Step 4: Verify After Each Step
 
 After every action, take a snapshot and verify the expected outcome:
 
@@ -443,7 +443,7 @@ After every action, take a snapshot and verify the expected outcome:
 5. If expected outcome is missing: mark step as failed, create Issue task
 ```
 
-#### Step 3e: Handle Step Failure
+#### Step 5: Handle Step Failure
 
 On failure, do NOT abort the workflow. Instead:
 
@@ -465,7 +465,7 @@ TaskCreate:
 
 3. Attempt to continue with the next step. If the failure makes subsequent steps impossible (e.g., a navigation failure means all following steps on that page will fail), log a warning and skip remaining steps in that workflow.
 
-#### Step 3f: Multi-User Step Execution
+#### Step 6: Multi-User Step Execution
 
 For multi-user workflows, steps are tagged with a persona (e.g., `[admin]`, `[user]`). Before executing each step:
 
@@ -495,7 +495,7 @@ When a step requires verifying that one persona's action is visible to another p
     2. browser_snapshot to verify approval is visible to user
 ```
 
-#### Step 3g: Complete Workflow Task
+#### Step 7: Complete Workflow Task
 
 After all steps in a workflow have been executed:
 
@@ -633,7 +633,7 @@ Steps marked `[MANUAL]` cannot be executed via Playwright MCP. Create a step tas
 
 After all workflows have been executed, generate a structured summary.
 
-### Step 4a: Create Report Task
+### Step 1: Create Report Task
 
 ```
 TaskCreate:
@@ -641,7 +641,7 @@ TaskCreate:
   status: "in_progress"
 ```
 
-### Step 4b: Compile Results
+### Step 2: Compile Results
 
 Iterate through all workflow and step tasks to compile the final report. Calculate:
 
@@ -653,7 +653,7 @@ Iterate through all workflow and step tasks to compile the final report. Calcula
 - Steps passed / failed / skipped
 - Issues found (count of Issue tasks)
 
-### Step 4c: Present Report
+### Step 3: Present Report
 
 Present the execution report to the user in this format:
 
@@ -675,7 +675,7 @@ Issues: [N] total (each with expected/actual state and screenshot path)
 Summary: [N] workflows, [S] steps, [P] passed, [F] failed, [M] skipped
 ```
 
-### Step 4d: Write Report File
+### Step 4: Write Report File
 
 Write the execution report to `/workflows/execution-report-[platform]-[date].md`:
 
@@ -685,7 +685,7 @@ Write the execution report to `/workflows/execution-report-[platform]-[date].md`
 3. Inform the user of the file location.
 ```
 
-### Step 4e: Complete Report and Main Tasks
+### Step 5: Complete Report and Main Tasks
 
 ```
 TaskUpdate:

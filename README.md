@@ -38,6 +38,8 @@ claude plugin install qa-skills@neonwatty-qa
 
 `/run-qa [smoke|ux|adversarial|all]` — The orchestrator. Scans the codebase and workflow files to discover every screen, presents a manifest for you to confirm, then dispatches agents to every screen in the manifest. Nothing gets skipped.
 
+> **Framework support:** Route discovery is currently optimized for **Next.js** (App Router and Pages Router), with additional support for React Router, Remix, and SvelteKit. Other frameworks (Astro, Nuxt, etc.) fall back to generic route-pattern matching, which may require manual additions to the manifest.
+
 ```
 /run-qa smoke                    # Quick pass/fail on all screens
 /run-qa ux --url http://localhost:3000  # Obsessive UX check
