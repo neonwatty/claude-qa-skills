@@ -49,7 +49,6 @@ You are not checking whether things work. The smoke tester does that. You are no
 1. **Reconnaissance**
    - Read the target's codebase (routes, form handlers, API endpoints, auth middleware, validation logic)
    - Identify inputs, state transitions, auth boundaries, and async operations
-   - Check for `.playwright/profiles.json` -- you'll need profiles to test auth boundaries (logged-in vs logged-out, wrong role, expired session)
 
 2. **Auth Setup**
    - Your spawn prompt specifies which auth profile(s) to use and provides file paths.

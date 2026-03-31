@@ -221,9 +221,11 @@ For smoke-tester: [admin / user / viewer]
 For ux-auditor: [admin / user / viewer]
 For adversarial-breaker: [admin / user / viewer, or "all" to test each role]
 
-Default: Use "user" for smoke and UX, "all" for adversarial.
+Default: Use "[first profile name]" for smoke and UX, "all" for adversarial.
 Accept defaults? (yes / customize)
 ```
+
+When computing defaults, use the first profile from the discovered list — do not hardcode "user". If a profile named "user" exists, prefer it; otherwise fall back to the first available profile.
 
 The adversarial-breaker benefits from testing with multiple profiles (and unauthenticated) to find auth boundary issues. The smoke-tester and ux-auditor typically need one consistent profile.
 
@@ -243,7 +245,7 @@ Run /setup-profiles to refresh it, or proceed without it.
 
 1. Run /setup-profiles now to create auth profiles (recommended)
 2. Skip auth-required screens
-3. Proceed anyway (agents will attempt to handle auth individually)
+3. Proceed anyway (agents will run unauthenticated against all screens)
 ```
 
 If the user chooses option 1, pause the QA run and let them complete profile setup. Resume when they return.
@@ -286,9 +288,42 @@ For each screen in the manifest, spawn the selected agent(s) using the Agent too
 
 **For adversarial-breaker:** Dispatch one agent per logical flow or feature area. Group related screens together (e.g., the entire settings flow, the entire checkout flow) so the agent can test sequences and state transitions.
 
-### Agent Spawn Template
+### Agent Spawn Templates
 
-For each dispatch, use the Agent tool with this prompt pattern. The profile assignment is resolved — pass the specific profile name (from Phase 3b) to each agent so it does not need to make its own selection decision.
+For each dispatch, use the Agent tool with the appropriate prompt pattern below. The profile assignment is resolved — pass the specific profile name (from Phase 3b) to each agent so it does not need to make its own selection decision.
+
+**Smoke-tester template** (dispatched per workflow):
+
+```
+You are operating as the smoke-tester QA agent.
+
+Workflow file: [path to workflow file, e.g., /workflows/desktop-workflows.md]
+Auth required: [yes/no]
+Auth profile to use: [exact profile name, e.g., "admin"]
+Auth profile path: .playwright/profiles/[profile-name].json
+
+To load the auth profile, read the storageState file and run:
+
+  async (page) => {
+    const state = <contents of .playwright/profiles/[profile-name].json>;
+    await page.context().addCookies(state.cookies);
+    return 'Profile loaded: [profile-name]';
+  }
+
+After loading, verify auth by navigating to [base_url]. If you are
+redirected to [loginUrl from profiles.json], the session has expired —
+report this and stop.
+
+[Include the full system prompt from the agent definition]
+
+Base URL: [base_url]
+
+Begin your audit now. Parse the workflow file and execute each step
+sequentially. Return your findings in the output format specified in
+your system prompt.
+```
+
+**UX-auditor and adversarial-breaker template** (dispatched per screen or per flow):
 
 ```
 You are operating as the [agent-name] QA agent.
@@ -342,12 +377,12 @@ Spawn agents in parallel where possible to maximize throughput. Group dispatches
 After each agent completes, log its result:
 
 ```
-✓ [screen-name] — smoke-tester: 12/12 steps passed
+✓ [workflow-name] — smoke-tester: 12/12 steps passed
 ✓ [screen-name] — ux-auditor: 2 major, 5 minor findings
-✓ [screen-name] — adversarial-breaker: 1 critical, 3 high findings
+✓ [flow-name] — adversarial-breaker: 1 critical, 3 high findings
 ```
 
-Track overall progress: `[completed] / [total] screens audited`.
+Track overall progress: `[completed] / [total] dispatches completed`. Note that dispatch units differ by agent type: workflows for smoke-tester, screens for ux-auditor, and flows for adversarial-breaker.
 
 ---
 

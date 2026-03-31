@@ -751,6 +751,18 @@ Options:
 3. Provide credentials for unmatched personas
 ```
 
+If the user selects option 2, present each unmatched persona with the list of available unassigned profiles and ask the user to pick one:
+
+```
+Assign a profile to each unmatched persona:
+
+- Guest1: [admin / host / (available profiles)]
+- Guest2: [admin / host / (available profiles)]
+- Viewer: [admin / host / (available profiles)]
+```
+
+Record the user's assignments and use those `<matched-profile-name>` values when loading browser contexts.
+
 **If no profiles exist:**
 
 Use `AskUserQuestion`:
@@ -777,9 +789,11 @@ Create a separate Playwright browser context for each persona with its own `stor
 
 **If using profiles:**
 
+Use the profile-to-persona mapping confirmed in Step 1 above. Each persona's matched profile name may differ from the persona name (e.g., persona "Guest1" matched to profile "guest").
+
 ```
 For each persona in the Persona Registry:
-  1. Read .playwright/profiles/<persona-name>.json
+  1. Read .playwright/profiles/<matched-profile-name>.json
   2. Create a new Playwright BrowserContext
   3. Restore cookies via browser_run_code
   4. Associate the context with the persona name
