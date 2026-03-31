@@ -70,7 +70,7 @@ Every file in the output is self-contained. The project has no dependency on the
 
 Read the workflow markdown file, extract each workflow with its metadata, and build an internal representation that drives all subsequent phases.
 
-### Step 1a: Locate the Workflow File
+### Step 1: Locate the Workflow File
 
 Use Glob to search for the workflow file:
 
@@ -87,7 +87,7 @@ Please run "generate mobile workflows" first, or provide the path
 to your workflow file.
 ```
 
-### Step 1b: Read and Parse
+### Step 2: Read and Parse
 
 Read the entire workflow file. For each workflow, extract:
 
@@ -101,7 +101,7 @@ Read the entire workflow file. For each workflow, extract:
 8. **Steps** -- each numbered step and its verification sub-steps
 9. **Postconditions** -- the bullet list under `**Postconditions:**`
 
-### Step 1c: Build Internal Representation
+### Step 3: Build Internal Representation
 
 Organize workflows into a structured list:
 
@@ -133,7 +133,7 @@ Skipped 2 deprecated workflows: #7 (Legacy Mobile Export), #15 (Old Settings Pag
 Converting 23 active workflows.
 ```
 
-### Step 1d: Create Tasks
+### Step 4: Create Tasks
 
 ```
 TaskCreate:
@@ -166,7 +166,7 @@ TaskCreate:
 
 Before generating, check whether an `e2e/mobile/` directory already exists.
 
-### Step 2a: Check for Existing Files
+### Step 1: Check for Existing Files
 
 Use Glob to check for existing project files:
 
@@ -178,7 +178,7 @@ Glob patterns:
   - e2e/mobile/tests/*.setup.ts
 ```
 
-### Step 2b: Determine Strategy
+### Step 2: Determine Strategy
 
 **If no existing project is found:**
 - Proceed with fresh generation.
@@ -198,7 +198,7 @@ How would you like to proceed?
 3. **Cancel** -- Stop and keep existing files unchanged
 ```
 
-### Step 2c: Create the Check Task
+### Step 3: Create the Check Task
 
 ```
 TaskCreate:
@@ -216,7 +216,7 @@ TaskCreate:
 
 Spawn an Explore agent to analyze the codebase and find the best Playwright selectors for elements referenced in the workflows.
 
-### Step 3a: Create the Task
+### Step 1: Create the Task
 
 ```
 TaskCreate:
@@ -227,7 +227,7 @@ TaskCreate:
     focus: "selectors"
 ```
 
-### Step 3b: Spawn the Explore Agent
+### Step 2: Spawn the Explore Agent
 
 Spawn via the Task tool with the following parameters:
 
@@ -278,7 +278,7 @@ Task tool:
     - Counts by selector type and elements not found
 ```
 
-### Step 3c: Process Agent Results
+### Step 3: Process Agent Results
 
 When the Explore agent returns, merge its Selector Map into the internal workflow representation. Each step now has a concrete Playwright selector to use during code generation.
 
@@ -310,7 +310,7 @@ await page.locator('[data-testid="unknown-element"]').click();
 
 This is the core generation phase. Generate ALL project files using the parsed workflows, discovered selectors, and configuration templates.
 
-### Step 4a: Create the Generation Task
+### Step 1: Create the Generation Task
 
 ```
 TaskCreate:
@@ -320,7 +320,7 @@ TaskCreate:
     files_to_generate: 6
 ```
 
-### Step 4b: Generate playwright.config.ts
+### Step 2: Generate playwright.config.ts
 
 Generate the Playwright configuration file with two mobile browser projects (Chromium and WebKit emulating iPhone 15 Pro), auth setup as a dependency, and Vercel deployment protection bypass headers.
 
@@ -367,7 +367,7 @@ export default defineConfig({
 
 Key configuration decisions: `fullyParallel` for speed, `retries: 2` in CI only for flaky test mitigation, `trace: 'on-first-retry'` for debugging failures, `baseURL` from environment for localhost vs deployed URL flexibility. Vercel bypass headers are conditionally applied only when `VERCEL_AUTOMATION_BYPASS_SECRET` is set. The `setup` project runs `auth.setup.ts` before any test that depends on `storageState`. Two mobile projects provide coverage across both Chromium-based and WebKit-based mobile browsers, catching engine-specific rendering and behavior differences. The `devices['iPhone 15 Pro']` preset configures mobile viewport dimensions, device scale factor, touch support, and user agent string.
 
-### Step 4c: Generate tests/auth.setup.ts
+### Step 3: Generate tests/auth.setup.ts
 
 Generate the authentication setup file. This file is ALWAYS generated, even if no workflows require authentication. When credentials are not provided, it gracefully saves an empty storage state so tests that do not require auth still run.
 
@@ -392,7 +392,7 @@ setup('authenticate', async ({ page }) => {
 
 Key auth decisions: graceful fallback saves empty auth state when credentials are not set, so non-auth tests still pass. Regex button matcher (`/sign in|log in/i`) handles common variations. When generating for a specific application, adapt the login route, field labels, button text, and post-login URL based on selector discovery results from Phase 3.
 
-### Step 4d: Generate package.json
+### Step 4: Generate package.json
 
 ```json
 {
@@ -411,7 +411,7 @@ Key auth decisions: graceful fallback saves empty auth state when credentials ar
 }
 ```
 
-### Step 4e: Generate .github/workflows/mobile-e2e.yml
+### Step 5: Generate .github/workflows/mobile-e2e.yml
 
 Generate the GitHub Actions CI workflow that runs mobile tests against Vercel preview deployments. Both Chromium and WebKit browsers are installed for dual-engine coverage.
 
@@ -444,7 +444,7 @@ jobs:
 
 Key CI decisions: triggers on `deployment_status` so tests run against the actual Vercel preview URL, filters to `Preview` environment only, uses `target_url` as `BASE_URL`, requires three GitHub secrets (`TEST_EMAIL`, `TEST_PASSWORD`, `VERCEL_AUTOMATION_BYPASS_SECRET`), uploads Playwright HTML report as artifact on every run. Installs both `chromium` and `webkit` for full dual-engine mobile coverage.
 
-### Step 4f: Generate .gitignore
+### Step 6: Generate .gitignore
 
 ```
 node_modules/
@@ -453,7 +453,7 @@ playwright-report/
 test-results/
 ```
 
-### Step 4g: Generate tests/workflows.spec.ts
+### Step 7: Generate tests/workflows.spec.ts
 
 This is the largest and most important file. Map each parsed workflow to a `test.describe()` block, and each workflow step to one or more Playwright actions. Every generated test also includes mobile UX anti-pattern assertions as `test.step()` blocks.
 
@@ -625,7 +625,7 @@ test.describe('Workflow 5: Edit Existing Post', () => {
 });
 ```
 
-### Step 4h: Update the Generation Task
+### Step 8: Update the Generation Task
 
 ```
 TaskUpdate:
@@ -878,7 +878,7 @@ On approval, mark the approval task completed with `result: "approved"` and the 
 
 Write all generated files to `e2e/mobile/`.
 
-### Step 6a: Create Directory Structure
+### Step 1: Create Directory Structure
 
 ```
 1. Ensure e2e/mobile/ exists (create if not).
@@ -886,7 +886,7 @@ Write all generated files to `e2e/mobile/`.
 3. Ensure .github/workflows/ exists (create if not).
 ```
 
-### Step 6b: Write All Files
+### Step 2: Write All Files
 
 Write each file in order:
 
@@ -897,11 +897,11 @@ Write each file in order:
 5. `e2e/mobile/.gitignore`
 6. `.github/workflows/mobile-e2e.yml` (note: this is at the repo root, not inside `e2e/mobile/`)
 
-### Step 6c: Verify Files
+### Step 3: Verify Files
 
 After writing, read back each file to confirm it was written correctly.
 
-### Step 6d: Update Tasks
+### Step 4: Update Tasks
 
 Mark `"Write: e2e/mobile/"` as completed and update the main task `"Convert: Mobile Workflows to Playwright"` to completed with final metadata (files written, workflow counts, browser projects, review iterations).
 

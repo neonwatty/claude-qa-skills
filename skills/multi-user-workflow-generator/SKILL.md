@@ -58,7 +58,7 @@ See the full Session Recovery section near the end of this document for the comp
 
 Before generating anything, understand what already exists and what the user wants.
 
-### Step 1a: Check for Existing Workflows
+### Step 1: Check for Existing Workflows
 
 Look for an existing workflow file at `/workflows/multi-user-workflows.md` relative to the project root.
 
@@ -72,7 +72,7 @@ Use Glob to search for:
 
 If a file exists, read it and summarize what it contains (number of workflows, personas used, coverage areas, last-modified date if available).
 
-### Step 1b: Ask the User Their Goal
+### Step 2: Ask the User Their Goal
 
 Use `AskUserQuestion` to determine intent:
 
@@ -87,7 +87,7 @@ I found [existing state]. What would you like to do?
 
 If no existing file is found, skip the question and proceed with "Create" mode.
 
-### Step 1c: Create the Main Task
+### Step 3: Create the Main Task
 
 ```
 TaskCreate:
@@ -95,7 +95,7 @@ TaskCreate:
   status: "in_progress"
   metadata:
     mode: "create"               # or update/refactor/audit
-    existing_workflows: 0        # count from step 1a
+    existing_workflows: 0        # count from step 1
     platform: "multi-user"
     output_path: "/workflows/multi-user-workflows.md"
 ```
@@ -829,9 +829,9 @@ TaskCreate:
 
 ## Phase 6: Iterative Walkthrough [PER JOURNEY]
 
-This is the core phase. For each confirmed journey from Phase 4, walk through the live app with the user to co-author the workflow steps using per-persona Playwright browser contexts. Repeat sub-phases 6a, 6b, and 6c for every journey.
+This is the core phase. For each confirmed journey from Phase 4, walk through the live app with the user to co-author the workflow steps using per-persona Playwright browser contexts. Repeat Steps 1, 2, and 3 for every journey.
 
-### 6a: Confirm Screen Flow
+### Step 1: Confirm Screen Flow
 
 Present the journey's screens as an interleaved persona-route sequence. The user already approved the journey list in Phase 4, but this is the per-journey confirmation before Playwright starts navigating.
 
@@ -850,7 +850,7 @@ Is this the right screen flow, or should I adjust it?
 
 If the user wants to add intermediate screens or change persona ordering, update the flow before proceeding.
 
-### 6b: Confirm Actions + Playwright Captures
+### Step 2: Confirm Actions + Playwright Captures
 
 Present the proposed actions at each transition, with persona tags. These proposals are informed by the code exploration results from Phase 3 (e.g., the Auth & Roles agent found an invite form, the Multi-User Features agent found an invitation acceptance flow).
 
@@ -879,7 +879,7 @@ When Playwright fills form fields during execution:
 - For authentication forms, use the credentials obtained in Phase 5.
 - For invitation forms, use the target persona's email from the Persona Registry.
 - For non-auth forms that require specific data (e.g., creating a document, filling settings), use reasonable test data.
-- If a form requires domain-specific input that cannot be guessed, flag it during 6c and ask the user what values to use.
+- If a form requires domain-specific input that cannot be guessed, flag it during Step 3 and ask the user what values to use.
 
 Playwright execution sequence:
 
@@ -894,7 +894,7 @@ Playwright execution sequence:
       - browser_type or browser_fill_form for text input
       - browser_navigate for direct navigation
    b. browser_take_screenshot to capture the result
-6. Store each screenshot with its step number and persona name for use in 6c
+6. Store each screenshot with its step number and persona name for use in Step 3
 ```
 
 ### Handling Playwright Failures
@@ -903,15 +903,15 @@ If an action fails during execution (element not found, timeout, navigation erro
 
 1. Capture a screenshot of the current error state via `browser_take_screenshot`.
 2. Continue to the next action if possible.
-3. In Phase 6c, flag the failed step by presenting the error state screenshot and explaining what went wrong.
+3. In Phase 6, Step 3, flag the failed step by presenting the error state screenshot and explaining what went wrong.
 4. Use `AskUserQuestion` to ask the user whether to:
    - Retry with adjusted selectors or actions
    - Skip the step and continue
    - Abort the journey entirely
 
-### 6c: Co-Author Verifications + Edge Cases
+### Step 3: Co-Author Verifications + Edge Cases
 
-For each screenshot captured in 6b, present it to the user with proposed verifications and edge case suggestions. Verifications are informed by:
+For each screenshot captured in Step 2, present it to the user with proposed verifications and edge case suggestions. Verifications are informed by:
 - The screenshot itself (what is visually present on screen)
 - Code exploration results (what components, validation, and state were found)
 - Anti-pattern detection (see the Multi-User UX Anti-Patterns section below)
@@ -991,7 +991,7 @@ When assembling workflows in Phase 7, wrap each journey's confirmed steps in thi
 - [Any required data state]
 
 **Steps:**
-[Confirmed steps from Phase 6c]
+[Confirmed steps from Phase 6, Step 3]
 
 **Postconditions:**
 - [Final expected state after all steps complete]
@@ -1308,35 +1308,35 @@ CASE 3: Interview task is "completed", Explore tasks are "in_progress"
   -> Re-spawn only the incomplete agents (pass the stored Persona Registry)
   -> Resume from Phase 3 (partial)
 
-CASE 4a: All Explore tasks are "completed", journeys_confirmed is NOT set
+CASE 4: All Explore tasks are "completed", journeys_confirmed is NOT set
   -> Code exploration is done but journeys not yet presented
   -> Resume from Phase 4 (journey discovery)
 
-CASE 4b: All Explore tasks are "completed", journeys_confirmed is set, no Walkthrough task
+CASE 5: All Explore tasks are "completed", journeys_confirmed is set, no Walkthrough task
   -> Journeys confirmed but walkthrough not started
   -> Resume from Phase 5 (app URL + per-persona auth setup)
 
-CASE 5: Walkthrough task is "in_progress"
+CASE 6: Walkthrough task is "in_progress"
   -> Some journeys were completed, others remain
   -> Read completed_journeys and current_journey from task metadata
   -> Inform user which journeys are done and which is next
   -> Resume from Phase 6 at the next incomplete journey
 
-CASE 6: Walkthrough task is "completed", no Approval task
+CASE 7: Walkthrough task is "completed", no Approval task
   -> All journeys walked through but document not yet reviewed
   -> Resume from Phase 7 (final review)
 
-CASE 7: Approval task exists with result "changes_requested"
+CASE 8: Approval task exists with result "changes_requested"
   -> User gave feedback but revisions were not completed
   -> Read the feedback from task metadata
   -> Apply changes and re-present for review
   -> Resume from Phase 7 (next iteration)
 
-CASE 8: Approval task is "completed" with result "approved", no Write task
+CASE 9: Approval task is "completed" with result "approved", no Write task
   -> Document was approved but file was not written
   -> Resume from Phase 8 (write file)
 
-CASE 9: Write task is "completed"
+CASE 10: Write task is "completed"
   -> Everything is done
   -> Show the final summary and ask if the user wants to make changes
 ```

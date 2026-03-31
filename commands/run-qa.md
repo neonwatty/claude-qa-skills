@@ -36,7 +36,7 @@ The first positional argument selects which agent(s) to dispatch:
 
 This phase is deterministic. Do not skip screens, do not use judgment about which screens are "important." Enumerate everything.
 
-### Step 2a: Check for Existing Manifest
+### Step 1: Check for Existing Manifest
 
 Look for `/workflows/qa-manifest.json` at the project root.
 
@@ -52,7 +52,7 @@ Found existing QA manifest with [N] screens (last updated [date]).
 
 If the user chooses option 1, skip to Phase 3.
 
-### Step 2b: Scan the Codebase for Routes
+### Step 2: Scan the Codebase for Routes
 
 Use Glob and Grep to find every route definition. Adapt the search patterns to the detected framework:
 
@@ -110,7 +110,7 @@ For each discovered route, record:
 - Next.js App Router: check `middleware.{ts,js}` at project root for `config.matcher` patterns that define protected routes
 - Generic: look for `requireAuth`, `isAuthenticated`, `getServerSession`, `auth()`, protected route wrappers, auth HOCs
 
-### Step 2c: Scan Existing Workflows
+### Step 3: Scan Existing Workflows
 
 Read all workflow files in `/workflows/`:
 - `desktop-workflows.md`
@@ -119,7 +119,7 @@ Read all workflow files in `/workflows/`:
 
 For each workflow step, extract the URL/screen it references. Build a map of which screens are covered by which workflow steps.
 
-### Step 2d: Merge and Deduplicate
+### Step 4: Merge and Deduplicate
 
 Combine codebase routes and workflow-referenced screens into a single list. For each screen:
 
@@ -137,7 +137,7 @@ Combine codebase routes and workflow-referenced screens into a single list. For 
 
 Flag screens that appear in the codebase but are NOT referenced in any workflow — these are coverage gaps.
 
-### Step 2e: Present Manifest to User for Confirmation
+### Step 5: Present Manifest to User for Confirmation
 
 This is the critical step. Present the complete manifest to the user and require explicit confirmation before proceeding.
 
@@ -171,7 +171,7 @@ Please confirm or adjust the manifest.
 
 Iterate until the user confirms. Every add/remove/edit the user makes gets applied to the manifest.
 
-### Step 2f: Save the Manifest
+### Step 6: Save the Manifest
 
 Write the confirmed manifest to `/workflows/qa-manifest.json`:
 
@@ -201,7 +201,7 @@ This file should be committed to the repo so future QA runs can reuse or update 
 
 Before dispatching agents, verify everything is ready.
 
-### Step 3a: Base URL
+### Step 1: Base URL
 
 If `--url` was provided, use it. Otherwise, ask the user:
 
@@ -210,7 +210,7 @@ What is the base URL of the running app?
 (e.g., http://localhost:3000, https://staging.example.com)
 ```
 
-### Step 3b: Authentication Profiles
+### Step 2: Authentication Profiles
 
 Check for `.playwright/profiles.json` at the project root.
 
@@ -267,7 +267,7 @@ Run /setup-profiles to refresh it, or proceed without it.
 
 If the user chooses option 1, pause the QA run and let them complete profile setup. Resume when they return.
 
-### Step 3c: Confirm Agent Selection
+### Step 3: Confirm Agent Selection
 
 If the agent(s) were specified via argument, confirm:
 
@@ -307,7 +307,7 @@ For each screen in the manifest, spawn the selected agent(s) using the Agent too
 
 ### Agent Spawn Templates
 
-For each dispatch, use the Agent tool with the appropriate prompt pattern below. The profile assignment is resolved — pass the specific profile name (from Phase 3b) to each agent so it does not need to make its own selection decision.
+For each dispatch, use the Agent tool with the appropriate prompt pattern below. The profile assignment is resolved — pass the specific profile name (from Phase 3, Step 2) to each agent so it does not need to make its own selection decision.
 
 **Smoke-tester template** (dispatched per workflow):
 
@@ -372,7 +372,7 @@ Begin your audit now. When complete, return your findings in the output
 format specified in your system prompt.
 ```
 
-For the **adversarial-breaker**, if the user selected "all" profiles in Phase 3b, dispatch the agent with ALL profile names and instruct it to test with each profile as well as unauthenticated:
+For the **adversarial-breaker**, if the user selected "all" profiles in Phase 3, Step 2, dispatch the agent with ALL profile names and instruct it to test with each profile as well as unauthenticated:
 
 ```
 Auth profiles to test:
@@ -407,11 +407,11 @@ Track overall progress: `[completed] / [total] dispatches completed`. Note that 
 
 After all agents complete, collect their findings into a single unified report.
 
-### Step 5a: Aggregate Results
+### Step 1: Aggregate Results
 
 Merge all agent outputs into a structured report organized by screen, then by agent.
 
-### Step 5b: Write the Report
+### Step 2: Write the Report
 
 Write the report to `/workflows/qa-report.md`:
 
@@ -470,7 +470,7 @@ Write the report to `/workflows/qa-report.md`:
 [...]
 ```
 
-### Step 5c: Present Summary to User
+### Step 3: Present Summary to User
 
 After writing the report, present a concise summary:
 

@@ -74,7 +74,7 @@ Every file in the output is self-contained. The project has no dependency on the
 
 Read the workflow markdown file, extract each workflow with its persona metadata, and build an internal representation that drives all subsequent phases.
 
-### Step 1a: Locate the Workflow File
+### Step 1: Locate the Workflow File
 
 Use Glob to search for the workflow file:
 
@@ -93,7 +93,7 @@ Please run "generate multi-user workflows" first, or provide the path
 to your workflow file.
 ```
 
-### Step 1b: Read and Parse
+### Step 2: Read and Parse
 
 Read the entire workflow file. For each workflow, extract:
 
@@ -109,7 +109,7 @@ Read the entire workflow file. For each workflow, extract:
 10. **Steps** -- each numbered step with its `[PersonaName]` tag and verification sub-steps
 11. **Postconditions** -- the bullet list under `**Postconditions:**`
 
-### Step 1c: Parse the Persona Registry
+### Step 3: Parse the Persona Registry
 
 Near the top of the workflow file, extract the Persona Registry table and build a Persona Map. For each persona, derive:
 
@@ -119,7 +119,7 @@ Near the top of the workflow file, extract the Persona Registry table and build 
 - `setupFile`: `<lowercase-persona>.setup.ts`
 - `emailVar` / `passwordVar`: from the `Credential Env Vars` column (e.g., `ADMIN_EMAIL` / `ADMIN_PASSWORD`)
 
-### Step 1d: Build Internal Representation
+### Step 4: Build Internal Representation
 
 Organize workflows into a structured list. Each workflow entry includes: number, name, auth flag, priority, personas list, steps (each with a `persona` field, `action`, `verify`, optional `syncVerify` boolean, and `syncTimeout` in ms), preconditions, and postconditions.
 
@@ -134,7 +134,7 @@ Converting 19 active workflows.
 Personas found: Admin, Host, Guest1, Guest2, Guest3, Viewer (6 total).
 ```
 
-### Step 1e: Create Tasks
+### Step 5: Create Tasks
 
 Create the main task `"Convert: Multi-User Workflows to Playwright"` (in_progress) with metadata for source file, workflow counts, persona list, and output path. Create the parse task `"Parse: multi-user-workflows.md"` (completed) with metadata for workflow counts by priority, persona count, and sync point total.
 
@@ -144,7 +144,7 @@ Create the main task `"Convert: Multi-User Workflows to Playwright"` (in_progres
 
 Before generating, check whether an `e2e/multi-user/` directory already exists.
 
-### Step 2a: Check for Existing Files
+### Step 1: Check for Existing Files
 
 Use Glob to check for existing project files:
 
@@ -156,7 +156,7 @@ Glob patterns:
   - e2e/multi-user/tests/*.setup.ts
 ```
 
-### Step 2b: Determine Strategy
+### Step 2: Determine Strategy
 
 **If no existing project is found:**
 - Proceed with fresh generation.
@@ -178,7 +178,7 @@ How would you like to proceed?
 3. **Cancel** -- Stop and keep existing files unchanged
 ```
 
-### Step 2c: Create the Check Task
+### Step 3: Create the Check Task
 
 Create `"Check: Existing e2e/multi-user/ project"` (completed) with metadata for existing project status, test count, persona setup file count, and chosen strategy.
 
@@ -188,11 +188,11 @@ Create `"Check: Existing e2e/multi-user/ project"` (completed) with metadata for
 
 Spawn an Explore agent to analyze the codebase and find the best Playwright selectors for elements referenced in the workflows.
 
-### Step 3a: Create the Task and Spawn Agent
+### Step 1: Create the Task and Spawn Agent
 
 Create `"Selectors: Find for all workflows"` (in_progress).
 
-### Step 3b: Spawn the Explore Agent
+### Step 2: Spawn the Explore Agent
 
 Spawn via the Task tool with the following parameters:
 
@@ -239,7 +239,7 @@ Task tool:
     - Counts by selector type and elements not found
 ```
 
-### Step 3c: Process Agent Results
+### Step 3: Process Agent Results
 
 When the Explore agent returns, merge its Selector Map into the internal workflow representation. Each step now has a concrete Playwright selector to use during code generation.
 
@@ -258,11 +258,11 @@ await adminPage.locator('[data-testid="unknown-element"]').click();
 
 This is the core generation phase. Generate ALL project files using the parsed workflows, discovered selectors, Persona Map, and configuration templates.
 
-### Step 4a: Create the Generation Task
+### Step 1: Create the Generation Task
 
 Create `"Generate: Playwright project"` (in_progress).
 
-### Step 4b: Generate playwright.config.ts
+### Step 2: Generate playwright.config.ts
 
 Generate the Playwright configuration file with a multi-project setup. Each persona gets its own setup project, and the main test project depends on ALL persona setup projects. Tests do NOT use a `storageState` in the project config because each test creates its own per-persona browser contexts.
 
@@ -313,7 +313,7 @@ Key configuration decisions: `fullyParallel: false` because multi-user tests sha
 
 When generating for a specific project, include only the personas that appear in the Persona Registry. The example above shows six personas; the actual count will vary.
 
-### Step 4c: Generate Per-Persona Setup Files
+### Step 3: Generate Per-Persona Setup Files
 
 For EACH persona in the Persona Map, generate a dedicated setup file at `tests/<persona>.setup.ts`. Every setup file follows the same pattern but uses the persona's specific credential environment variables and auth file path.
 
@@ -363,7 +363,7 @@ The same pattern applies to every persona -- only the env var names and auth fil
 
 Key auth decisions: graceful fallback saves empty auth state when credentials are not set, so tests still run in environments without full credential configuration. Regex button matcher (`/sign in|log in/i`) handles common variations. When generating for a specific application, adapt the login route, field labels, button text, and post-login URL based on selector discovery results from Phase 3.
 
-### Step 4d: Generate package.json
+### Step 4: Generate package.json
 
 ```json
 {
@@ -380,7 +380,7 @@ Key auth decisions: graceful fallback saves empty auth state when credentials ar
 }
 ```
 
-### Step 4e: Generate .github/workflows/e2e.yml
+### Step 5: Generate .github/workflows/e2e.yml
 
 Generate the GitHub Actions CI workflow that runs tests against Vercel preview deployments. The CI workflow includes environment variables for ALL personas from the Persona Registry.
 
@@ -423,7 +423,7 @@ jobs:
 
 Key CI decisions: triggers on `deployment_status` so tests run against the actual Vercel preview URL, filters to `Preview` environment only, uses `target_url` as `BASE_URL`, requires GitHub secrets for EVERY persona's email and password plus `VERCEL_AUTOMATION_BYPASS_SECRET`, uploads Playwright HTML report as artifact on every run, installs only Chromium for speed. When generating for a specific project, include only the personas from the Persona Registry.
 
-### Step 4f: Generate .gitignore
+### Step 6: Generate .gitignore
 
 ```
 node_modules/
@@ -432,7 +432,7 @@ playwright-report/
 test-results/
 ```
 
-### Step 4g: Generate tests/workflows.spec.ts
+### Step 7: Generate tests/workflows.spec.ts
 
 This is the largest and most complex file. Each workflow becomes a `test.describe()` block, and each workflow step is mapped to the corresponding persona's browser context and page.
 
@@ -654,7 +654,7 @@ const adminCtx = await createAuthContext(browser, 'admin');
 const guest1Ctx = await createAuthContext(browser, 'guest1');
 ```
 
-### Step 4h: Update the Generation Task
+### Step 8: Update the Generation Task
 
 Mark `"Generate: Playwright project"` as completed with metadata for files generated, test describe count, steps translated, sync verifications, manual steps skipped, persona setup files, and parallel action blocks.
 
@@ -842,7 +842,7 @@ Mark the approval task as completed with `result: "approved"` and final test/syn
 
 Write all generated files to `e2e/multi-user/`.
 
-### Step 6a: Create Directory Structure
+### Step 1: Create Directory Structure
 
 ```
 1. Ensure e2e/multi-user/ exists (create if not).
@@ -850,15 +850,15 @@ Write all generated files to `e2e/multi-user/`.
 3. Ensure .github/workflows/ exists (create if not).
 ```
 
-### Step 6b: Write All Files
+### Step 2: Write All Files
 
 Write each file: `playwright.config.ts`, `package.json`, one `<persona>.setup.ts` per persona, `workflows.spec.ts`, `.gitignore` (all inside `e2e/multi-user/`), and `.github/workflows/e2e-multi-user.yml` at the repo root.
 
-### Step 6c: Verify Files
+### Step 3: Verify Files
 
 After writing, read back each file to confirm it was written correctly.
 
-### Step 6d: Update Tasks
+### Step 4: Update Tasks
 
 Create `"Write: e2e/multi-user/"` (completed) with files written count, output directory, CI workflow path, and persona setup file count. Mark the main task `"Convert: Multi-User Workflows to Playwright"` as completed with full summary metadata.
 
