@@ -1,6 +1,6 @@
 # Claude QA Skills
 
-QA testing pipeline for [Claude Code](https://claude.ai/code) — set up authentication profiles, generate user workflow documentation, convert to Playwright E2E tests, and run them interactively or in CI. Supports desktop, mobile, and multi-user flows with built-in profile-based authentication.
+QA testing pipeline for [Claude Code](https://claude.ai/code) — set up authentication profiles, generate user workflow documentation, convert to Playwright E2E tests, and run them interactively or in CI. Includes three specialized QA agents (smoke tester, UX auditor, adversarial breaker) for different levels of testing depth. Supports desktop, mobile, and multi-user flows with built-in profile-based authentication.
 
 > **Read the full walkthrough:** [Claude Code Browser Testing and iOS Automation with MCP Workflows](https://neonwatty.com/posts/claude-code-workflow-testing-mcp/) — how these skills fit into a practical testing workflow.
 
@@ -64,6 +64,18 @@ Run `/setup-profiles` in any project to set up persistent auth. Claude opens a h
 | Skill | Trigger | Description |
 |-------|---------|-------------|
 | **playwright-runner** | "run workflows" | Executes workflow markdown interactively via Playwright MCP with auth support |
+
+## Agents
+
+Three specialized QA agents for different levels of testing depth. Agents are autonomous — they navigate the app, inspect screens, and produce structured reports.
+
+| Agent | Trigger | Mindset | What It Catches |
+|-------|---------|---------|-----------------|
+| **smoke-tester** | "smoke test the workflows" | Optimistic — follows happy path | Broken flows, 500s, dead links |
+| **ux-auditor** | "audit the UX of this page" | Obsessive — inspects every detail | Inconsistent spacing, missing states, bad error copy, accessibility gaps |
+| **adversarial-breaker** | "try to break the checkout flow" | Hostile — actively tries to break things | Auth bypasses, double-submits, state corruption, input abuse |
+
+All agents auto-detect and use saved auth profiles from `/setup-profiles`.
 
 ## Workflow
 
