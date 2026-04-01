@@ -25,7 +25,8 @@ Check for `.playwright/profiles.json` at the project root. Read it to discover a
   "profiles": {
     "admin": {
       "loginUrl": "https://example.com/login",
-      "description": "Full permissions"
+      "description": "Full permissions",
+      "createdAt": "2026-03-31T12:00:00Z"
     }
   }
 }
