@@ -110,7 +110,7 @@ For each profile, one at a time:
    }
    ```
 
-   This returns a JSON object containing all cookies, localStorage, and sessionStorage. Save the returned JSON to `.playwright/profiles/<role-name>.json` using the Write tool.
+   This returns a JSON object containing cookies and localStorage (via the `origins` array). Note: `storageState()` does NOT capture sessionStorage — if your app stores auth tokens in sessionStorage, you will need to capture them separately. Save the returned JSON to `.playwright/profiles/<role-name>.json` using the Write tool.
 
 5. **Confirm:** Tell the user the profile was saved successfully.
 
@@ -119,7 +119,10 @@ For each profile, one at a time:
    ```javascript
    async (page) => {
      await page.context().clearCookies();
-     await page.evaluate(() => localStorage.clear());
+     await page.evaluate(() => {
+       localStorage.clear();
+       sessionStorage.clear();
+     });
      return 'Session cleared for next profile';
    }
    ```

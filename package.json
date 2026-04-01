@@ -6,9 +6,9 @@
   "scripts": {
     "prepare": "husky",
     "validate": "npm run validate:md && npm run validate:skills && npm run validate:links",
-    "validate:md": "npx markdownlint-cli2 'skills/**/*.md' 'README.md'",
+    "validate:md": "npx markdownlint-cli2 'skills/**/*.md' 'agents/*.md' 'commands/*.md' 'README.md'",
     "validate:skills": "./scripts/validate-skills.sh",
-    "validate:links": "npx markdown-link-check -q skills/*/SKILL.md README.md || true",
+    "validate:links": "npx markdown-link-check -q skills/*/SKILL.md agents/*.md commands/*.md README.md || true",
     "validate:plugin": "claude plugin validate ."
   },
   "devDependencies": {

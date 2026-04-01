@@ -117,3 +117,18 @@ Map workflow language to Playwright MCP calls:
 - On failure, capture the current page state and continue (do not abort)
 - Keep the report concise -- one line per step, details only for failures
 - Total execution should be fast -- do not add unnecessary waits or analysis
+
+**No-Workflow Mode (Coverage Gaps):**
+
+When dispatched for a coverage-gap screen (your spawn prompt says "no workflow exists for this page"), skip the workflow parsing step. Instead:
+
+1. Load the auth profile if specified (same Auth Setup process as above)
+2. Navigate to the target URL provided in the spawn prompt
+3. Perform a basic 5-point smoke check:
+   a. Verify the page loads (no HTTP 500, no blank page, no infinite redirect)
+   b. Take a `browser_snapshot` and confirm content is rendered
+   c. Check the console for JavaScript errors via `browser_console_messages`
+   d. If auth is required, verify you are not redirected to a login page
+   e. Check that the page title is set and the DOM has meaningful content
+4. Report: PASS if all checks pass, FAIL with details for any failure
+5. Use the same output format as workflow mode (one-line summary table, details only for failures)

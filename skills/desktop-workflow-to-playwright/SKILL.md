@@ -358,13 +358,21 @@ import * as path from 'path';
 const authFile = 'playwright/.auth/user.json';
 
 setup('authenticate', async ({ page }) => {
-  // Check for saved profile from /setup-profiles
-  const profilePath = path.join(process.cwd(), '.playwright', 'profiles', 'user.json');
-  if (fs.existsSync(profilePath)) {
-    const state = JSON.parse(fs.readFileSync(profilePath, 'utf-8'));
-    fs.mkdirSync(path.dirname(authFile), { recursive: true });
-    fs.writeFileSync(authFile, JSON.stringify(state));
-    return;
+  // Check for saved profiles from /setup-profiles
+  const profilesDir = path.join(process.cwd(), '.playwright', 'profiles');
+  const profilesConfig = path.join(process.cwd(), '.playwright', 'profiles.json');
+
+  if (fs.existsSync(profilesConfig)) {
+    const config = JSON.parse(fs.readFileSync(profilesConfig, 'utf-8'));
+    const profileName = Object.keys(config.profiles)[0];
+    const profilePath = path.join(profilesDir, `${profileName}.json`);
+
+    if (fs.existsSync(profilePath)) {
+      const state = JSON.parse(fs.readFileSync(profilePath, 'utf-8'));
+      fs.mkdirSync(path.dirname(authFile), { recursive: true });
+      fs.writeFileSync(authFile, JSON.stringify(state));
+      return;
+    }
   }
 
   // Fall back to env-var credentials
@@ -381,7 +389,7 @@ setup('authenticate', async ({ page }) => {
 });
 ```
 
-When the project has profiles from `/setup-profiles`, the auth setup copies the saved storageState directly — no credentials needed for local test runs. In CI, credentials from environment variables are used instead.
+When the project has profiles from `/setup-profiles`, the auth setup reads `profiles.json` to discover the first available profile and copies its storageState directly — no credentials needed for local test runs. In CI, credentials from environment variables are used instead.
 
 Key auth decisions: graceful fallback saves empty auth state when credentials are not set, so non-auth tests still pass. Regex button matcher (`/sign in|log in/i`) handles common variations. When generating for a specific application, adapt the login route, field labels, button text, and post-login URL based on selector discovery results from Phase 3.
 
