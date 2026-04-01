@@ -73,6 +73,15 @@ The first positional argument specifies which workflow platform to run:
 
 `--url URL` sets the base URL of the running application. If not provided, the runner asks the user via `AskUserQuestion`.
 
+### Rigor Flag
+
+`--fail-fast` runs in fail-fast mode: only verify that pages load and the happy path completes. Skip DOM assertions and detailed verification. Default (no flag) is thorough mode: full DOM assertions, viewport intersection checks, and detailed verification on every step.
+
+| Flag | Behavior |
+|------|----------|
+| _(none)_ | **Thorough** — full DOM assertions + `browser_wait_for` + viewport checks on every Verify step |
+| `--fail-fast` | **Fail-fast** — verify pages load (status 200, key element visible), skip DOM detail checks, stop workflow on any failure |
+
 ### Auto-Detection
 
 When no platform argument is given:
@@ -98,13 +107,16 @@ Which platform would you like to run?
 
 ```
 $ARGUMENTS = "desktop --url http://localhost:3000"
-  -> Run desktop workflows against localhost:3000
+  -> Run desktop workflows against localhost:3000 (thorough mode)
 
-$ARGUMENTS = "mobile"
-  -> Run mobile workflows, ask for URL
+$ARGUMENTS = "mobile --fail-fast"
+  -> Run mobile workflows in fail-fast mode, ask for URL
+
+$ARGUMENTS = "desktop --fail-fast --url http://localhost:3000"
+  -> Fail-fast smoke test of desktop workflows against localhost:3000
 
 $ARGUMENTS = ""
-  -> Auto-detect platform, ask for URL
+  -> Auto-detect platform, ask for URL (thorough mode)
 ```
 
 ---
@@ -458,14 +470,189 @@ TaskCreate:
 
 #### Step 4: Verify After Each Step
 
-After every action, take a snapshot and verify the expected outcome:
+After every action, take a snapshot, visually inspect the result, AND run a DOM assertion for hard evidence.
 
 ```
 1. Execute the action (navigate, click, type, etc.)
 2. browser_snapshot to capture the current page state
-3. Examine the snapshot for the expected outcome
-4. If expected outcome is present: mark step as passed
-5. If expected outcome is missing: mark step as failed, create Issue task
+3. Examine the snapshot for the expected outcome (visual check)
+4. Run a DOM assertion via browser_evaluate to collect hard evidence:
+
+   For Verify steps: identify the key element from the snapshot's accessibility
+   tree (by its ref), then run browser_evaluate with that ref to check:
+
+   browser_evaluate:
+     ref: [element ref from snapshot]
+     function: |
+       (element) => {
+         if (!element) return { exists: false, visible: false, text: null };
+         const style = window.getComputedStyle(element);
+         const rect = element.getBoundingClientRect();
+         const inViewport = rect.top < window.innerHeight && rect.bottom > 0
+           && rect.left < window.innerWidth && rect.right > 0;
+         return {
+           exists: true,
+           visible: style.display !== 'none'
+             && style.visibility !== 'hidden'
+             && style.opacity !== '0'
+             && rect.width > 0 && rect.height > 0,
+           inViewport,
+           text: element.textContent?.trim().substring(0, 200) || null,
+           tagName: element.tagName.toLowerCase(),
+         };
+       }
+
+5. Record BOTH the visual assessment AND the DOM result in the step task:
+
+   TaskUpdate:
+     title: "Step N: [Description]"
+     status: "completed"
+     metadata:
+       result: "pass"
+       visual: "Success toast visible in snapshot"
+       dom_check: "exists=true, visible=true, text='Changes saved'"
+
+6. If visual and DOM checks disagree:
+   - Trust DOM for existence and text content (DOM is authoritative).
+   - Trust visual for visibility and layout (CSS rendering, z-index
+     occlusion, and overflow clipping are not captured by DOM checks).
+   - Mark the step as PASS WITH DISCREPANCY and record both assessments:
+
+   TaskUpdate:
+     title: "Step N: [Description]"
+     status: "completed"
+     metadata:
+       result: "pass_with_discrepancy"
+       visual: "Element appears hidden behind modal overlay"
+       dom_check: "exists=true, visible=true, text='Submit'"
+       discrepancy: "DOM reports visible but visual shows occlusion by z-index"
+
+   Do NOT auto-resolve the conflict. Flag it for human review in the
+   workflow summary.
+
+7. If both visual and DOM checks fail: mark step as failed, create Issue task.
+```
+
+**Fail-fast mode (`--fail-fast`):** When the `--fail-fast` flag is set, skip DOM assertions and detailed verification entirely. For Verify steps, take a snapshot and do a visual pass/fail check only. Do not run `browser_evaluate` or `browser_wait_for` for Verify steps. Stop the entire run on the first step failure (no continuation). Fail-fast mode is a smoke test: does the happy path complete without errors?
+
+**When to skip the DOM assertion (thorough mode):** For action steps that are not Verify steps (e.g., "Click the Submit button", "Type text in field"), the DOM assertion is optional. The snapshot-first execution pattern already confirms the action succeeded. DOM assertions are REQUIRED for all Verify steps in thorough mode.
+
+**Wait-before-assert pattern:** For ALL Verify steps in thorough mode, execute a `browser_wait_for` BEFORE taking the snapshot and running the DOM assertion:
+
+- **Text checks:** `browser_wait_for` text="[expected text]" timeout=3000
+- **State checks:** `browser_evaluate` polling for attribute/state (disabled, checked, aria-expanded) with 2-3s max timeout
+- **Element appearance:** `browser_wait_for` text="[element text]" timeout=3000
+
+This is unconditional — do not try to judge whether the element is "already present" vs. "appearing." The cost is a few seconds per Verify step; the benefit is eliminating an entire class of intermittent false negatives from SPA re-renders, animations, and async data loading.
+
+**In-viewport refinement:** The DOM assertion returns `inViewport: true/false`. Distinguish between two failure modes:
+
+- **Never rendered** — element is not in the DOM, or has zero dimensions (`rect.width === 0 || rect.height === 0`). This is a **failure**.
+- **Scrolled out of view** — element exists with non-zero dimensions but its bounding rect is outside the viewport. This is **not a failure** if the user just interacted with elements in that area (e.g., filled a long form and the confirmation appeared below the fold). Flag as a note, not a failure.
+
+When a Verify step asserts something "is visible" or "appears," check `inViewport`. If `visible: true` but `inViewport: false`, record in evidence: `viewport_note: "element exists and is rendered but requires scrolling to view"`.
+
+**Shadow DOM detection:** Before running DOM assertions, check if the target element is inside a Shadow DOM:
+
+```javascript
+browser_evaluate:
+  ref: [element ref]
+  function: |
+    (element) => {
+      const root = element.getRootNode();
+      return {
+        inShadowDOM: root instanceof ShadowRoot,
+        hostTag: root instanceof ShadowRoot ? root.host.tagName.toLowerCase() : null
+      };
+    }
+```
+
+If `inShadowDOM` is true: flag `dom_check: "text may be inaccurate — shadow DOM element (host: <hostTag>)"` and fall back to visual verification for text content. DOM checks for existence and visibility remain valid.
+
+**Cross-origin iframe detection:** Before running DOM assertions, check if the target element is inside a cross-origin iframe:
+
+```javascript
+browser_evaluate:
+  ref: [element ref]
+  function: |
+    (element) => {
+      let doc = element.ownerDocument;
+      let inIframe = false;
+      let crossOrigin = false;
+      try {
+        while (doc !== doc.defaultView?.parent?.document) {
+          inIframe = true;
+          doc = doc.defaultView.parent.document;
+        }
+      } catch (e) {
+        crossOrigin = true; // SecurityError = cross-origin
+      }
+      return { inIframe, crossOrigin };
+    }
+```
+
+If `crossOrigin` is true: flag `dom_check: "unavailable — cross-origin iframe context"` and fall back to visual-only verification.
+
+### Fallback Handling Table
+
+| Situation | Detection | Behavior |
+|-----------|-----------|----------|
+| Shadow DOM element | `element.getRootNode() instanceof ShadowRoot` | Flag `dom_check: "text may be inaccurate — shadow DOM element"`, fall back to visual for text |
+| Cross-origin iframe | `SecurityError` walking `ownerDocument` ancestry | Flag `dom_check: "unavailable — iframe context"`, fall back to visual |
+| `browser_evaluate` failure (JS error, timeout, stale ref) | Caught at invocation | Fall back to visual, log failure reason in evidence metadata |
+| Visual/DOM conflict | Step 4 vs step 5 disagreement | DOM wins for pass/fail; report discrepancy with both results for user review |
+
+### Structured Evidence Log
+
+Every Verify step in thorough mode must produce a structured evidence entry in the step task metadata:
+
+```yaml
+evidence:
+  method: "dom"              # "dom" | "visual" | "both"
+  fallback_used: false       # true if DOM was unavailable and visual was used instead
+  fallback_reason: null      # "shadow_dom" | "cross_origin_iframe" | "evaluate_error" | null
+  dom_result:
+    exists: true
+    visible: true
+    inViewport: true
+    text: "Changes saved"
+  visual_result: "Success toast visible in snapshot"
+  discrepancy: null          # Description if dom and visual disagree, null otherwise
+```
+
+When both DOM and visual results are available, record both. This evidence log enables the validation subagent to audit whether DOM assertions were actually attempted.
+
+### Runner Feedback Output
+
+When the runner encounters issues during execution that indicate problems with the source workflows (not runtime failures), write a `runner-feedback.md` file alongside the execution report. The validation subagent consults this file on subsequent validation runs.
+
+Write to `/workflows/runner-feedback.md` when any of these are found:
+
+| Issue Type | When Triggered | What to Record |
+|-----------|----------------|----------------|
+| Ambiguous selector | Step marked `"ambiguous"` — multiple elements matched | Workflow #, step #, element description, number of matches |
+| Missing auth precondition | Auth-required step fails because session is not established | Workflow #, step #, what auth state was expected |
+| Un-navigable step | Navigation fails (404, redirect loop, unreachable route) | Workflow #, step #, target URL, HTTP status |
+| Stale element reference | Element ref from snapshot no longer valid | Workflow #, step #, element description |
+| Timing-sensitive failure | Step fails intermittently (passes on retry or with longer wait) | Workflow #, step #, wait duration used |
+
+Format:
+```markdown
+# Runner Feedback
+
+> Generated by playwright-runner on [date]
+> Source: [workflow file]
+
+## Issues
+
+### Ambiguous Selectors
+- Workflow 3, Step 4: "Submit button" matched 2 elements (form submit + modal submit)
+
+### Missing Auth
+- Workflow 7, Step 1: Expected authenticated session but got redirected to /login
+
+### Un-navigable Steps
+- Workflow 12, Step 1: /admin/analytics returned 404
 ```
 
 #### Step 5: Handle Step Failure
@@ -551,7 +738,7 @@ This table maps workflow natural language to Playwright MCP tool calls. This is 
 | Navigate to \[URL\] | `browser_navigate` url="\[base_url\]\[URL\]" |
 | Navigate to the [page name] page | `browser_navigate` url="[base_url]/[inferred-route]" |
 | Go back to the previous page | `browser_navigate_back` |
-| Refresh the page | `browser_evaluate` function="() => location.reload()" |
+| Refresh the page | `browser_navigate` url="[current page URL]" (re-navigate to the same URL; do NOT use `browser_evaluate` with `location.reload()` as it destroys the execution context) |
 
 ### Click Actions
 
@@ -586,7 +773,7 @@ This table maps workflow natural language to Playwright MCP tool calls. This is 
 |---|---|
 | Hover over the "[label]" [element] | `browser_hover` ref="[ref]" |
 | Drag "[source]" to "[target]" | `browser_drag` startRef="[source-ref]" endRef="[target-ref]" |
-| Scroll down to [element/section] | `browser_evaluate` function="() => document.querySelector('[selector]').scrollIntoView()" |
+| Scroll down to [element/section] | `browser_snapshot` to find the target element ref, then `browser_evaluate` ref="[ref]" function="(element) => element.scrollIntoView({ behavior: 'smooth', block: 'center' })" (via ref — do NOT fabricate CSS selectors) |
 
 ### Keyboard Actions
 
@@ -699,6 +886,14 @@ Issues: [N] total (each with expected/actual state and screenshot path)
 
 Summary: [N] workflows, [S] steps, [P] passed, [F] failed, [M] skipped
 ```
+
+**Fail-fast mode report:** When running in fail-fast mode, the report format changes:
+
+```
+Overall: [X] passed, [Y] failed, [Z] skipped (not attempted) out of [N] workflows
+```
+
+The "skipped" count represents workflows that were never started because the runner stopped on the first failure. Partial results are not possible in fail-fast mode — a workflow either passes completely or the entire run stops.
 
 ### Step 4: Write Report File
 
@@ -838,11 +1033,11 @@ Mobile workflows may use touch-oriented language. Map these to equivalent Playwr
 |---|---|
 | Tap the "[label]" button | `browser_click` ref="[ref]" (tap = click in Playwright) |
 | Swipe left on [element] | `browser_evaluate` to simulate touch swipe, or `browser_press_key` key="ArrowLeft" |
-| Swipe down to refresh | `browser_evaluate` function="() => location.reload()" |
+| Swipe down to refresh | `browser_navigate` url="[current page URL]" (re-navigate; do NOT use `location.reload()` inside `browser_evaluate`) |
 | Long-press [element] | `browser_click` ref="[ref]" (long-press not directly supported; log limitation) |
-| Pull down to refresh | `browser_evaluate` function="() => location.reload()" |
+| Pull down to refresh | `browser_navigate` url="[current page URL]" (re-navigate; do NOT use `location.reload()` inside `browser_evaluate`) |
 | Tap the back arrow | `browser_navigate_back` |
-| Scroll to bottom of list | `browser_evaluate` function="() => window.scrollTo(0, document.body.scrollHeight)" |
+| Scroll to bottom of list | `browser_evaluate` function="() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })" |
 
 ### Mobile Verification Patterns
 

@@ -74,6 +74,8 @@ Every file in the output is self-contained. The project has no dependency on the
 
 Read the workflow markdown file, extract each workflow with its persona metadata, and build an internal representation that drives all subsequent phases.
 
+> **Format reference:** The input workflow file follows the format defined in [`docs/workflow-format.md`](../../docs/workflow-format.md). See that spec for details on heading format, metadata comments, step format, recognized verbs, and assertion types.
+
 ### Step 1: Locate the Workflow File
 
 Use Glob to search for the workflow file:
@@ -878,13 +880,79 @@ Write all generated files to `e2e/multi-user/`.
 
 ### Step 2: Write All Files
 
-Write each file: `playwright.config.ts`, `package.json`, one `<persona>.setup.ts` per persona, `workflows.spec.ts`, `.gitignore` (all inside `e2e/multi-user/`), and `.github/workflows/e2e-multi-user.yml` at the repo root.
+Write each file: `playwright.config.ts`, `package.json`, `tsconfig.json`, one `<persona>.setup.ts` per persona, `workflows.spec.ts`, `.gitignore` (all inside `e2e/multi-user/`), and `.github/workflows/e2e-multi-user.yml` at the repo root.
+
+**`tsconfig.json` contents:**
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["tests/**/*.ts"]
+}
+```
 
 ### Step 3: Verify Files
 
 After writing, read back each file to confirm it was written correctly.
 
-### Step 4: Update Tasks
+### Step 4: Type-Check Generated Code
+
+Run TypeScript type-checking on the generated project to catch compilation errors before presenting the project as complete.
+
+**Prerequisite:** `tsc` must be available. If `npx tsc --version` fails, attempt `npm install typescript --save-dev` in the e2e/multi-user directory. If TypeScript still cannot be found, stop and inform the user: "TypeScript compiler (tsc) is required for type-checking but could not be found. Install it with `npm install -D typescript` or ensure it is available globally." Type-checking is not optional — do not skip it.
+
+**Process:**
+
+```
+1. Install dependencies (capture errors for diagnosis):
+   cd e2e/multi-user && npm install --ignore-scripts 2>&1 | tee /tmp/npm-install.log
+
+2. Run type-check:
+   cd e2e/multi-user && npx tsc --noEmit
+
+3. If type errors are found:
+   a. Read the tsc error output to identify the failing file and line.
+   b. Fix the type error in the generated code.
+   c. IMPORTANT: Write modified files back to disk BEFORE the next tsc run.
+      Do not batch fixes — write each fix immediately so the next tsc run
+      sees the corrected code on disk.
+   d. Re-run: cd e2e/multi-user && npx tsc --noEmit
+   e. Repeat up to a 3-attempt cap (counted per full tsc run, not per error).
+      After 3 full tsc runs with errors, STOP and use AskUserQuestion to
+      present the remaining errors to the user and ask for guidance.
+```
+
+**Semantic guard:** The fix loop must NOT modify assertions, selectors, or test intent. Fixes are limited to:
+- Type annotations (adding explicit types, fixing type mismatches)
+- Import statements (missing imports, incorrect import paths)
+- API usage corrections (wrong Playwright API method signature)
+
+If a fix would change **what** the test checks (modifying assertions, changing selectors, altering test logic, removing test steps), do NOT apply it. Instead, escalate to the user via `AskUserQuestion`:
+
+```
+Type error in [file]:[line] requires changing test intent to fix:
+
+  Error: [tsc error message]
+  Current code: [the line with the error]
+
+  Fixing this would require changing [what would change — e.g., the assertion,
+  the selector, the test logic]. This is beyond the scope of type-error fixes.
+
+  How would you like to proceed?
+  1. Fix it manually
+  2. Suppress with // @ts-expect-error and move on
+  3. Remove the affected test block
+```
+
+### Step 5: Update Tasks
 
 Create `"Write: e2e/multi-user/"` (completed) with files written count, output directory, CI workflow path, and persona setup file count. Mark the main task `"Convert: Multi-User Workflows to Playwright"` as completed with full summary metadata.
 

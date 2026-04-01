@@ -9,7 +9,8 @@
     "validate:md": "npx markdownlint-cli2 'skills/**/*.md' 'agents/*.md' 'commands/*.md' 'README.md'",
     "validate:skills": "./scripts/validate-skills.sh",
     "validate:links": "npx markdown-link-check -q skills/*/SKILL.md agents/*.md commands/*.md README.md || true",
-    "validate:plugin": "claude plugin validate ."
+    "validate:plugin": "claude plugin validate .",
+    "validate:workflows": "./scripts/validate-workflows.sh"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",

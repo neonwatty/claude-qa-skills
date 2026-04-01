@@ -667,6 +667,61 @@ TaskUpdate:
     journeys_confirmed: true
 ```
 
+### Route Coverage Check
+
+After the user confirms the journey list, cross-reference the routes discovered by the Explore agents in Phase 2 against the Navigate targets in the proposed journeys.
+
+```
+1. Collect all routes discovered by Agent 1 (Routes & Navigation).
+2. Collect all Navigate targets from the confirmed journey list.
+3. Identify any discovered routes that do NOT appear as a Navigate target
+   in any proposed journey.
+4. If there are uncovered routes, present them to the user:
+
+   "The following [N] routes from your app are not covered by any proposed workflow:
+
+   | Route | Auth Required | Notes |
+   |-------|---------------|-------|
+   | /settings | yes | Discovered in routes scan |
+   | /admin/users | yes | Admin-only route |
+   | /api/webhooks | no | API route — may not need UI workflow |
+
+   Would you like to:
+   1. Add workflows for some of these routes
+   2. Skip them (they will be noted as intentionally uncovered)
+   3. Continue as-is (I will note the gaps in the appendix)"
+
+5. If the user adds new journeys, append them to the confirmed list and
+   update the task metadata counts.
+6. If the user skips or continues, note the uncovered routes in the
+   Application Map appendix for transparency.
+```
+
+### Entity Coverage Suggestions
+
+After the route coverage check, cross-reference the entities and CRUD operations discovered by the Explore agents against the confirmed journey list.
+
+```
+1. Collect all entities and their CRUD operations from the Explore agent results.
+2. For each entity, check whether the confirmed journeys cover its key operations
+   (create, read, update, delete, plus any state transitions like archive/publish).
+3. If any entity operations are NOT covered by any proposed journey, surface them
+   as natural-language suggestions (not a matrix):
+
+   "I also noticed a few entity operations from your codebase that aren't covered
+   by any workflow yet:
+
+   - No workflow covers **deleting a project** (across personas)
+   - No workflow covers **updating user settings**
+   - No workflow covers **archiving a team**
+
+   Would you like to add workflows for any of these, or skip them?"
+
+4. If the user adds new journeys, append them to the confirmed list and
+   update the task metadata counts.
+5. If the user skips, no further action -- these are suggestions, not gates.
+```
+
 ---
 
 ## Phase 5: App URL + Per-Persona Auth Setup
@@ -995,6 +1050,8 @@ Example output for the step above:
 
 ### Per-Workflow Template
 
+> **Format reference:** Workflows follow the format defined in [`docs/workflow-format.md`](../../docs/workflow-format.md). See that spec for heading format, metadata comments, step format, recognized verbs, persona tags, and assertion types. The generator uses these conventions for authoring; validation enforcement is performed externally by the validation subagent.
+
 When assembling workflows in Phase 7, wrap each journey's confirmed steps in this template:
 
 ````markdown
@@ -1232,6 +1289,8 @@ TaskUpdate:
 ---
 
 ## Phase 8: Write File and Complete
+
+> **Validation is external.** Do not self-validate. After this file is written, validation is performed by the validation subagent (`agents/validation-subagent.md`), which runs independently of the generator. The subagent invokes `scripts/validate-workflows.sh` for mechanical checks (including multi-user checks 12-14 for persona tags and cross-user verification) and presents judgment observations to the user.
 
 ### Write the File
 
