@@ -720,24 +720,7 @@ I matched your personas to saved profiles:
 Proceed with these mappings? (yes / adjust)
 ```
 
-If the user confirms, load each profile into a separate browser context:
-
-```
-For each persona in the Persona Registry:
-  1. Read .playwright/profiles/<matched-profile-name>.json
-  2. Create a new Playwright BrowserContext
-  3. Use browser_run_code to restore cookies and localStorage from the storageState:
-     - Call page.context().addCookies(state.cookies)
-     - If state.origins exists, for each origin with localStorage entries:
-       navigate to origin.origin, then call page.evaluate() to
-       localStorage.setItem(name, value) for each item
-  4. Navigate to the base URL and verify the session is still valid:
-     - If the browser is redirected to the profile's loginUrl, the session has expired.
-     - If the final URL is on a different domain (e.g., an OAuth provider), the session has expired.
-     - Take a browser_snapshot — if login-related UI is visible instead of the expected page content, the session has expired.
-  5. If expiry is detected, note it for the user
-  6. Associate the context with the persona name
-```
+If the user confirms, load each profile into a separate browser context using the same JavaScript pattern as the "Create Per-Persona Browser Contexts" section below (which includes full cookie, localStorage, and sessionStorage restoration with session validation).
 
 Inform the user which profiles were loaded and whether any sessions have expired. For expired sessions, suggest running `/setup-profiles` to refresh them.
 
@@ -807,12 +790,36 @@ Use the profile-to-persona mapping confirmed in Step 1 above. Each persona's mat
 For each persona in the Persona Registry:
   1. Read .playwright/profiles/<matched-profile-name>.json
   2. Create a new Playwright BrowserContext
-  3. Restore cookies and localStorage via browser_run_code:
-     - Call page.context().addCookies(state.cookies)
-     - If state.origins exists, for each origin with localStorage entries:
-       navigate to origin.origin, then call page.evaluate() to
-       localStorage.setItem(name, value) for each item
-  4. Associate the context with the persona name
+  3. Restore cookies, localStorage, and sessionStorage via browser_run_code:
+
+     ```javascript
+     async (page) => {
+       const state = <contents of .playwright/profiles/<matched-profile-name>.json>;
+       await page.context().addCookies(state.cookies);
+       if (state.origins) {
+         for (const origin of state.origins) {
+           if (origin.localStorage && origin.localStorage.length > 0) {
+             await page.goto(origin.origin);
+             await page.evaluate((items) => {
+               for (const { name, value } of items) localStorage.setItem(name, value);
+             }, origin.localStorage);
+           }
+         }
+       }
+       if (state.sessionStorage && state.sessionStorage.length > 0) {
+         await page.evaluate((items) => {
+           for (const { name, value } of items) sessionStorage.setItem(name, value);
+         }, state.sessionStorage);
+       }
+       return 'Profile loaded: <matched-profile-name>';
+     }
+     ```
+
+  4. Navigate to the base URL and verify the session is still valid:
+     - If redirected to the profile's loginUrl, the session has expired
+     - If the final URL is on a different domain, the session has expired
+     - Take a browser_snapshot — if login UI is visible, the session has expired
+  5. Associate the context with the persona name
 ```
 
 **If using credentials:**

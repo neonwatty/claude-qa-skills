@@ -102,7 +102,9 @@ For each profile, one at a time:
 
 3. **Wait:** Ask the user to complete the login manually. This handles all auth methods — username/password, Google OAuth, 2FA, etc. Wait for the user to confirm they are logged in.
 
-4. **Capture:** Use `browser_run_code` to capture the storage state:
+4. **Capture:** Use `browser_run_code` to capture the storage state and sessionStorage:
+
+   First, capture the Playwright storageState (cookies + localStorage):
 
    ```javascript
    async (page) => {
@@ -110,11 +112,35 @@ For each profile, one at a time:
    }
    ```
 
-   This returns a JSON object containing cookies and localStorage (via the `origins` array). Note: `storageState()` does NOT capture sessionStorage — if your app stores auth tokens in sessionStorage, you will need to capture them separately. Save the returned JSON to `.playwright/profiles/<role-name>.json` using the Write tool.
+   Then, capture sessionStorage separately (Playwright's `storageState()` does not include it):
 
-5. **Confirm:** Tell the user the profile was saved successfully.
+   ```javascript
+   async (page) => {
+     return await page.evaluate(() => {
+       return Object.entries(sessionStorage).map(([name, value]) => ({ name, value }));
+     });
+   }
+   ```
 
-6. **Next:** Clear all cookies and localStorage for the next login. Use `browser_run_code`:
+   Merge the sessionStorage data into the storageState JSON before saving. Add it as a `sessionStorage` field alongside the existing `cookies` and `origins`:
+
+   ```json
+   {
+     "cookies": [...],
+     "origins": [...],
+     "sessionStorage": [
+       { "name": "auth-token", "value": "..." }
+     ]
+   }
+   ```
+
+   If sessionStorage is empty, set `"sessionStorage": []`. Save the merged JSON to `.playwright/profiles/<role-name>.json` using the Write tool.
+
+5. **Validate:** After saving, verify the captured state is usable. Navigate to a page that requires authentication (use the app's root URL or a known protected route) and check that the session is recognized. If the browser is redirected to the login page, warn the user that the capture may be incomplete and offer to retry.
+
+6. **Confirm:** Tell the user the profile was saved successfully.
+
+7. **Next:** Clear all cookies and localStorage for the next login. Use `browser_run_code`:
 
    ```javascript
    async (page) => {
@@ -151,7 +177,7 @@ Authenticated browser profiles are available at `.playwright/profiles/`.
 Available profiles:
 - role-name: Role description
 Config: `.playwright/profiles.json`
-To load a profile, use `browser_run_code` to restore cookies via `addCookies()` and localStorage via `page.evaluate()` from the profile JSON file.
+To load a profile, use `browser_run_code` to restore cookies via `addCookies()`, localStorage via `page.evaluate()`, and sessionStorage (if present) from the profile JSON file.
 Run `/setup-profiles` to create new profiles or refresh expired sessions.
 ```
 

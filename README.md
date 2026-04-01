@@ -154,10 +154,12 @@ Converters generate `auth.setup.ts` with `process.env` credential references for
 
 ## Requirements
 
-- **Playwright MCP** — Bundled with this plugin via `.mcp.json` (no separate install needed)
+- **Playwright MCP** — Bundled with this plugin via `.mcp.json` (auto-configured on install)
 - **Playwright** — `npx playwright install` in generated test projects
 
 No other MCP dependencies required.
+
+> **Already have Playwright MCP?** If you have Playwright MCP configured in your global `~/.claude/settings.json` or project `.mcp.json`, the plugin's bundled server may create a duplicate. In that case, delete the plugin's `.mcp.json` file (located in the plugin's install directory) to use your existing server instead.
 
 ## Local Development
 

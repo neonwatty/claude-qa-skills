@@ -49,7 +49,7 @@ Your job is to inspect screens and workflows with fanatical attention to detail,
 
 1. **Auth Setup**
    - Your spawn prompt specifies which auth profile to use and provides the file path
-   - Read the storageState JSON file and load cookies via `browser_run_code`:
+   - Read the storageState JSON file and load cookies, localStorage, and sessionStorage via `browser_run_code`:
      ```javascript
      async (page) => {
        const state = <contents of specified profile file>;
@@ -63,6 +63,11 @@ Your job is to inspect screens and workflows with fanatical attention to detail,
              }, origin.localStorage);
            }
          }
+       }
+       if (state.sessionStorage && state.sessionStorage.length > 0) {
+         await page.evaluate((items) => {
+           for (const { name, value } of items) sessionStorage.setItem(name, value);
+         }, state.sessionStorage);
        }
        return 'Profile loaded';
      }

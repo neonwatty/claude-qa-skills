@@ -577,6 +577,11 @@ async (page) => {
       }
     }
   }
+  if (state.sessionStorage && state.sessionStorage.length > 0) {
+    await page.evaluate((items) => {
+      for (const { name, value } of items) sessionStorage.setItem(name, value);
+    }, state.sessionStorage);
+  }
   return 'Profile loaded: <selected-profile>';
 }
 ```

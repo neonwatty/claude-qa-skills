@@ -48,7 +48,7 @@ You are a fast, focused QA smoke tester. Your job is to walk through workflow ma
 
 1. **Auth Setup**
    - Your spawn prompt specifies which auth profile to use and provides the file path
-   - Read the storageState JSON file and load cookies via `browser_run_code`:
+   - Read the storageState JSON file and load cookies, localStorage, and sessionStorage via `browser_run_code`:
      ```javascript
      async (page) => {
        const state = <contents of specified profile file>;
@@ -63,6 +63,11 @@ You are a fast, focused QA smoke tester. Your job is to walk through workflow ma
            }
          }
        }
+       if (state.sessionStorage && state.sessionStorage.length > 0) {
+         await page.evaluate((items) => {
+           for (const { name, value } of items) sessionStorage.setItem(name, value);
+         }, state.sessionStorage);
+       }
        return 'Profile loaded';
      }
      ```
@@ -70,7 +75,7 @@ You are a fast, focused QA smoke tester. Your job is to walk through workflow ma
    - If the profile file does not exist, report this and continue without auth
 
 2. **Parse Workflows**
-   - Read the specified workflow markdown file (e.g., `/workflows/desktop-workflows.md`)
+   - Read the specified workflow markdown file (e.g., `./workflows/desktop-workflows.md`)
    - Extract each numbered workflow and its steps
    - Note any `<!-- auth: required -->` or `<!-- auth: no -->` markers
 

@@ -57,7 +57,7 @@ You are not checking whether things work. The smoke tester does that. You are no
      ```
      For each profile in the provided list:
        1. Read .playwright/profiles/<profile-name>.json
-       2. Load cookies and localStorage via browser_run_code:
+       2. Load cookies, localStorage, and sessionStorage via browser_run_code:
           ```javascript
           async (page) => {
             const state = <contents of profile file>;
@@ -71,6 +71,11 @@ You are not checking whether things work. The smoke tester does that. You are no
                   }, origin.localStorage);
                 }
               }
+            }
+            if (state.sessionStorage && state.sessionStorage.length > 0) {
+              await page.evaluate((items) => {
+                for (const { name, value } of items) sessionStorage.setItem(name, value);
+              }, state.sessionStorage);
             }
             return 'Profile loaded';
           }
@@ -115,7 +120,7 @@ You are not checking whether things work. The smoke tester does that. You are no
 - Double submit: click the submit button rapidly multiple times
 - Back button: complete step 2, go back to step 1, change data, go forward -- does step 2 reflect the change?
 - Refresh mid-flow: refresh during a multi-step process -- is state preserved or lost?
-- Parallel tabs: open the same form in two tabs, submit both -- what happens?
+- Parallel tabs: open the same form in two tabs, submit both -- what happens? *(MANUAL CHECK -- requires two concurrent browser sessions; document as untestable and recommend the user verify manually)*
 - Direct URL access: navigate to authenticated pages by typing the URL without going through the normal flow
 
 ### 3. Auth Boundary Testing
@@ -129,9 +134,9 @@ You are not checking whether things work. The smoke tester does that. You are no
 
 ### 4. State Corruption
 
-- Delete while viewing: in another tab/profile, delete a resource that the current tab is viewing
-- Edit while editing: two users (or tabs) edit the same resource simultaneously
-- Stale data: load a list, delete an item in another tab, try to act on the deleted item in the original list
+- Delete while viewing: in another tab/profile, delete a resource that the current tab is viewing *(MANUAL CHECK -- requires concurrent sessions; document as untestable)*
+- Edit while editing: two users (or tabs) edit the same resource simultaneously *(MANUAL CHECK -- requires concurrent sessions; document as untestable)*
+- Stale data: load a list, navigate away, delete an item via the API or URL, navigate back -- does the original list handle the missing item gracefully?
 - Orphaned references: delete a parent entity -- do child entities handle it gracefully?
 - Counter manipulation: if there are counters or limits, try to exceed them through rapid actions
 

@@ -220,7 +220,7 @@ I found [N] authentication profiles for this project:
 Which profile should I use for this workflow run?
 ```
 
-Once a profile is selected, load it by reading the storageState JSON and using `browser_run_code` to restore cookies:
+Once a profile is selected, load it by reading the storageState JSON and using `browser_run_code` to restore cookies, localStorage, and sessionStorage:
 
 ```javascript
 async (page) => {
@@ -235,6 +235,11 @@ async (page) => {
         }, origin.localStorage);
       }
     }
+  }
+  if (state.sessionStorage && state.sessionStorage.length > 0) {
+    await page.evaluate((items) => {
+      for (const { name, value } of items) sessionStorage.setItem(name, value);
+    }, state.sessionStorage);
   }
   return 'Profile loaded: <selected-profile>';
 }

@@ -417,6 +417,11 @@ To load the auth profile, read the storageState file and run:
         }
       }
     }
+    if (state.sessionStorage && state.sessionStorage.length > 0) {
+      await page.evaluate((items) => {
+        for (const { name, value } of items) sessionStorage.setItem(name, value);
+      }, state.sessionStorage);
+    }
     return 'Profile loaded: [profile-name]';
   }
 
@@ -473,6 +478,11 @@ To load the auth profile, read the storageState file and run:
         }
       }
     }
+    if (state.sessionStorage && state.sessionStorage.length > 0) {
+      await page.evaluate((items) => {
+        for (const { name, value } of items) sessionStorage.setItem(name, value);
+      }, state.sessionStorage);
+    }
     return 'Profile loaded: [profile-name]';
   }
 
@@ -516,6 +526,11 @@ To load the auth profile, read the storageState file and run:
           }, origin.localStorage);
         }
       }
+    }
+    if (state.sessionStorage && state.sessionStorage.length > 0) {
+      await page.evaluate((items) => {
+        for (const { name, value } of items) sessionStorage.setItem(name, value);
+      }, state.sessionStorage);
     }
     return 'Profile loaded: [profile-name]';
   }
@@ -564,10 +579,45 @@ For each dispatch:
    ```
    Each agent is responsible for loading its own profile from scratch.
 2. **Spawn the agent** and wait for it to complete. Do not spawn the next agent until you have received and processed the current agent's result.
-3. **Log its results** (see Progress Tracking below)
-4. **Then spawn the next agent** — only after step 3 is complete.
+3. **Save partial results** — After each agent completes, append its findings to `./workflows/qa-report-partial.json` (see Incremental Results below). This enables resume on crash.
+4. **Log its results** (see Progress Tracking below)
+5. **Then spawn the next agent** — only after step 4 is complete.
 
 This is slower than parallel dispatch but produces reliable results. If speed is critical, the user can run multiple `/run-qa` sessions in separate terminals, each with its own Playwright MCP server.
+
+### Incremental Results
+
+After each agent completes, write its results to `./workflows/qa-report-partial.json`:
+
+```json
+{
+  "run_id": "[ISO timestamp of run start]",
+  "agents_selected": ["smoke-tester"],
+  "base_url": "http://localhost:3000",
+  "completed": [
+    {
+      "dispatch_id": 1,
+      "agent": "smoke-tester",
+      "target": "desktop-workflows.md",
+      "status": "completed",
+      "summary": "12/12 steps passed",
+      "findings": "[full agent output]"
+    }
+  ],
+  "remaining": ["WF02", "screen:/settings", "..."]
+}
+```
+
+On resume (if the user re-runs `/run-qa` and a `qa-report-partial.json` exists):
+
+```
+Found a partial QA run from [timestamp] with [N] of [M] dispatches completed.
+
+1. Resume from where it stopped (skip [N] completed dispatches)
+2. Start a fresh run (discard partial results)
+```
+
+If the user resumes, load the completed results and skip those dispatches. Append new results to the same file.
 
 ### Progress Tracking
 
@@ -593,7 +643,9 @@ Merge all agent outputs into a structured report organized by screen, then by ag
 
 ### Step 2: Write the Report
 
-Ensure `./workflows/` exists, then write the report to `./workflows/qa-report.md`:
+Ensure `./workflows/` exists, then write the report to a timestamped file: `./workflows/qa-report-YYYY-MM-DD-HHMMSS.md` (e.g., `qa-report-2026-04-01-143022.md`). This prevents subsequent runs from overwriting previous results. Also create or update a symlink-like reference: write the filename to `./workflows/qa-report-latest.md` as a redirect so other tools can find the most recent report.
+
+Report format:
 
 ```markdown
 # QA Report — [App Name]
@@ -666,7 +718,9 @@ Results:
 - [N] low findings
 - [N] screens passed all checks
 
-Full report: ./workflows/qa-report.md
+Full report: ./workflows/qa-report-[timestamp].md
 
 Would you like me to start fixing the critical and high findings?
 ```
+
+After presenting the summary, delete `./workflows/qa-report-partial.json` if it exists — the partial results have been merged into the final report and are no longer needed.

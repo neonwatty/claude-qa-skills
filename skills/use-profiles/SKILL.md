@@ -48,9 +48,9 @@ Before navigating to any authenticated page, load the profile:
 
 1. Verify the storageState file exists at `.playwright/profiles/<role-name>.json`. If it does not exist, inform the user and suggest running `/setup-profiles` to create it.
 
-2. Read the storageState JSON file. It contains `cookies` and `origins` (localStorage) arrays.
+2. Read the storageState JSON file. It contains `cookies`, `origins` (localStorage), and optionally `sessionStorage` arrays.
 
-3. Use `browser_run_code` (MCP tool: `mcp__playwright__browser_run_code`) to restore both cookies and localStorage from the storageState.
+3. Use `browser_run_code` (MCP tool: `mcp__playwright__browser_run_code`) to restore cookies, localStorage, and sessionStorage from the storageState.
 
    ```javascript
    async (page) => {
@@ -66,11 +66,16 @@ Before navigating to any authenticated page, load the profile:
          }
        }
      }
+     if (state.sessionStorage && state.sessionStorage.length > 0) {
+       await page.evaluate((items) => {
+         for (const { name, value } of items) sessionStorage.setItem(name, value);
+       }, state.sessionStorage);
+     }
      return 'Profile loaded';
    }
    ```
 
-4. Navigate to the target authenticated page. Cookies are sent with the request and localStorage is already populated, so both server-side and client-side auth libraries will recognize the session.
+4. Navigate to the target authenticated page. Cookies are sent with the request, localStorage is already populated, and sessionStorage is restored — so server-side, client-side, and SPA auth libraries (Supabase, Firebase, Auth0) will recognize the session.
 
 ## Session Expiry Detection
 
