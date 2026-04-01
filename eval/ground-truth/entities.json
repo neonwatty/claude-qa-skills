@@ -1,0 +1,46 @@
+[
+  {
+    "entity": "User",
+    "operations": {
+      "create": true,
+      "read": true,
+      "update": true,
+      "delete": false
+    },
+    "stateTransitions": ["role change (member <-> admin)"],
+    "routes": ["/register", "/admin/users", "/profile", "/invite"]
+  },
+  {
+    "entity": "Project",
+    "operations": {
+      "create": true,
+      "read": true,
+      "update": true,
+      "delete": true
+    },
+    "stateTransitions": ["visibility change (public <-> private)"],
+    "routes": ["/projects/new", "/projects/[id]", "/projects/[id]/edit", "/projects/[id]/settings"]
+  },
+  {
+    "entity": "Task",
+    "operations": {
+      "create": true,
+      "read": true,
+      "update": true,
+      "delete": true
+    },
+    "stateTransitions": ["status change (todo -> in-progress -> done)", "reassignment"],
+    "routes": ["/projects/[id]", "/tasks/[id]"]
+  },
+  {
+    "entity": "Comment",
+    "operations": {
+      "create": true,
+      "read": true,
+      "update": false,
+      "delete": false
+    },
+    "stateTransitions": [],
+    "routes": ["/tasks/[id]"]
+  }
+]

@@ -1,0 +1,37 @@
+{
+  "desktop-workflows.md": {
+    "total_workflows": 8,
+    "expected_pass": {
+      "metadata_complete": true,
+      "min_steps": true,
+      "has_verify": true,
+      "action_streak": true,
+      "sequential_numbering": true,
+      "recognized_verbs": true,
+      "no_placeholders": true,
+      "auth_preconditions": true,
+      "quick_ref_match": true,
+      "specific_targets": true,
+      "visibility_gate": true
+    }
+  },
+  "multi-user-workflows.md": {
+    "total_workflows": 3,
+    "expected_pass": {
+      "metadata_complete": true,
+      "min_steps": true,
+      "has_verify": true,
+      "action_streak": true,
+      "sequential_numbering": true,
+      "recognized_verbs": true,
+      "no_placeholders": true,
+      "auth_preconditions": true,
+      "quick_ref_match": true,
+      "specific_targets": true,
+      "visibility_gate": true,
+      "persona_tags": true,
+      "cross_user_verify": true,
+      "user_b_verify": true
+    }
+  }
+}

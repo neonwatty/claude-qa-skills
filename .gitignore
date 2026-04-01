@@ -10,3 +10,4 @@ mockups/
 
 # Mobile workflow config (may contain credentials)
 workflows/mobile-config.json
+eval/results/

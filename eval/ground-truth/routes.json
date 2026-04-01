@@ -1,0 +1,14 @@
+[
+  { "path": "/login", "auth": false, "method": "GET", "description": "Login page" },
+  { "path": "/register", "auth": false, "method": "GET", "description": "Registration page" },
+  { "path": "/dashboard", "auth": true, "method": "GET", "description": "Main dashboard with project list" },
+  { "path": "/projects/new", "auth": true, "method": "GET", "description": "Create new project form" },
+  { "path": "/projects/[id]", "auth": true, "method": "GET", "description": "Project detail with task list" },
+  { "path": "/projects/[id]/edit", "auth": true, "adminOnly": true, "method": "GET", "description": "Edit project form" },
+  { "path": "/projects/[id]/settings", "auth": true, "adminOnly": true, "method": "GET", "description": "Project settings with delete action" },
+  { "path": "/tasks/[id]", "auth": true, "method": "GET", "description": "Task detail with comments" },
+  { "path": "/admin/users", "auth": true, "adminOnly": true, "method": "GET", "description": "User management table" },
+  { "path": "/profile", "auth": true, "method": "GET", "description": "User profile edit" },
+  { "path": "/invite", "auth": true, "adminOnly": true, "method": "GET", "description": "Invite new user" },
+  { "path": "/notifications", "auth": true, "method": "GET", "description": "User notifications" }
+]

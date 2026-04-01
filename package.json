@@ -10,7 +10,8 @@
     "validate:skills": "./scripts/validate-skills.sh",
     "validate:links": "npx markdown-link-check -q skills/*/SKILL.md agents/*.md commands/*.md README.md || true",
     "validate:plugin": "claude plugin validate .",
-    "validate:workflows": "./scripts/validate-workflows.sh"
+    "validate:workflows": "./scripts/validate-workflows.sh",
+    "eval": "./eval/harness/eval.sh"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",
