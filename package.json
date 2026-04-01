@@ -1,5 +1,5 @@
 {
-  "name": "claude-qa-skills",
+  "name": "qa-skills",
   "version": "1.0.0",
   "private": true,
   "description": "Claude Code QA testing pipeline — generate workflows, execute them, convert to Playwright CI tests",

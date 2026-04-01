@@ -8,7 +8,7 @@ QA testing pipeline for [Claude Code](https://claude.ai/code) — set up authent
 
 ```bash
 # Add the marketplace
-claude plugin marketplace add neonwatty/claude-qa-skills
+claude plugin marketplace add neonwatty/qa-skills
 
 # Install to your project
 claude plugin install qa-skills@neonwatty-qa
@@ -29,10 +29,10 @@ claude plugin install qa-skills@neonwatty-qa
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
+| Command           | Description                                                                  |
+| ----------------- | ---------------------------------------------------------------------------- |
 | `/setup-profiles` | Create or refresh Playwright authentication profiles for the current project |
-| `/run-qa` | Discover all screens, confirm manifest with user, dispatch QA agents |
+| `/run-qa`         | Discover all screens, confirm manifest with user, dispatch QA agents         |
 
 `/setup-profiles` — Set up persistent auth. Claude opens a headed browser for each role, you log in manually, and the session state is saved locally.
 
@@ -51,41 +51,41 @@ claude plugin install qa-skills@neonwatty-qa
 
 ### Profiles — 1 skill
 
-| Skill | Trigger | Description |
-|-------|---------|-------------|
+| Skill            | Trigger                                           | Description                                         |
+| ---------------- | ------------------------------------------------- | --------------------------------------------------- |
 | **use-profiles** | Automatic when `.playwright/profiles.json` exists | Loads saved auth profiles before browser automation |
 
 ### Generators — 3 skills
 
-| Skill | Trigger | Description |
-|-------|---------|-------------|
-| **desktop-workflow-generator** | "generate desktop workflows" | Explores codebase, walks the live app with you step-by-step, co-authors verifications and edge cases |
-| **mobile-workflow-generator** | "generate mobile workflows" | Same with mobile viewport (393x852), iOS HIG awareness, and UX anti-pattern detection |
-| **multi-user-workflow-generator** | "generate multi-user workflows" | Interviews about personas, walks the app with per-persona contexts, co-authors sync verifications |
+| Skill                             | Trigger                         | Description                                                                                          |
+| --------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **desktop-workflow-generator**    | "generate desktop workflows"    | Explores codebase, walks the live app with you step-by-step, co-authors verifications and edge cases |
+| **mobile-workflow-generator**     | "generate mobile workflows"     | Same with mobile viewport (393x852), iOS HIG awareness, and UX anti-pattern detection                |
+| **multi-user-workflow-generator** | "generate multi-user workflows" | Interviews about personas, walks the app with per-persona contexts, co-authors sync verifications    |
 
 ### Converters — 3 skills
 
-| Skill | Trigger | Description |
-|-------|---------|-------------|
-| **desktop-workflow-to-playwright** | "convert desktop workflows to playwright" | Generates `e2e/desktop/` project with Chromium tests, auth setup, CI workflow |
-| **mobile-workflow-to-playwright** | "convert mobile workflows to playwright" | Generates `e2e/mobile/` project with Chromium + WebKit mobile tests, UX anti-pattern assertions |
-| **multi-user-workflow-to-playwright** | "convert multi-user workflows to playwright" | Generates `e2e/multi-user/` project with per-persona auth, multi-context test patterns |
+| Skill                                 | Trigger                                      | Description                                                                                     |
+| ------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **desktop-workflow-to-playwright**    | "convert desktop workflows to playwright"    | Generates `e2e/desktop/` project with Chromium tests, auth setup, CI workflow                   |
+| **mobile-workflow-to-playwright**     | "convert mobile workflows to playwright"     | Generates `e2e/mobile/` project with Chromium + WebKit mobile tests, UX anti-pattern assertions |
+| **multi-user-workflow-to-playwright** | "convert multi-user workflows to playwright" | Generates `e2e/multi-user/` project with per-persona auth, multi-context test patterns          |
 
 ### Runner — 1 skill
 
-| Skill | Trigger | Description |
-|-------|---------|-------------|
+| Skill                 | Trigger         | Description                                                                   |
+| --------------------- | --------------- | ----------------------------------------------------------------------------- |
 | **playwright-runner** | "run workflows" | Executes workflow markdown interactively via Playwright MCP with auth support |
 
 ## Agents
 
 Three specialized QA agents for different levels of testing depth. Agents are autonomous — they navigate the app, inspect screens, and produce structured reports.
 
-| Agent | Trigger | Mindset | What It Catches |
-|-------|---------|---------|-----------------|
-| **smoke-tester** | "smoke test the workflows" | Optimistic — follows happy path | Broken flows, 500s, dead links |
-| **ux-auditor** | "audit the UX of this page" | Obsessive — inspects every detail | Inconsistent spacing, missing states, bad error copy, accessibility gaps |
-| **adversarial-breaker** | "try to break the checkout flow" | Hostile — actively tries to break things | Auth bypasses, double-submits, state corruption, input abuse |
+| Agent                   | Trigger                          | Mindset                                  | What It Catches                                                          |
+| ----------------------- | -------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------ |
+| **smoke-tester**        | "smoke test the workflows"       | Optimistic — follows happy path          | Broken flows, 500s, dead links                                           |
+| **ux-auditor**          | "audit the UX of this page"      | Obsessive — inspects every detail        | Inconsistent spacing, missing states, bad error copy, accessibility gaps |
+| **adversarial-breaker** | "try to break the checkout flow" | Hostile — actively tries to break things | Auth bypasses, double-submits, state corruption, input abuse             |
 
 When run via `/run-qa`, agents receive resolved auth profiles from the orchestrator. When run standalone, agents use the profile specified in the spawn prompt or skip auth if none is provided.
 
@@ -140,10 +140,10 @@ Run `/setup-profiles` once per project. All generators and the runner automatica
 
 Per-project files:
 
-| File | Committed? | Purpose |
-|------|-----------|---------|
-| `.playwright/profiles.json` | Yes | Role names, login URLs, descriptions |
-| `.playwright/profiles/*.json` | No (gitignored) | storageState auth data |
+| File                          | Committed?      | Purpose                              |
+| ----------------------------- | --------------- | ------------------------------------ |
+| `.playwright/profiles.json`   | Yes             | Role names, login URLs, descriptions |
+| `.playwright/profiles/*.json` | No (gitignored) | storageState auth data               |
 
 ### CI (Environment Variables)
 
@@ -165,7 +165,7 @@ No other MCP dependencies required.
 
 ```bash
 # Load local version instead of cached plugin
-claude --plugin-dir /path/to/claude-qa-skills
+claude --plugin-dir /path/to/qa-skills
 ```
 
 ## Related Plugins

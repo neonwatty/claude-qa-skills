@@ -7,9 +7,18 @@
     "url": "https://github.com/neonwatty"
   },
   "license": "MIT",
-  "keywords": ["qa", "testing", "playwright", "e2e", "mobile", "multi-user", "authentication", "ci"],
+  "keywords": [
+    "qa",
+    "testing",
+    "playwright",
+    "e2e",
+    "mobile",
+    "multi-user",
+    "authentication",
+    "ci"
+  ],
   "agents": "./agents",
   "commands": "./commands",
   "skills": "./skills",
-  "repository": "https://github.com/neonwatty/claude-qa-skills"
+  "repository": "https://github.com/neonwatty/qa-skills"
 }

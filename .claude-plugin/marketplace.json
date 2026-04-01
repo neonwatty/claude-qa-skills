@@ -4,11 +4,18 @@
   "plugins": [
     {
       "name": "qa-skills",
-      "source": { "source": "github", "repo": "neonwatty/claude-qa-skills" },
+      "source": { "source": "github", "repo": "neonwatty/qa-skills" },
       "description": "QA testing pipeline — generate workflows, convert to Playwright tests, run interactively or in CI. Desktop, mobile, and multi-user support with built-in authentication.",
       "version": "2.0.0",
       "category": "testing",
-      "tags": ["qa", "playwright", "e2e", "mobile", "multi-user", "authentication"]
+      "tags": [
+        "qa",
+        "playwright",
+        "e2e",
+        "mobile",
+        "multi-user",
+        "authentication"
+      ]
     }
   ]
 }
