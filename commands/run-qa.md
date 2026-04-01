@@ -38,7 +38,7 @@ This phase is deterministic. Do not skip screens, do not use judgment about whic
 
 ### Step 1: Check for Existing Manifest
 
-Look for `/workflows/qa-manifest.json` at the project root.
+Look for `./workflows/qa-manifest.json` at the project root.
 
 **If it exists**, read it and present a summary to the user:
 
@@ -113,7 +113,7 @@ For each discovered route, record:
 
 ### Step 3: Scan Existing Workflows
 
-Read all workflow files in `/workflows/`:
+Read all workflow files in `./workflows/`:
 - `desktop-workflows.md`
 - `mobile-workflows.md`
 - `multi-user-workflows.md`
@@ -199,7 +199,7 @@ Iterate until the user confirms. Every add/remove/edit the user makes gets appli
 
 ### Step 6: Save the Manifest
 
-Create the `/workflows/` directory if it does not already exist, then write the confirmed manifest to `/workflows/qa-manifest.json`:
+Create the `./workflows/` directory if it does not already exist, then write the confirmed manifest to `./workflows/qa-manifest.json`:
 
 ```json
 {
@@ -291,7 +291,10 @@ Record the profile assignment — it will be passed to each agent in the dispatc
 1. Read the storageState JSON file
 2. Load its cookies into a Playwright page via `browser_run_code`
 3. Navigate to `[base_url]`
-4. Check if the browser was redirected to the profile's `loginUrl`
+4. Check if the session is still valid:
+   a. If the browser was redirected to the profile's `loginUrl`, the session has expired
+   b. If the final URL is on a different domain (OAuth provider redirect), the session has expired
+   c. Take a `browser_snapshot` — if login-related elements are visible (sign-in forms, "Log in" buttons), the session has expired
 
 If any session has expired, warn the user immediately:
 
@@ -355,6 +358,47 @@ For each screen in the manifest, spawn the selected agent(s) using the Agent too
 
 **For smoke-tester:** Dispatch one agent per workflow (not per screen), since the smoke tester follows workflow steps sequentially. If a screen appears in multiple workflows, it gets tested in each. For coverage-gap screens (in manifest but not in any workflow), dispatch an additional smoke-tester agent with a simple instruction: "Navigate to [example_url], verify the page loads without errors (no 500, no blank page, no redirect loop), and report pass/fail."
 
+**Smoke-tester coverage-gap template** (dispatched per uncovered screen):
+
+```
+You are operating as the smoke-tester QA agent for a coverage-gap screen
+(no workflow exists for this page).
+
+Target: [screen name] at [base_url][example_url]
+Auth required: [yes/no]
+Auth profile to use: [exact profile name, e.g., "admin"]
+Auth profile path: .playwright/profiles/[profile-name].json
+
+To load the auth profile, read the storageState file and run:
+
+  async (page) => {
+    const state = <contents of .playwright/profiles/[profile-name].json>;
+    await page.context().addCookies(state.cookies);
+    if (state.origins) {
+      for (const origin of state.origins) {
+        if (origin.localStorage && origin.localStorage.length > 0) {
+          await page.goto(origin.origin);
+          await page.evaluate((items) => {
+            for (const { name, value } of items) localStorage.setItem(name, value);
+          }, origin.localStorage);
+        }
+      }
+    }
+    return 'Profile loaded: [profile-name]';
+  }
+
+There is no workflow file for this screen. Perform a basic smoke check:
+
+1. Navigate to [base_url][example_url]
+2. Verify the page loads (no HTTP 500, no blank page, no infinite redirect)
+3. Take a browser_snapshot and confirm content is rendered
+4. Check that no JavaScript errors appear in the console
+5. If auth is required, verify you are not redirected to a login page
+
+Report: PASS if the page loads normally, FAIL with details if any
+check fails.
+```
+
 **For ux-auditor:** Dispatch one agent per screen. Each agent gets the screen URL, name, and any context from the manifest (auth required, related workflows).
 
 **For adversarial-breaker:** Dispatch one agent per logical flow or feature area. Group related screens together (e.g., the entire settings flow, the entire checkout flow) so the agent can test sequences and state transitions.
@@ -368,7 +412,7 @@ For each dispatch, use the Agent tool with the appropriate prompt pattern below.
 ```
 You are operating as the smoke-tester QA agent.
 
-Workflow file: [path to workflow file, e.g., /workflows/desktop-workflows.md]
+Workflow file: [path to workflow file, e.g., ./workflows/desktop-workflows.md]
 Auth required: [yes/no]
 Auth profile to use: [exact profile name, e.g., "admin"]
 Auth profile path: .playwright/profiles/[profile-name].json
@@ -378,6 +422,16 @@ To load the auth profile, read the storageState file and run:
   async (page) => {
     const state = <contents of .playwright/profiles/[profile-name].json>;
     await page.context().addCookies(state.cookies);
+    if (state.origins) {
+      for (const origin of state.origins) {
+        if (origin.localStorage && origin.localStorage.length > 0) {
+          await page.goto(origin.origin);
+          await page.evaluate((items) => {
+            for (const { name, value } of items) localStorage.setItem(name, value);
+          }, origin.localStorage);
+        }
+      }
+    }
     return 'Profile loaded: [profile-name]';
   }
 
@@ -412,6 +466,16 @@ To load the auth profile, read the storageState file and run:
   async (page) => {
     const state = <contents of .playwright/profiles/[profile-name].json>;
     await page.context().addCookies(state.cookies);
+    if (state.origins) {
+      for (const origin of state.origins) {
+        if (origin.localStorage && origin.localStorage.length > 0) {
+          await page.goto(origin.origin);
+          await page.evaluate((items) => {
+            for (const { name, value } of items) localStorage.setItem(name, value);
+          }, origin.localStorage);
+        }
+      }
+    }
     return 'Profile loaded: [profile-name]';
   }
 
@@ -441,9 +505,16 @@ unauthenticated state. Check whether admin-only screens are accessible
 with the "user" profile or unauthenticated.
 ```
 
-### Parallel Dispatch
+### Sequential Dispatch
 
-Spawn agents in parallel where possible to maximize throughput. Group dispatches into batches — spawn up to 3 agents concurrently, wait for results, then spawn the next batch. This prevents overwhelming the browser.
+Spawn agents **sequentially**, not in parallel. All agents share the same Playwright MCP server and browser instance — parallel dispatches would cause agents to interfere with each other's browser state (e.g., Agent A navigates to `/dashboard` while Agent B navigates to `/settings`, producing invalid snapshots).
+
+For each dispatch:
+1. Spawn the agent and wait for it to complete
+2. Log its results (see Progress Tracking below)
+3. Then spawn the next agent
+
+This is slower than parallel dispatch but produces reliable results. If speed is critical, the user can run multiple `/run-qa` sessions in separate terminals, each with its own Playwright MCP server.
 
 ### Progress Tracking
 
@@ -469,7 +540,7 @@ Merge all agent outputs into a structured report organized by screen, then by ag
 
 ### Step 2: Write the Report
 
-Ensure `/workflows/` exists, then write the report to `/workflows/qa-report.md`:
+Ensure `./workflows/` exists, then write the report to `./workflows/qa-report.md`:
 
 ```markdown
 # QA Report — [App Name]
@@ -542,7 +613,7 @@ Results:
 - [N] low findings
 - [N] screens passed all checks
 
-Full report: /workflows/qa-report.md
+Full report: ./workflows/qa-report.md
 
 Would you like me to start fixing the critical and high findings?
 ```

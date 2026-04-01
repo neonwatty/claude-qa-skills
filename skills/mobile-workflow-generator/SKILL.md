@@ -567,11 +567,26 @@ Once a profile is selected, load it:
 async (page) => {
   const state = <contents of .playwright/profiles/<selected-profile>.json>;
   await page.context().addCookies(state.cookies);
+  if (state.origins) {
+    for (const origin of state.origins) {
+      if (origin.localStorage && origin.localStorage.length > 0) {
+        await page.goto(origin.origin);
+        await page.evaluate((items) => {
+          for (const { name, value } of items) localStorage.setItem(name, value);
+        }, origin.localStorage);
+      }
+    }
+  }
   return 'Profile loaded: <selected-profile>';
 }
 ```
 
-Navigate to the base URL and verify the session is valid. If the browser is redirected to the profile's `loginUrl`, the session has expired -- inform the user and suggest running `/setup-profiles` to refresh it.
+Navigate to the base URL and verify the session is still valid:
+1. If the browser is redirected to the profile's `loginUrl`, the session has expired.
+2. If the final URL is on a different domain (e.g., an OAuth provider), the session has expired.
+3. Take a `browser_snapshot` — if login-related UI is visible instead of the expected page content, the session has expired.
+
+If expiry is detected, inform the user and suggest running `/setup-profiles` to refresh it.
 
 **If profiles are configured but storageState files are missing**, inform the user:
 
@@ -600,7 +615,7 @@ TaskCreate:
   status: "in_progress"
   metadata:
     base_url: "http://localhost:3000"
-    auth_method: "profiles"
+    auth_method: "<selected method>"  # profiles, credentials, or storageState
     viewport: "393x852"
     total_journeys: 10
     completed_journeys: 0

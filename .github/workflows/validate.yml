@@ -51,7 +51,7 @@ jobs:
       - name: Lint markdown files
         run: npm run validate:md
 
-      - name: Validate skill structure
+      - name: Validate skill, agent, and command structure
         run: npm run validate:skills
 
       - name: Check links in markdown

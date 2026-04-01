@@ -1,6 +1,6 @@
 ---
 name: use-profiles
-description: This skill should be used when performing browser automation with Playwright MCP in a project that has `.playwright/profiles.json`, when the user mentions "use profile", "load profile", "browser as admin", "test as user", "browse as [role]", "switch profile", "authenticated browser", "logged in browser session", "open the site logged in", or when about to navigate to an authenticated page. Loads saved Playwright storageState authentication profiles so browser sessions start already logged in.
+description: Load saved Playwright storageState authentication profiles before browser automation. Activates when `.playwright/profiles.json` exists and browser work begins on authenticated pages. Trigger phrases include "use profile", "load profile", "browser as [role]", "authenticated browser", "logged in browser session".
 ---
 
 # Using Playwright Authentication Profiles
@@ -49,28 +49,42 @@ Before navigating to any authenticated page, load the profile:
 
 2. Read the storageState JSON file. It contains `cookies` and `origins` (localStorage) arrays.
 
-3. Use `browser_run_code` (MCP tool: `mcp__playwright__browser_run_code`) to restore cookies only. Do NOT navigate to the app's origin to set localStorage first — this triggers client-side auth libraries (e.g., Supabase) that may clear the restored cookies.
+3. Use `browser_run_code` (MCP tool: `mcp__playwright__browser_run_code`) to restore both cookies and localStorage from the storageState.
 
    ```javascript
    async (page) => {
      const state = STATE_JSON_HERE;
      await page.context().addCookies(state.cookies);
+     if (state.origins) {
+       for (const origin of state.origins) {
+         if (origin.localStorage && origin.localStorage.length > 0) {
+           await page.goto(origin.origin);
+           await page.evaluate((items) => {
+             for (const { name, value } of items) localStorage.setItem(name, value);
+           }, origin.localStorage);
+         }
+       }
+     }
      return 'Profile loaded';
    }
    ```
 
-4. Navigate directly to the target authenticated page. The cookies will be sent with the request and the app will recognize the session.
+4. Navigate to the target authenticated page. Cookies are sent with the request and localStorage is already populated, so both server-side and client-side auth libraries will recognize the session.
 
 ## Session Expiry Detection
 
-After loading a profile and navigating to the target page, check whether the session is still valid. The primary heuristic: if the browser is redirected to a URL matching the `loginUrl` from the profile config, the session has likely expired.
+After loading a profile and navigating to the target page, check whether the session is still valid using these heuristics in order:
+
+1. **URL redirect:** If the browser is redirected to a URL matching the `loginUrl` from the profile config, the session has likely expired.
+2. **Auth-provider redirect:** If the final URL is on a different domain (e.g., `accounts.google.com`, `auth0.com`), the app redirected to an OAuth provider — the session has expired.
+3. **Page content check:** Take a `browser_snapshot` and look for login-related elements: sign-in forms, "Log in" / "Sign in" buttons, or "session expired" text. If the target page was expected to show authenticated content but instead shows a login UI, the session has expired.
 
 If expiry is detected:
 - Inform the user that the session for the profile appears to have expired
 - Suggest running `/setup-profiles` to refresh it
 - Do not attempt to log in automatically
 
-This detection is best-effort. Not all apps redirect to the same login URL, so some expired sessions may not be caught by this heuristic. The user can always run `/setup-profiles` manually to refresh any profile.
+These heuristics are best-effort. The user can always run `/setup-profiles` manually to refresh any profile.
 
 ## Missing Profiles
 

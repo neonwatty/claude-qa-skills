@@ -15,14 +15,14 @@ If no Playwright MCP server is configured, guide the user to add one:
 
 ```json
 {
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"]
-    }
+  "playwright": {
+    "command": "npx",
+    "args": ["-y", "@playwright/mcp@latest"]
   }
 }
 ```
+
+This format is for project-level `.mcp.json` files. For global config in `~/.claude/settings.json`, use the `"mcpServers": { ... }` wrapper instead.
 
 The Playwright MCP server runs in headed mode by default, which is required for the interactive login flow.
 
@@ -49,6 +49,13 @@ Ask the user the following questions, one at a time:
 
 For projects spanning multiple apps, suggest using descriptive prefixed names (e.g., `admin-panel-admin`, `storefront-buyer`).
 
+**Profile name validation:** Profile names are used as filenames, so enforce these rules:
+- Lowercase alphanumeric characters and hyphens only (regex: `^[a-z0-9][a-z0-9-]*$`)
+- No spaces, slashes, dots, or special characters
+- Not empty, not longer than 50 characters
+
+If the user provides names that violate these rules, suggest a corrected version (e.g., "Admin User" → "admin-user").
+
 ## Step 4: Write Configuration
 
 Create the directory structure:
@@ -66,11 +73,14 @@ Write `.playwright/profiles.json` with the profile definitions. Format:
   "profiles": {
     "role-name": {
       "loginUrl": "https://example.com/login",
-      "description": "Role description"
+      "description": "Role description",
+      "createdAt": "2026-03-31T12:00:00Z"
     }
   }
 }
 ```
+
+Set `createdAt` to the current ISO 8601 timestamp when creating or refreshing a profile. This helps detect potentially expired sessions — if a profile was created more than 7 days ago, warn the user that it may need refreshing.
 
 ## Step 5: Update .gitignore
 
@@ -104,9 +114,21 @@ For each profile, one at a time:
 
 5. **Confirm:** Tell the user the profile was saved successfully.
 
-6. **Next:** Close the browser with `browser_close`, then move to the next profile.
+6. **Next:** Clear all cookies and localStorage for the next login. Use `browser_run_code`:
+
+   ```javascript
+   async (page) => {
+     await page.context().clearCookies();
+     await page.evaluate(() => localStorage.clear());
+     return 'Session cleared for next profile';
+   }
+   ```
+
+   Then navigate to the next profile's `loginUrl`. Reuse the same browser instance — do not call `browser_close` between profiles.
 
 If the user wants to cancel mid-loop, save whatever profiles have been completed so far — they are still usable.
+
+After ALL profiles are captured, close the browser with `browser_close`.
 
 ## Step 7: Update CLAUDE.md
 
@@ -126,7 +148,7 @@ Authenticated browser profiles are available at `.playwright/profiles/`.
 Available profiles:
 - role-name: Role description
 Config: `.playwright/profiles.json`
-To load a profile, use `browser_run_code` to restore cookies and localStorage from the profile JSON file before navigating.
+To load a profile, use `browser_run_code` to restore cookies via `addCookies()` and localStorage via `page.evaluate()` from the profile JSON file.
 Run `/setup-profiles` to create new profiles or refresh expired sessions.
 ```
 

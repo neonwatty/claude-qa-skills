@@ -321,10 +321,22 @@ Template for each persona:
 
 ```typescript
 import { test as setup } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const authFile = 'playwright/.auth/<persona-lowercase>.json';
 
 setup('authenticate as <persona-name>', async ({ page }) => {
+  // Check for saved profile from /setup-profiles
+  const profilePath = path.join(process.cwd(), '.playwright', 'profiles', '<persona-lowercase>.json');
+  if (fs.existsSync(profilePath)) {
+    const state = JSON.parse(fs.readFileSync(profilePath, 'utf-8'));
+    fs.mkdirSync(path.dirname(authFile), { recursive: true });
+    fs.writeFileSync(authFile, JSON.stringify(state));
+    return;
+  }
+
+  // Fall back to env-var credentials
   if (!process.env.<PERSONA_EMAIL_VAR> || !process.env.<PERSONA_PASSWORD_VAR>) {
     await page.context().storageState({ path: authFile });
     return;
@@ -342,10 +354,22 @@ Concrete example for `tests/admin.setup.ts`:
 
 ```typescript
 import { test as setup } from '@playwright/test';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const authFile = 'playwright/.auth/admin.json';
 
 setup('authenticate as admin', async ({ page }) => {
+  // Check for saved profile from /setup-profiles
+  const profilePath = path.join(process.cwd(), '.playwright', 'profiles', 'admin.json');
+  if (fs.existsSync(profilePath)) {
+    const state = JSON.parse(fs.readFileSync(profilePath, 'utf-8'));
+    fs.mkdirSync(path.dirname(authFile), { recursive: true });
+    fs.writeFileSync(authFile, JSON.stringify(state));
+    return;
+  }
+
+  // Fall back to env-var credentials
   if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
     await page.context().storageState({ path: authFile });
     return;
@@ -359,7 +383,9 @@ setup('authenticate as admin', async ({ page }) => {
 });
 ```
 
-The same pattern applies to every persona -- only the env var names and auth file path change (e.g., `guest1.setup.ts` uses `GUEST1_EMAIL`/`GUEST1_PASSWORD` and `playwright/.auth/guest1.json`).
+When the project has profiles from `/setup-profiles`, the auth setup copies the saved storageState directly — no credentials needed for local test runs. In CI, credentials from environment variables are used instead.
+
+The same pattern applies to every persona -- only the env var names, profile path, and auth file path change (e.g., `guest1.setup.ts` uses `GUEST1_EMAIL`/`GUEST1_PASSWORD`, checks `.playwright/profiles/guest1.json`, and writes to `playwright/.auth/guest1.json`).
 
 Key auth decisions: graceful fallback saves empty auth state when credentials are not set, so tests still run in environments without full credential configuration. Regex button matcher (`/sign in|log in/i`) handles common variations. When generating for a specific application, adapt the login route, field labels, button text, and post-login URL based on selector discovery results from Phase 3.
 

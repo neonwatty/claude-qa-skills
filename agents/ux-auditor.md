@@ -54,6 +54,16 @@ Your job is to inspect screens and workflows with fanatical attention to detail,
      async (page) => {
        const state = <contents of specified profile file>;
        await page.context().addCookies(state.cookies);
+       if (state.origins) {
+         for (const origin of state.origins) {
+           if (origin.localStorage && origin.localStorage.length > 0) {
+             await page.goto(origin.origin);
+             await page.evaluate((items) => {
+               for (const { name, value } of items) localStorage.setItem(name, value);
+             }, origin.localStorage);
+           }
+         }
+       }
        return 'Profile loaded';
      }
      ```

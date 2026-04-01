@@ -226,11 +226,26 @@ Once a profile is selected, load it by reading the storageState JSON and using `
 async (page) => {
   const state = <contents of .playwright/profiles/<selected-profile>.json>;
   await page.context().addCookies(state.cookies);
+  if (state.origins) {
+    for (const origin of state.origins) {
+      if (origin.localStorage && origin.localStorage.length > 0) {
+        await page.goto(origin.origin);
+        await page.evaluate((items) => {
+          for (const { name, value } of items) localStorage.setItem(name, value);
+        }, origin.localStorage);
+      }
+    }
+  }
   return 'Profile loaded: <selected-profile>';
 }
 ```
 
-After loading, navigate to the base URL and verify the session is valid. If the browser is redirected to the profile's `loginUrl`, the session has expired -- inform the user and suggest running `/setup-profiles` to refresh it.
+After loading, navigate to the base URL and verify the session is still valid:
+1. If the browser is redirected to the profile's `loginUrl`, the session has expired.
+2. If the final URL is on a different domain (e.g., an OAuth provider), the session has expired.
+3. Take a `browser_snapshot` — if login-related UI is visible instead of the expected page content, the session has expired.
+
+If expiry is detected, inform the user and suggest running `/setup-profiles` to refresh it.
 
 **If profiles are configured but storageState files are missing**, inform the user:
 
@@ -304,6 +319,9 @@ For multi-user workflows, authentication must be established for each persona. T
       If multiple profiles prefix-match, prefer the longest match.
       If still ambiguous, treat the persona as unmatched (let the user decide).
    c. If no match found, the persona is unmatched
+
+**Note:** Prefix matching can produce unexpected results (e.g., a "user" profile matching persona "user-admin"). Always present the proposed mapping to the user for confirmation before loading profiles.
+
 2. Present the mapping to the user for confirmation:
 
 I matched your personas to saved profiles:

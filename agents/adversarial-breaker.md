@@ -57,9 +57,36 @@ You are not checking whether things work. The smoke tester does that. You are no
      ```
      For each profile in the provided list:
        1. Read .playwright/profiles/<profile-name>.json
-       2. Load cookies via browser_run_code
+       2. Load cookies and localStorage via browser_run_code:
+          ```javascript
+          async (page) => {
+            const state = <contents of profile file>;
+            await page.context().addCookies(state.cookies);
+            if (state.origins) {
+              for (const origin of state.origins) {
+                if (origin.localStorage && origin.localStorage.length > 0) {
+                  await page.goto(origin.origin);
+                  await page.evaluate((items) => {
+                    for (const { name, value } of items) localStorage.setItem(name, value);
+                  }, origin.localStorage);
+                }
+              }
+            }
+            return 'Profile loaded';
+          }
+          ```
        3. Test the target screens with this role
-       4. Clear cookies (browser_run_code to delete all cookies)
+       4. Clear all auth state before switching profiles:
+          ```javascript
+          async (page) => {
+            await page.context().clearCookies();
+            await page.evaluate(() => {
+              localStorage.clear();
+              sessionStorage.clear();
+            });
+            return 'Auth state cleared';
+          }
+          ```
        5. Test the same screens unauthenticated
      ```
    - If no profiles are specified, report that auth boundary testing is limited without profiles and proceed with unauthenticated testing only.

@@ -697,6 +697,9 @@ For multi-user workflows, you need authenticated sessions for EACH persona in th
       If multiple profiles prefix-match, prefer the longest match.
       If still ambiguous, treat the persona as unmatched (let the user decide).
    c. If no match found, the persona is unmatched
+
+**Note:** Prefix matching can produce unexpected results (e.g., a "user" profile matching persona "user-admin"). Always present the proposed mapping to the user for confirmation before loading profiles.
+
 4. For each matched profile, check if the storageState file exists
    at .playwright/profiles/<profile-name>.json.
 ```
@@ -723,9 +726,16 @@ If the user confirms, load each profile into a separate browser context:
 For each persona in the Persona Registry:
   1. Read .playwright/profiles/<matched-profile-name>.json
   2. Create a new Playwright BrowserContext
-  3. Use browser_run_code to restore cookies from the storageState
-  4. Navigate to the base URL and verify the session is valid
-  5. If redirected to loginUrl, the session has expired -- note it for the user
+  3. Use browser_run_code to restore cookies and localStorage from the storageState:
+     - Call page.context().addCookies(state.cookies)
+     - If state.origins exists, for each origin with localStorage entries:
+       navigate to origin.origin, then call page.evaluate() to
+       localStorage.setItem(name, value) for each item
+  4. Navigate to the base URL and verify the session is still valid:
+     - If the browser is redirected to the profile's loginUrl, the session has expired.
+     - If the final URL is on a different domain (e.g., an OAuth provider), the session has expired.
+     - Take a browser_snapshot — if login-related UI is visible instead of the expected page content, the session has expired.
+  5. If expiry is detected, note it for the user
   6. Associate the context with the persona name
 ```
 
@@ -797,7 +807,11 @@ Use the profile-to-persona mapping confirmed in Step 1 above. Each persona's mat
 For each persona in the Persona Registry:
   1. Read .playwright/profiles/<matched-profile-name>.json
   2. Create a new Playwright BrowserContext
-  3. Restore cookies via browser_run_code
+  3. Restore cookies and localStorage via browser_run_code:
+     - Call page.context().addCookies(state.cookies)
+     - If state.origins exists, for each origin with localStorage entries:
+       navigate to origin.origin, then call page.evaluate() to
+       localStorage.setItem(name, value) for each item
   4. Associate the context with the persona name
 ```
 
@@ -820,7 +834,7 @@ TaskCreate:
   status: "in_progress"
   metadata:
     base_url: "http://localhost:3000"
-    auth_method: "profiles"
+    auth_method: "<selected method>"  # profiles, credentials, or storageState
     personas_authenticated: ["Admin", "Host", "Guest1", "Guest2", "Guest3", "Viewer"]
     total_journeys: 8
     completed_journeys: 0
