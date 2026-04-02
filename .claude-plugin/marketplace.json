@@ -5,7 +5,7 @@
     {
       "name": "qa-skills",
       "source": { "source": "github", "repo": "neonwatty/qa-skills" },
-      "description": "QA testing pipeline — generate workflows, convert to Playwright tests, run interactively or in CI. Desktop, mobile, and multi-user support with built-in authentication.",
+      "description": "QA testing pipeline — generate workflows, convert to Playwright tests, run interactively or in CI, and profile Next.js performance via authenticated browser sessions. Desktop, mobile, and multi-user support with built-in authentication.",
       "version": "2.0.0",
       "category": "testing",
       "tags": [
@@ -14,7 +14,10 @@
         "e2e",
         "mobile",
         "multi-user",
-        "authentication"
+        "authentication",
+        "performance",
+        "web-vitals",
+        "nextjs"
       ]
     }
   ]

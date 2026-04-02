@@ -1,6 +1,6 @@
 # Claude QA Skills
 
-QA testing pipeline for [Claude Code](https://claude.ai/code) — set up authentication profiles, generate user workflow documentation, convert to Playwright E2E tests, and run them interactively or in CI. Includes three specialized QA agents (smoke tester, UX auditor, adversarial breaker) for different levels of testing depth. Supports desktop, mobile, and multi-user flows with built-in profile-based authentication.
+QA testing pipeline for [Claude Code](https://claude.ai/code) — set up authentication profiles, generate user workflow documentation, convert to Playwright E2E tests, run them interactively or in CI, and profile Next.js performance via authenticated browser sessions. Includes three specialized QA agents (smoke tester, UX auditor, adversarial breaker) for different levels of testing depth. Supports desktop, mobile, and multi-user flows with built-in profile-based authentication.
 
 > **Read the full walkthrough:** [Claude Code Browser Testing and iOS Automation with MCP Workflows](https://neonwatty.com/posts/claude-code-workflow-testing-mcp/) — how these skills fit into a practical testing workflow.
 
@@ -71,6 +71,12 @@ claude plugin install qa-skills@neonwatty-qa
 | **mobile-workflow-to-playwright**     | "convert mobile workflows to playwright"     | Generates `e2e/mobile/` project with Chromium + WebKit mobile tests, UX anti-pattern assertions |
 | **multi-user-workflow-to-playwright** | "convert multi-user workflows to playwright" | Generates `e2e/multi-user/` project with per-persona auth, multi-context test patterns          |
 
+### Performance — 1 skill
+
+| Skill                    | Trigger             | Description                                                                                                 |
+| ------------------------ | ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **performance-profiler** | "performance audit" | Profiles Next.js pages via Playwright (incl. auth-gated), measures Web Vitals, analyzes bundles, fixes code |
+
 ### Runner — 1 skill
 
 | Skill                 | Trigger         | Description                                                                   |
@@ -111,6 +117,11 @@ A typical QA cycle:
 "generate multi-user workflows"
 "convert multi-user workflows to playwright"
 "run workflows multi-user"
+
+# Performance profiling (uses auth profiles to test login-gated pages)
+"run a performance audit"
+"profile performance"
+"optimize bundle size"
 ```
 
 ## What Gets Generated
