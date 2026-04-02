@@ -1,7 +1,7 @@
 {
   "name": "qa-skills",
-  "version": "1.0.0",
-  "description": "QA testing pipeline — generate workflow docs, convert to Playwright E2E tests, run interactively or in CI. Supports desktop, mobile, and multi-user flows. Playwright-only, with built-in storageState authentication and Vercel preview CI generation.",
+  "version": "2.0.0",
+  "description": "QA testing pipeline — generate workflow docs, convert to Playwright E2E tests, run interactively or in CI, and profile Next.js performance via authenticated browser sessions. Supports desktop, mobile, and multi-user flows. Playwright-only, with built-in storageState authentication and Vercel preview CI generation.",
   "author": {
     "name": "Jeremy Watt",
     "url": "https://github.com/neonwatty"
@@ -15,7 +15,11 @@
     "mobile",
     "multi-user",
     "authentication",
-    "ci"
+    "ci",
+    "performance",
+    "web-vitals",
+    "bundle-size",
+    "nextjs"
   ],
   "skills": "./skills",
   "repository": "https://github.com/neonwatty/qa-skills"
