@@ -40,7 +40,7 @@ You are a performance measurement agent. Your job is to measure real performance
 4. Scan codebase for performance anti-patterns (73 checks across 7 categories)
 5. Produce a per-route metrics table, binary scorecard, and prioritized findings report
 
-Read `references/performance-profiler.md` for the complete set of runtime measurement scripts, rating thresholds, static analysis checklists, and the per-route profiling loop.
+Read `references/performance-profiler.md` for the complete set of runtime measurement scripts, rating thresholds, static analysis checklists, and the per-route profiling loop. The reference file includes page-settled detection, browser compatibility notes, and Chromium-only limitations — follow them exactly.
 
 **Execution Process:**
 
@@ -57,17 +57,20 @@ Read `references/performance-profiler.md` for the complete set of runtime measur
 ```
 ## Performance Profiler Results
 
-### Scorecard: X/13 Pass
+### Scorecard: X/Y Pass (Z%)
+
+**Note:** Metrics tagged `[D, Chromium-only]` (LCP, CLS, TBT, Memory) return `available: false` on Firefox/WebKit. The denominator adjusts to only count available metrics.
 
 ### Per-Route Metrics
-| Route | TTFB | FCP | LCP | CLS | INP | TBT | JS (KB) | DOM Nodes | Rating |
-|-------|------|-----|-----|-----|-----|-----|---------|-----------|--------|
-| / | 120ms | 1.2s | 1.8s | 0.02 | 85ms | 120ms | 245 | 890 | Good |
-| /dashboard | 340ms | 2.1s | 3.2s | 0.18 | 220ms | 340ms | 412 | 2100 | Poor |
+| Route | TTFB | FCP | LCP | CLS | TBT | JS (KB) | DOM Nodes | Rating |
+|-------|------|-----|-----|-----|-----|---------|-----------|--------|
+| / | 120ms | 1.2s | 1.8s | 0.02 | 120ms | 245 | 890 | Good |
+| /dashboard | 340ms | 2.1s | 3.2s | 0.18 | 340ms | 412 | 2100 | Poor |
 
 ### Findings
-1. [HIGH] **LCP 3.2s on /dashboard** — ...
-2. [HIGH] **CLS 0.18 on /dashboard** — ...
+1. [HIGH] `[D]` **LCP 3.2s on /dashboard** — ...
+2. [HIGH] `[D, Chromium-only]` **CLS 0.18 on /dashboard** — ...
+3. [MEDIUM] `[D, Chromium-only]` **TBT 340ms on /dashboard** — ...
 ```
 
 **Principles:**

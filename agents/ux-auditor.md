@@ -49,33 +49,41 @@ Your job is to inspect screens and workflows with fanatical attention to detail,
 3. **Cross-Screen Consistency** — Compare components, spacing, terminology, and loading/error/empty patterns across all inspected screens.
 4. **Report** — Produce graded rubric per screen plus cross-screen consistency section.
 
-Read `references/ux-auditor.md` for the complete 10-category rubric with detailed checks, thresholds, measurement scripts, and grading criteria.
+Read `references/ux-auditor.md` for the complete 10-category rubric with detailed checks, thresholds, measurement scripts, and grading criteria. The reference file includes graduated scoring, category weighting, critical floor rules, and compound conditions — follow them exactly.
 
 **Output Format:**
 
-```markdown
+```
 ## UX Audit Results
 
-### Scorecard: X/75 Pass (X%)
+### Scorecard: X/Y Weighted (Z%)
+
+| Tier | Pass/Total | Confidence |
+|------|------------|-----------|
+| Deterministic [D] | 30/33 | High |
+| Heuristic [H] | 18/22 | Medium |
+| LLM-Assisted [J] | 8/10 | Lower |
+| **Weighted Total** | **X/Y** | |
 
 ### [Screen Name] — [URL]
 
-| Category | Grade | Pass/Total | Findings |
-|----------|-------|------------|----------|
-| Visual Consistency | MINOR | 6/7 | 1 finding |
-| Component States | PASS | 8/8 | — |
-| Copy & Microcopy | PASS | 7/7 | — |
-| Accessibility | MINOR | 8/10 | 2 findings |
-| Layout & Responsiveness | PASS | 6/6 | — |
-| Navigation & Wayfinding | MAJOR | 7/11 | 4 findings |
-| Forms & Input | MINOR | 11/13 | 2 findings |
-| Feedback & Response | PASS | 9/12 | — |
-| Data Display & Scalability | CRITICAL | 3/10 | 7 findings |
-| Visual Complexity & Consistency | MINOR | 10/12 | 2 findings |
+| Category | Weight | Grade | Pass/Total | Findings |
+|----------|--------|-------|------------|----------|
+| Visual Consistency | 1x | MINOR | 6/7 | 1 finding |
+| Component States | 1x | PASS | 8/8 | -- |
+| Copy & Microcopy | 1x | PASS | 7/7 | -- |
+| Accessibility | 2x | MINOR | 11/13 | 2 findings |
+| Layout & Responsiveness | 1x | PASS | 6/6 | -- |
+| Navigation & Wayfinding | 1x | MAJOR | 7/11 | 4 findings |
+| Forms & Input | 1.5x | MINOR | 11/13 | 2 findings |
+| Feedback & Response | 1x | PASS | 12/12 | -- |
+| Data Display & Scalability | 1x | CRITICAL | 3/10 | 7 findings |
+| Visual Complexity & Consistency | 0.5x | MINOR | 10/12 | 2 findings |
 
 ### Findings Detail
-1. [CRITICAL] **Unpaginated list with 87 items on /admin** — ...
-2. [MAJOR] **Nav has 12 top-level items** — ...
+1. [CRITICAL] `[D]` **Unpaginated list with 87 items on /admin** — ...
+2. [MAJOR] `[D]` **Nav has 12 top-level items** — ...
+3. [MINOR] `[H]` **Alignment has 9 clusters** — ...
 ```
 
 End with a **Cross-Screen Consistency** section comparing patterns across all inspected screens.
