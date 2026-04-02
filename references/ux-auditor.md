@@ -88,6 +88,7 @@ Use `deepQuerySelectorAll` instead of `document.querySelectorAll` in scripts tha
 ### Existing Checks
 
 - [ ] `[D]` Color contrast: text meets WCAG AA (4.5:1 for normal text, 3:1 for large) `[research: WCAG 2.1]`
+  > **Dark Mode Testing:** Run contrast checks twice — once in default mode and once after setting `page.emulateMedia({ colorScheme: 'dark' })` via Playwright. Common dark mode failures: gray text on dark backgrounds, muted brand colors losing contrast, focus rings invisible on dark backgrounds, status colors (green/red) losing distinction. Report both mode results in findings.
 - [ ] `[D]` Touch targets: at least 44x44px on interactive elements `[research: WCAG 2.1]`
 - [ ] `[D]` Form labels: every input has an associated label (not just placeholder)
 - [ ] `[D]` Alt text: images have meaningful alt text (or empty alt for decorative)
@@ -103,6 +104,15 @@ Use `deepQuerySelectorAll` instead of `document.querySelectorAll` in scripts tha
 - [ ] `[D]` Flesch-Kincaid grade level: 7-8th good, 9-12th warning, >12th bad. Method: compute from `innerText`
 - [ ] `[D]` Flesch Reading Ease: 60-80 good, 40-60 warning, <40 bad. Method: compute from `innerText`
 - [ ] `[D]` Heading frequency: every 200-300 words good, 300-600 warning, >600 bad. Method: count words between h1-h6 `[heuristic]`
+
+### WCAG 2.2 Checks
+
+- [ ] `[D]` Target Size — Desktop (WCAG 2.5.8): Interactive elements must be at least 24x24 CSS px, or have 24px spacing offset from adjacent targets `[research: WCAG 2.2]`
+- [ ] `[H]` Focus Not Obscured (WCAG 2.4.11): When an element receives keyboard focus, it must not be entirely hidden behind sticky headers, footers, or other fixed-position elements. Requires tabbing through elements and checking overlap with fixed elements `[research: WCAG 2.2]`
+- [ ] `[H]` Dragging Movements (WCAG 2.5.7): All drag operations (`[draggable="true"]`, elements with `ondragstart`) must have a single-pointer alternative (button, click, keyboard). Flag draggable elements without visible alternative nearby `[research: WCAG 2.2]`
+- [ ] `[H]` Consistent Help (WCAG 3.2.6): Help mechanisms (links containing "help", "support", "contact", "FAQ"; chat widgets) must appear in the same relative position across pages. Requires cross-screen comparison `[research: WCAG 2.2]`
+- [ ] `[H]` Redundant Entry (WCAG 3.3.7): In multi-step forms, information entered in earlier steps must be auto-populated or available for selection in later steps. Requires multi-step interaction `[research: WCAG 2.2]`
+- [ ] `[H]` Accessible Authentication (WCAG 3.3.8): Authentication must not require cognitive function tests. Flag CAPTCHA elements (`iframe[src*="captcha"]`, `[class*="captcha"]`, `[class*="recaptcha"]`, `[class*="hcaptcha"]`) unless an alternative is provided `[research: WCAG 2.2]`
 
 ---
 
@@ -1419,6 +1429,242 @@ These scripts provide programmatic pre-measurement for checks that were previous
 })()
 ```
 
+### WCAG 2.2 Measurement Scripts
+
+#### 1. Target Size Desktop (24x24)
+
+```javascript
+(() => {
+  const interactive = document.querySelectorAll(
+    'a[href], button, input:not([type="hidden"]), select, textarea, [role="button"], [onclick], [tabindex]:not([tabindex="-1"])'
+  );
+  const violations = [];
+  
+  interactive.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    if (rect.top >= window.innerHeight || rect.bottom <= 0) return;
+    
+    const meetsMinimum = rect.width >= 24 && rect.height >= 24;
+    
+    if (!meetsMinimum) {
+      // Check spacing offset alternative (24px circle centered on target doesn't intersect adjacent targets)
+      // Simplified: check if nearest interactive neighbor is at least 24px away
+      let hasSpacingOffset = true;
+      interactive.forEach(other => {
+        if (other === el) return;
+        const otherRect = other.getBoundingClientRect();
+        if (otherRect.width === 0) return;
+        const dx = Math.max(0, Math.max(rect.left, otherRect.left) - Math.min(rect.right, otherRect.right));
+        const dy = Math.max(0, Math.max(rect.top, otherRect.top) - Math.min(rect.bottom, otherRect.bottom));
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 24) hasSpacingOffset = false;
+      });
+      
+      if (!hasSpacingOffset) {
+        violations.push({
+          tag: el.tagName,
+          text: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 30),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height)
+        });
+      }
+    }
+  });
+  
+  const grade = violations.length === 0 ? 'good' : violations.length <= 3 ? 'warning' : 'bad';
+  return { check: 'wcag_target_size_desktop', violations: violations.length, details: violations.slice(0, 15), grade };
+})()
+```
+
+#### 2. Accessible Authentication
+
+```javascript
+(() => {
+  const captchaSelectors = [
+    'iframe[src*="captcha"]', 'iframe[src*="recaptcha"]', 'iframe[src*="hcaptcha"]',
+    '[class*="captcha"]', '[class*="recaptcha"]', '[class*="hcaptcha"]',
+    '[id*="captcha"]', '[data-sitekey]'
+  ];
+  const captchaEls = document.querySelectorAll(captchaSelectors.join(', '));
+  
+  if (captchaEls.length === 0) {
+    return { check: 'wcag_accessible_auth', captchaFound: false, grade: 'good' };
+  }
+  
+  // Check for alternative auth methods nearby
+  const loginForm = captchaEls[0].closest('form') || captchaEls[0].parentElement;
+  const hasPasskey = !!loginForm?.querySelector('[autocomplete="webauthn"]');
+  const hasSocialLogin = !!document.querySelector('a[href*="oauth"], a[href*="login/google"], a[href*="login/github"], [class*="social-login"]');
+  const hasAlternative = hasPasskey || hasSocialLogin;
+  
+  const grade = hasAlternative ? 'good' : 'bad';
+  return {
+    check: 'wcag_accessible_auth',
+    captchaFound: true,
+    captchaCount: captchaEls.length,
+    hasPasskey,
+    hasSocialLogin,
+    hasAlternative,
+    grade
+  };
+})()
+```
+
+#### 3. Dragging Movements
+
+```javascript
+(() => {
+  const draggables = document.querySelectorAll('[draggable="true"], [ondragstart], [class*="draggable"], [class*="sortable"]');
+  const findings = [];
+  
+  draggables.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    
+    // Check for single-pointer alternatives nearby
+    const parent = el.closest('[class*="list"], [class*="container"], [role="list"]') || el.parentElement;
+    const hasButtons = parent?.querySelector('button[class*="move"], button[class*="sort"], button[class*="up"], button[class*="down"], [class*="handle"]');
+    const hasKeyboard = el.getAttribute('tabindex') !== null || el.getAttribute('role') === 'option';
+    
+    if (!hasButtons && !hasKeyboard) {
+      findings.push({
+        tag: el.tagName,
+        class: (el.className || '').toString().slice(0, 40),
+        text: (el.textContent || '').trim().slice(0, 30)
+      });
+    }
+  });
+  
+  const grade = findings.length === 0 ? 'good' : 'bad';
+  return { check: 'wcag_dragging_movements', draggableElements: draggables.length, withoutAlternative: findings.length, findings: findings.slice(0, 10), grade };
+})()
+```
+
+#### 4. Focus Not Obscured (Pre-check)
+
+Note: Full verification requires Playwright interaction. Static pre-check can detect fixed/sticky elements that may obscure focus.
+
+```javascript
+(() => {
+  const allEls = document.querySelectorAll('*');
+  const fixedSticky = [];
+  
+  allEls.forEach(el => {
+    const style = getComputedStyle(el);
+    if (style.position === 'fixed' || style.position === 'sticky') {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        fixedSticky.push({
+          tag: el.tagName,
+          position: style.position,
+          class: (el.className || '').toString().slice(0, 40),
+          top: Math.round(rect.top),
+          bottom: Math.round(rect.bottom),
+          height: Math.round(rect.height),
+          coversTop: rect.top <= 0,
+          coversBottom: rect.bottom >= window.innerHeight
+        });
+      }
+    }
+  });
+  
+  const riskLevel = fixedSticky.length === 0 ? 'low' : fixedSticky.length <= 2 ? 'medium' : 'high';
+  const grade = fixedSticky.length === 0 ? 'good' : 'warning';
+  return { check: 'wcag_focus_not_obscured_precheck', fixedStickyElements: fixedSticky.length, riskLevel, elements: fixedSticky.slice(0, 10), grade, note: 'Full verification requires Playwright tabbing interaction' };
+})()
+```
+
+#### 5. Consistent Help (Pre-check)
+
+Note: Full verification requires Playwright interaction. Static pre-check can detect help mechanisms on the current page.
+
+```javascript
+(() => {
+  const helpLinks = document.querySelectorAll('a[href*="help"], a[href*="support"], a[href*="contact"], a[href*="faq"]');
+  const helpText = document.querySelectorAll('a, button');
+  const helpElements = [];
+  
+  helpLinks.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0) {
+      helpElements.push({
+        type: 'link',
+        text: (el.textContent || '').trim().slice(0, 30),
+        href: (el.getAttribute('href') || '').slice(0, 60),
+        top: Math.round(rect.top),
+        left: Math.round(rect.left)
+      });
+    }
+  });
+  
+  helpText.forEach(el => {
+    const text = (el.textContent || '').toLowerCase().trim();
+    if (/^(help|support|contact|faq|get help)$/i.test(text)) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && !helpElements.some(h => h.text.toLowerCase() === text)) {
+        helpElements.push({
+          type: el.tagName.toLowerCase(),
+          text: text.slice(0, 30),
+          top: Math.round(rect.top),
+          left: Math.round(rect.left)
+        });
+      }
+    }
+  });
+  
+  // Check for chat widgets
+  const chatWidgets = document.querySelectorAll('[class*="chat-widget"], [class*="intercom"], [class*="drift"], [class*="crisp"], [class*="zendesk"], [id*="chat-widget"]');
+  chatWidgets.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0) {
+      helpElements.push({ type: 'chat-widget', class: (el.className || '').toString().slice(0, 40), top: Math.round(rect.top), left: Math.round(rect.left) });
+    }
+  });
+  
+  const grade = helpElements.length > 0 ? 'good' : 'warning';
+  return { check: 'wcag_consistent_help_precheck', helpMechanismsFound: helpElements.length, elements: helpElements.slice(0, 10), grade, note: 'Cross-page consistency requires Playwright multi-page comparison' };
+})()
+```
+
+#### 6. Redundant Entry (Pre-check)
+
+Note: Full verification requires Playwright interaction. Static pre-check can detect multi-step form patterns.
+
+```javascript
+(() => {
+  const progressIndicators = document.querySelectorAll('[class*="step"], [class*="progress"], [class*="wizard"], [role="progressbar"], [class*="stepper"]');
+  const forms = document.querySelectorAll('form');
+  const multiStepSignals = [];
+  
+  if (progressIndicators.length > 0) {
+    multiStepSignals.push({ type: 'progress-indicator', count: progressIndicators.length });
+  }
+  
+  forms.forEach(form => {
+    const fieldsets = form.querySelectorAll('fieldset, [class*="step"], [class*="section"]');
+    const hiddenSections = form.querySelectorAll('[style*="display: none"], [hidden], [class*="hidden"]');
+    if (fieldsets.length > 1 || hiddenSections.length > 0) {
+      multiStepSignals.push({
+        type: 'multi-section-form',
+        fieldsets: fieldsets.length,
+        hiddenSections: hiddenSections.length
+      });
+    }
+    
+    // Check for autocomplete attributes (good practice for redundant entry)
+    const inputs = form.querySelectorAll('input[autocomplete]');
+    if (inputs.length > 0) {
+      multiStepSignals.push({ type: 'autocomplete-present', count: inputs.length });
+    }
+  });
+  
+  const isMultiStep = multiStepSignals.some(s => s.type !== 'autocomplete-present');
+  const grade = !isMultiStep ? 'good' : 'warning';
+  return { check: 'wcag_redundant_entry_precheck', isMultiStep, signals: multiStepSignals, grade, note: 'Full verification requires Playwright multi-step form interaction' };
+})()
+```
+
 ---
 
 ## Scoring Framework
@@ -1523,14 +1769,14 @@ Each category receives a severity grade based on the number and impact of failed
 | 1. Visual Consistency | 7 |
 | 2. Component States | 8 |
 | 3. Copy & Microcopy | 7 |
-| 4. Accessibility | 13 |
+| 4. Accessibility | 19 |
 | 5. Layout & Responsiveness | 6 |
 | 6. Navigation & Wayfinding | 11 |
 | 7. Forms & Input | 13 |
 | 8. Feedback & Response | 12 |
 | 9. Data Display & Scalability | 10 |
 | 10. Visual Complexity & Consistency | 12 |
-| **Total** | **99** |
+| **Total** | **105** |
 
 > **Note:** Not all checks apply to every screen. The denominator adjusts to only count applicable checks. The target total of ~75 reflects a typical screen; screens with no forms, for example, would exclude Category 7 enhanced checks.
 
