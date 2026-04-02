@@ -1,7 +1,7 @@
 ---
 description: Discover all screens, confirm the manifest with the user, then dispatch QA agents to every screen
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion, mcp__playwright__*
-argument-hint: "[smoke|ux|adversarial|all] [--url URL]"
+argument-hint: "[smoke|ux|adversarial|performance|mobile|all] [--url URL]"
 ---
 
 # Run QA
@@ -23,7 +23,9 @@ The first positional argument selects which agent(s) to dispatch:
 | `smoke` | smoke-tester only |
 | `ux` | ux-auditor only |
 | `adversarial` | adversarial-breaker only |
-| `all` | All three agents per screen |
+| `performance` | performance-profiler only |
+| `mobile` | mobile-ux-auditor only |
+| `all` | All five agents |
 | _(none)_ | Ask the user which agent(s) to run |
 
 ### URL Flag
@@ -289,15 +291,17 @@ Multiple profiles are available. Which profile should each agent use?
 
 For smoke-tester: [admin / user / viewer]
 For ux-auditor: [admin / user / viewer]
+For performance-profiler: [admin / user / viewer]
+For mobile-ux-auditor: [admin / user / viewer]
 For adversarial-breaker: [admin / user / viewer, or "all" to test each role]
 
-Default: Use "[first profile name]" for smoke and UX, "all" for adversarial.
+Default: Use "[first profile name]" for smoke, UX, performance, and mobile, "all" for adversarial.
 Accept defaults? (yes / customize)
 ```
 
 When computing defaults, use the first profile from the discovered list — do not hardcode "user". If a profile named "user" exists, prefer it; otherwise fall back to the first available profile.
 
-The adversarial-breaker benefits from testing with multiple profiles (and unauthenticated) to find auth boundary issues. The smoke-tester and ux-auditor typically need one consistent profile.
+The adversarial-breaker benefits from testing with multiple profiles (and unauthenticated) to find auth boundary issues. The smoke-tester, ux-auditor, performance-profiler, and mobile-ux-auditor typically need one consistent profile.
 
 Record the profile assignment — it will be passed to each agent in the dispatch template.
 
@@ -356,9 +360,11 @@ If no agent was specified, ask:
 Which QA agent(s) should I run?
 
 1. smoke-tester — Quick pass/fail on each screen (fastest)
-2. ux-auditor — Obsessive UX rubric on each screen (thorough)
+2. ux-auditor — Obsessive UX rubric on each screen (10 categories, binary scorecard)
 3. adversarial-breaker — Try to break each flow (deepest)
-4. All three — Full QA suite
+4. performance-profiler — Measure Web Vitals, bundle size, code patterns (report-only)
+5. mobile-ux-auditor — Mobile UX audit at 393x852 viewport (10 categories, iOS + web)
+6. All five — Full QA suite
 
 Select one or more (e.g., "1 and 2", or "all"):
 ```
@@ -438,6 +444,10 @@ check fails.
 ```
 
 **For ux-auditor:** Dispatch one agent per screen. Each agent gets the screen URL, name, and any context from the manifest (auth required, related workflows).
+
+**For performance-profiler:** Dispatch ONE agent for all routes (not per-screen). The agent receives the full route list and profiles each sequentially, then runs a single static analysis pass across the codebase.
+
+**For mobile-ux-auditor:** Dispatch one agent per screen (same as ux-auditor). Each agent gets the screen URL and inspects it at 393x852 viewport.
 
 **For adversarial-breaker:** Dispatch one agent per logical flow or feature area. Group related screens together (e.g., the entire settings flow, the entire checkout flow) so the agent can test sequences and state transitions.
 
@@ -561,6 +571,97 @@ unauthenticated state. Check whether admin-only screens are accessible
 with the "user" profile or unauthenticated.
 ```
 
+**Performance-profiler template** (dispatched ONCE for all routes, not per-screen):
+
+For performance-profiler: dispatch one agent for ALL routes (not per-screen). The agent profiles each route sequentially and also runs a single static analysis pass across the codebase.
+
+```
+You are operating as the performance-profiler QA agent.
+
+Target routes: [list all routes from manifest with example_urls]
+Auth required: [yes/no]
+Auth profile to use: [exact profile name]
+Auth profile path: .playwright/profiles/[profile-name].json
+
+To load the auth profile, read the storageState file and run:
+
+  async (page) => {
+    const state = <contents of .playwright/profiles/[profile-name].json>;
+    await page.context().addCookies(state.cookies);
+    if (state.origins) {
+      for (const origin of state.origins) {
+        if (origin.localStorage && origin.localStorage.length > 0) {
+          await page.goto(origin.origin);
+          await page.evaluate((items) => {
+            for (const { name, value } of items) localStorage.setItem(name, value);
+          }, origin.localStorage);
+        }
+      }
+    }
+    if (state.sessionStorage && state.sessionStorage.length > 0) {
+      await page.evaluate((items) => {
+        for (const { name, value } of items) sessionStorage.setItem(name, value);
+      }, state.sessionStorage);
+    }
+    return 'Profile loaded: [profile-name]';
+  }
+
+After loading, verify auth by navigating to [base_url]. If redirected to login, the session has expired — report this and stop.
+
+[AGENT SYSTEM PROMPT — insert the body content of agents/performance-profiler.md here, excluding YAML frontmatter]
+
+Base URL: [base_url]
+
+Begin your audit now. Profile each route, run static analysis, and return your findings in the output format specified in your system prompt.
+```
+
+**Mobile-ux-auditor template** (dispatched per screen, same as ux-auditor):
+
+```
+You are operating as the mobile-ux-auditor QA agent.
+
+Target: [screen name] at [base_url][example_url]
+Auth required: [yes/no]
+Auth profile to use: [exact profile name]
+Auth profile path: .playwright/profiles/[profile-name].json
+Related workflows: [workflow refs, if any]
+
+To load the auth profile, read the storageState file and run:
+
+  async (page) => {
+    const state = <contents of .playwright/profiles/[profile-name].json>;
+    await page.context().addCookies(state.cookies);
+    if (state.origins) {
+      for (const origin of state.origins) {
+        if (origin.localStorage && origin.localStorage.length > 0) {
+          await page.goto(origin.origin);
+          await page.evaluate((items) => {
+            for (const { name, value } of items) localStorage.setItem(name, value);
+          }, origin.localStorage);
+        }
+      }
+    }
+    if (state.sessionStorage && state.sessionStorage.length > 0) {
+      await page.evaluate((items) => {
+        for (const { name, value } of items) sessionStorage.setItem(name, value);
+      }, state.sessionStorage);
+    }
+    return 'Profile loaded: [profile-name]';
+  }
+
+IMPORTANT: Set mobile viewport before inspection:
+  browser_resize width=393 height=852
+
+After loading, navigate to [full_url]. If redirected to login, the session has expired — report this and stop.
+
+[AGENT SYSTEM PROMPT — insert the body content of agents/mobile-ux-auditor.md here, excluding YAML frontmatter]
+
+Base URL: [base_url]
+Screen URL: [full_url]
+
+Begin your audit now. When complete, return your findings in the output format specified in your system prompt.
+```
+
 ### Sequential Dispatch
 
 Spawn agents **sequentially**, not in parallel. Do NOT batch multiple Agent tool calls in the same response turn. All agents share the same Playwright MCP server and browser instance — parallel dispatches would cause agents to interfere with each other's browser state (e.g., Agent A navigates to `/dashboard` while Agent B navigates to `/settings`, producing invalid snapshots).
@@ -626,10 +727,12 @@ After each agent completes, log its result:
 ```
 ✓ [workflow-name] — smoke-tester: 12/12 steps passed
 ✓ [screen-name] — ux-auditor: 2 major, 5 minor findings
+✓ [screen-name] — mobile-ux-auditor: 1 major, 3 minor findings
+✓ [all-routes] — performance-profiler: 8/13 checks passed, 3 flagged
 ✓ [flow-name] — adversarial-breaker: 1 critical, 3 high findings
 ```
 
-Track overall progress: `[completed] / [total] dispatches completed`. Note that dispatch units differ by agent type: workflows for smoke-tester, screens for ux-auditor, and flows for adversarial-breaker.
+Track overall progress: `[completed] / [total] dispatches completed`. Note that dispatch units differ by agent type: workflows for smoke-tester, screens for ux-auditor and mobile-ux-auditor, all routes for performance-profiler, and flows for adversarial-breaker.
 
 ---
 
@@ -667,12 +770,12 @@ Report format:
 
 ## Coverage
 
-| Screen | Smoke | UX | Adversarial |
-|--------|-------|----|-------------|
-| /dashboard | ✓ Pass | 2 minor | 1 high |
-| /settings | ✓ Pass | 1 major | — |
-| /login | ✓ Pass | Pass | 1 critical |
-| ... | | | |
+| Screen | Smoke | UX (X/75) | Mobile (X/56) | Perf | Adversarial |
+|--------|-------|-----------|---------------|------|-------------|
+| /dashboard | ✓ Pass | 62/75, 2 minor | 48/56, 1 minor | 10/13 | 1 high |
+| /settings | ✓ Pass | 58/75, 1 major | 45/56, 2 minor | 11/13 | — |
+| /login | ✓ Pass | 70/75 | 52/56 | 13/13 | 1 critical |
+| ... | | | | | |
 
 ## Findings by Severity
 
@@ -689,12 +792,33 @@ Report format:
 ### Low
 [...]
 
+## Smoke Test Results
+(pass/fail per step)
+
+## UX Audit Results
+(scorecard X/75 + graded rubric per screen, 10 categories)
+
+## Mobile UX Audit Results
+(scorecard X/56 + graded rubric per screen, 10 mobile categories)
+
+## Performance Results
+(scorecard X/13 + per-route metrics table + flagged findings)
+
+## Adversarial Results
+(findings with severity)
+
+> Only sections for dispatched personas appear in the report.
+
 ## Screen Details
 
 ### /dashboard
 #### Smoke Test — PASS (12/12 steps)
 #### UX Audit
 [Full rubric output from ux-auditor]
+#### Mobile UX Audit
+[Full rubric output from mobile-ux-auditor]
+#### Performance Profile
+[Per-route metrics from performance-profiler]
 #### Adversarial Audit
 [Full findings from adversarial-breaker]
 
