@@ -93,8 +93,8 @@ Input zoom: iOS Safari automatically zooms in when a user focuses an input with 
 | 3.1 | Hamburger menu detection | `[H]` | Hidden nav behind 3-line icon | Tab bar or visible nav (2-3x engagement improvement) | Look for `[class*="hamburger"]`, `[class*="burger"]`, `[aria-label*="menu"]` with hidden child navs, or `<button>` elements that toggle `<nav>` visibility | MAJOR |
 | 3.2 | FAB detection | `[H]` | Floating circle button | Navigation bar buttons | `position: fixed` elements with `border-radius >= 50%` and aspect ratio ~1:1 (width/height between 0.8 and 1.2) | MAJOR |
 | 3.3 | Breadcrumb on mobile | `[H]` | Desktop breadcrumb pattern on small screen | Back button + title | Query `nav[aria-label*="breadcrumb"]`, `[class*="breadcrumb"]`, or `ol/ul` with `>` / `/` separators between links | MINOR |
-| 3.4 | Material Design styling | `[J]` | Android-specific visuals | iOS shadows, rounded corners, system font | Detect MD3 elevation shadows (`box-shadow` matching MD3 levels), ripple effect classes (`[class*="ripple"]`, `[class*="mdc-"]`), or Material component prefixes | MINOR |
-| 3.5 | Component patterns | `[J]` | Web checkboxes, web dropdowns | iOS-style toggles, pickers | Detect `<input type="checkbox">` rendered as standard web checkboxes (not styled as toggles) and `<select>` rendered as web dropdowns instead of iOS pickers | MINOR |
+| 3.4 | Material Design styling | `[H]` | Android-specific visuals | iOS shadows, rounded corners, system font | Detect MD3 elevation shadows (`box-shadow` matching MD3 levels), ripple effect classes (`[class*="ripple"]`, `[class*="mdc-"]`), or Material component prefixes (script 4) | MINOR |
+| 3.5 | Component patterns | `[H]` | Web checkboxes, web dropdowns | iOS-style toggles, pickers | Detect `<input type="checkbox">` rendered as standard web checkboxes (not styled as toggles) and `<select>` rendered as web dropdowns instead of iOS pickers (script 5) | MINOR |
 | 3.6 | Toast/snackbar detection | `[H]` | Android-style bottom notifications | iOS alert/banner patterns | Detect `[class*="toast"]`, `[class*="snackbar"]`, or fixed-bottom short-lived notification elements styled in Material Design fashion | MINOR |
 
 ### Detection Heuristics
@@ -228,9 +228,9 @@ Luminance = 0.2126 * R_linear + 0.7152 * G_linear + 0.0722 * B_linear
 | # | Check | Tier | Threshold | Method | Severity |
 |---|-------|------|-----------|--------|----------|
 | 9.1 | Pull-to-refresh on scrollable lists | `[H]` | Present on all scrollable list screens | Check for refresh indicators: `[class*="pull-to-refresh"]`, `[class*="ptr"]`, custom scroll event handlers at top of scrollable containers | MINOR |
-| 9.2 | Swipe-back gesture support | `[J]` | 100% of pushed screens | Navigate into sub-pages, verify `history.back()` works and left-edge swipe is not blocked by the page | MINOR |
-| 9.3 | Swipe-to-reveal on list items | `[J]` | Consistent across all applicable lists | Check for swipe-to-reveal patterns (`[class*="swipe"]`, `[class*="slide-action"]`) on list items | MINOR |
-| 9.4 | Gesture cancellability | `[J]` | User can cancel mid-gesture | Verify that swipe/drag gestures can be cancelled by reversing direction or moving finger off target | MINOR |
+| 9.2 | Swipe-back gesture support | `[J]` | 100% of pushed screens | Navigate into sub-pages, verify `history.back()` works and left-edge swipe is not blocked by the page (pre-filter: gesture support script) | MINOR |
+| 9.3 | Swipe-to-reveal on list items | `[J]` | Consistent across all applicable lists | Check for swipe-to-reveal patterns (`[class*="swipe"]`, `[class*="slide-action"]`) on list items (pre-filter: gesture support script) | MINOR |
+| 9.4 | Gesture cancellability | `[J]` | User can cancel mid-gesture | Verify that swipe/drag gestures can be cancelled by reversing direction or moving finger off target (pre-filter: gesture support script) | MINOR |
 | 9.5 | Skeleton screens for loads > 300ms | `[D]` | Present for content-loading screens | Query `[class*="skeleton"]`, `[class*="shimmer"]`, `[class*="placeholder"]` during navigation transitions | MINOR |
 
 ---
@@ -1022,6 +1022,369 @@ The following JavaScript snippets are designed for use with `browser_evaluate` t
 })()
 ```
 
+### Heuristic Scripts for LLM-Assisted Checks
+
+### 11. iOS Native Feel Composite
+
+Detects multiple iOS anti-patterns in a single pass: Material Design components, web checkboxes, FABs, hamburger menus, breadcrumbs, and Android toasts.
+
+```javascript
+(() => {
+  const findings = [];
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  // (a) Material Design components
+  const mdcSelectors = '[class*="mdc-"], [class*="mat-"], [class*="Mui"], [class*="ripple"]';
+  const mdcElements = document.querySelectorAll(mdcSelectors);
+  if (mdcElements.length > 0) {
+    findings.push({
+      type: 'material-design-components',
+      count: mdcElements.length,
+      samples: Array.from(mdcElements).slice(0, 5).map(el => ({
+        tag: el.tagName,
+        class: (el.className || '').toString().slice(0, 60)
+      })),
+      severity: 'MINOR'
+    });
+  }
+
+  // (b) Web checkboxes — input[type="checkbox"] that are small (< 30px) without toggle/switch class
+  const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+  let webCheckboxCount = 0;
+  checkboxes.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
+    const classes = ((el.className || '') + ' ' + (el.parentElement?.className || '')).toString().toLowerCase();
+    const isToggle = classes.includes('toggle') || classes.includes('switch');
+    if ((rect.width < 30 || rect.height < 30) && !isToggle) {
+      webCheckboxCount++;
+    }
+  });
+  if (webCheckboxCount > 0) {
+    findings.push({
+      type: 'web-checkboxes',
+      count: webCheckboxCount,
+      severity: 'MINOR'
+    });
+  }
+
+  // (c) FAB — position: fixed buttons that are circular
+  document.querySelectorAll('button, [role="button"], a').forEach(el => {
+    const computed = getComputedStyle(el);
+    if (computed.position !== 'fixed') return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const borderRadius = parseFloat(computed.borderRadius) || 0;
+    const isCircular = borderRadius >= rect.width * 0.4;
+    const isSquarish = Math.abs(rect.width - rect.height) / Math.max(rect.width, rect.height) < 0.2;
+    if (isCircular && isSquarish && rect.width >= 40 && rect.width <= 80) {
+      findings.push({
+        type: 'fab',
+        count: 1,
+        element: { tag: el.tagName, class: (el.className || '').toString().slice(0, 40), width: Math.round(rect.width), height: Math.round(rect.height) },
+        severity: 'MAJOR'
+      });
+    }
+  });
+
+  // (d) Hamburger — class-based + SVG heuristic
+  const hamburgerByClass = document.querySelectorAll('[class*="hamburger"], [class*="burger"], [aria-label*="menu" i]');
+  let hamburgerCount = 0;
+  hamburgerByClass.forEach(el => {
+    if (el.getBoundingClientRect().width > 0) hamburgerCount++;
+  });
+  // SVG heuristic: button with 2-4 horizontal lines in SVG
+  document.querySelectorAll('button svg, [role="button"] svg').forEach(svg => {
+    const lines = svg.querySelectorAll('line, rect, path');
+    if (lines.length >= 2 && lines.length <= 4) {
+      const lineRects = Array.from(lines).map(l => l.getBoundingClientRect());
+      const isHorizontal = lineRects.every(r => r.width > r.height * 1.5);
+      if (isHorizontal) hamburgerCount++;
+    }
+  });
+  if (hamburgerCount > 0) {
+    findings.push({
+      type: 'hamburger-menu',
+      count: hamburgerCount,
+      severity: 'MAJOR'
+    });
+  }
+
+  // (e) Breadcrumbs on mobile
+  const breadcrumbs = document.querySelectorAll('[class*="breadcrumb"], nav ol');
+  let breadcrumbCount = 0;
+  breadcrumbs.forEach(el => {
+    if (el.getBoundingClientRect().width > 0) breadcrumbCount++;
+  });
+  if (breadcrumbCount > 0) {
+    findings.push({
+      type: 'breadcrumbs',
+      count: breadcrumbCount,
+      severity: 'MINOR'
+    });
+  }
+
+  // (f) Android toasts — toast/snackbar with position: fixed near bottom
+  const toasts = document.querySelectorAll('[class*="toast"], [class*="snackbar"]');
+  let toastCount = 0;
+  toasts.forEach(el => {
+    const computed = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    if (computed.position === 'fixed' && rect.bottom > vh * 0.7) {
+      toastCount++;
+    }
+  });
+  if (toastCount > 0) {
+    findings.push({
+      type: 'android-toasts',
+      count: toastCount,
+      severity: 'MINOR'
+    });
+  }
+
+  const majorCount = findings.filter(f => f.severity === 'MAJOR').reduce((sum, f) => sum + f.count, 0);
+
+  return {
+    findings,
+    totalFindings: findings.length,
+    majorCount,
+    grade: majorCount === 0 ? 'GOOD' : 'FAIL',
+    note: '0 MAJOR findings = good. MAJOR items: hamburger menus, FABs.'
+  };
+})()
+```
+
+### 12. Gesture Support Pre-filter
+
+Detects gesture libraries, swipe blockers, swipe-related classes, and scrollable lists missing pull-to-refresh. Note: LLM should physically test swipe-back and swipe-to-reveal.
+
+```javascript
+(() => {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  // (a) Gesture libraries in script tags
+  const gestureKeywords = ['hammer', 'interact', 'swipe', 'gesture', 'touch'];
+  const scripts = document.querySelectorAll('script[src]');
+  const gestureLibraries = [];
+  scripts.forEach(s => {
+    const src = (s.getAttribute('src') || '').toLowerCase();
+    gestureKeywords.forEach(kw => {
+      if (src.includes(kw)) {
+        gestureLibraries.push({ keyword: kw, src: src.slice(0, 100) });
+      }
+    });
+  });
+
+  // (b) touch-action: none or overscroll-behavior: none on large elements (> 50% viewport width)
+  let swipeBlockerCount = 0;
+  const swipeBlockers = [];
+  document.querySelectorAll('*').forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width < vw * 0.5) return;
+    const computed = getComputedStyle(el);
+    const touchAction = computed.touchAction;
+    const overscrollBehavior = computed.overscrollBehavior;
+    if (touchAction === 'none' || overscrollBehavior === 'none') {
+      swipeBlockerCount++;
+      if (swipeBlockers.length < 5) {
+        swipeBlockers.push({
+          tag: el.tagName,
+          class: (el.className || '').toString().slice(0, 40),
+          touchAction,
+          overscrollBehavior,
+          width: Math.round(rect.width)
+        });
+      }
+    }
+  });
+
+  // (c) Swipe-related classes
+  const swipeElements = document.querySelectorAll('[class*="swipe"], [class*="swipeable"]');
+  const swipeClasses = Array.from(swipeElements).slice(0, 5).map(el => ({
+    tag: el.tagName,
+    class: (el.className || '').toString().slice(0, 60)
+  }));
+
+  // (d) Scrollable lists missing pull-to-refresh
+  const scrollableContainers = [];
+  let scrollableListsWithoutPTR = 0;
+  document.querySelectorAll('*').forEach(el => {
+    const computed = getComputedStyle(el);
+    const overflowY = computed.overflowY;
+    if (overflowY !== 'auto' && overflowY !== 'scroll') return;
+    const listChildren = el.querySelectorAll(':scope > li, :scope > div, :scope > article, :scope > a');
+    if (listChildren.length <= 5) return;
+    // Check for PTR class
+    const classes = (el.className || '').toString().toLowerCase() +
+      (el.parentElement?.className || '').toString().toLowerCase();
+    const hasPTR = classes.includes('pull-to-refresh') || classes.includes('ptr') ||
+      classes.includes('refresh');
+    if (!hasPTR) {
+      scrollableListsWithoutPTR++;
+      if (scrollableContainers.length < 5) {
+        scrollableContainers.push({
+          tag: el.tagName,
+          class: (el.className || '').toString().slice(0, 40),
+          childCount: listChildren.length
+        });
+      }
+    }
+  });
+
+  return {
+    swipeBlockerCount,
+    swipeBlockers,
+    gestureLibraries,
+    swipeClasses,
+    scrollableListsWithoutPTR,
+    scrollableContainers,
+    grade: swipeBlockerCount === 0 ? 'GOOD' : 'FAIL',
+    note: 'LLM should physically test swipe-back and swipe-to-reveal.'
+  };
+})()
+```
+
+### 13. Entrance/Exit Asymmetry
+
+This check cannot be detected from static CSS. CSS `transition-duration` is a single value and does not separate entrance from exit. Tier remains `[J]`.
+
+```javascript
+(() => {
+  return {
+    available: false,
+    reason: 'Entrance/exit asymmetry requires interaction testing. CSS transition-duration is a single value — it does not separate entrance from exit.'
+  };
+})()
+```
+
+### 14. Material Design Styling Detection
+
+Focused detection of Material Design component class prefixes (MDC, MUI, Material) and ripple effect elements. Maps to Cat 3 check 3.4.
+
+```javascript
+(() => {
+  const prefixes = [
+    { selector: '[class*="mdc-"]', label: 'MDC (Material Design Components)' },
+    { selector: '[class*="mat-"]', label: 'Angular Material (mat-)' },
+    { selector: '[class*="Mui"]', label: 'MUI (Material UI for React)' },
+    { selector: '[class*="ripple"]', label: 'Ripple effect' }
+  ];
+
+  const results = [];
+  let totalCount = 0;
+
+  prefixes.forEach(({ selector, label }) => {
+    const elements = document.querySelectorAll(selector);
+    if (elements.length > 0) {
+      totalCount += elements.length;
+      results.push({
+        label,
+        selector,
+        count: elements.length,
+        samples: Array.from(elements).slice(0, 3).map(el => ({
+          tag: el.tagName,
+          class: (el.className || '').toString().slice(0, 60)
+        }))
+      });
+    }
+  });
+
+  return {
+    materialDesignDetected: totalCount > 0,
+    totalCount,
+    breakdown: results,
+    severity: totalCount > 0 ? 'MINOR' : 'NONE',
+    grade: totalCount === 0 ? 'GOOD' : 'FLAG',
+    note: '0 Material Design elements = good for iOS-targeted apps.'
+  };
+})()
+```
+
+### 15. Component Pattern Detection (Checkbox vs Toggle)
+
+Classifies checkboxes as web-style or styled toggles, and detects unstyled native `<select>` elements. Maps to Cat 3 check 3.5.
+
+```javascript
+(() => {
+  const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+  let webCheckboxCount = 0;
+  let styledToggleCount = 0;
+  const webCheckboxSamples = [];
+  const styledToggleSamples = [];
+
+  checkboxes.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
+    const elClasses = ((el.className || '') + ' ' + (el.parentElement?.className || '')).toString().toLowerCase();
+    const hasToggleClass = elClasses.includes('toggle') || elClasses.includes('switch');
+    const isLarge = rect.width > 30 || rect.height > 30;
+
+    if (hasToggleClass || isLarge) {
+      styledToggleCount++;
+      if (styledToggleSamples.length < 5) {
+        styledToggleSamples.push({
+          tag: el.tagName,
+          class: (el.className || '').toString().slice(0, 40),
+          parentClass: (el.parentElement?.className || '').toString().slice(0, 40),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height)
+        });
+      }
+    } else {
+      webCheckboxCount++;
+      if (webCheckboxSamples.length < 5) {
+        webCheckboxSamples.push({
+          tag: el.tagName,
+          class: (el.className || '').toString().slice(0, 40),
+          parentClass: (el.parentElement?.className || '').toString().slice(0, 40),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height)
+        });
+      }
+    }
+  });
+
+  // Detect unstyled <select> elements (native browser dropdowns)
+  const selects = document.querySelectorAll('select');
+  let nativeSelectCount = 0;
+  const nativeSelectSamples = [];
+  selects.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
+    const computed = getComputedStyle(el);
+    // Native selects typically have default appearance
+    const appearance = computed.appearance || computed.webkitAppearance;
+    const hasCustomClass = (el.className || '').toString().length > 0;
+    // If appearance is not 'none' and no custom styling class, likely native
+    if (appearance !== 'none' && !hasCustomClass) {
+      nativeSelectCount++;
+      if (nativeSelectSamples.length < 5) {
+        nativeSelectSamples.push({
+          tag: el.tagName,
+          name: el.name || el.id || 'unnamed',
+          appearance,
+          width: Math.round(rect.width),
+          height: Math.round(rect.height)
+        });
+      }
+    }
+  });
+
+  return {
+    webCheckboxCount,
+    styledToggleCount,
+    nativeSelectCount,
+    webCheckboxSamples,
+    styledToggleSamples,
+    nativeSelectSamples,
+    grade: webCheckboxCount === 0 ? 'GOOD' : 'FAIL',
+    note: '0 web checkboxes on mobile = good. Prefer iOS-style toggles.'
+  };
+})()
+```
+
 ---
 
 ## Severity Grading
@@ -1101,8 +1464,8 @@ Each check is scored as:
 | Tier | Pass/Total | Confidence |
 |------|------------|-----------|
 | Deterministic [D] | 35/38 | High |
-| Heuristic [H] | 10/12 | Medium |
-| LLM-Assisted [J] | 3/6 | Lower |
+| Heuristic [H] | 12/14 | Medium |
+| LLM-Assisted [J] | 3/4 | Lower |
 | **Weighted Total** | **X/Y** | |
 
 ### [Screen Name] — [URL] (393x852)
@@ -1130,7 +1493,7 @@ Each check is scored as:
 |----------|------------|---------------|
 | 1. Touch & Interaction | 7 | 7 [D] |
 | 2. iOS Safari Specific | 5 | 3 [D], 2 [H] |
-| 3. iOS Native Feel | 6 | 4 [H], 2 [J] |
+| 3. iOS Native Feel | 6 | 6 [H] |
 | 4. Viewport & Responsive | 6 | 5 [D], 1 [H] |
 | 5. Mobile Typography | 10 | 9 [D], 1 [H] |
 | 6. Mobile Form UX | 8 | 8 [D] |
@@ -1138,4 +1501,4 @@ Each check is scored as:
 | 8. Mobile Accessibility — WCAG Mobile | 6 | 2 [D], 4 [H] |
 | 9. Gestures & Interaction | 5 | 1 [D], 1 [H], 3 [J] |
 | 10. Animation & Motion | 5 | 2 [D], 2 [H], 1 [J] |
-| **Total** | **56** | **38 [D], 12 [H], 6 [J]** |
+| **Total** | **56** | **38 [D], 14 [H], 4 [J]** |
