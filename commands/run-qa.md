@@ -1,7 +1,7 @@
 ---
 description: Discover all screens, confirm the manifest with the user, then dispatch QA agents to every screen
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion, mcp__playwright__*
-argument-hint: "[smoke|ux|adversarial|performance|mobile|all] [--url URL]"
+argument-hint: "[smoke|ux|adversarial|performance|mobile|all] [--url URL] [--screenshots]"
 ---
 
 # Run QA
@@ -31,6 +31,10 @@ The first positional argument selects which agent(s) to dispatch:
 ### URL Flag
 
 `--url URL` sets the base URL of the running application. If not provided, ask the user via `AskUserQuestion` in Phase 3.
+
+### Screenshots Flag
+
+`--screenshots` enables before/after screenshot capture. When set, ux-auditor and mobile-ux-auditor agents will call `browser_take_screenshot` (PNG) for each screen and save images to `./qa-reports/screenshots/{persona}-{screen}-{timestamp}.png`. The orchestrator creates the `./qa-reports/screenshots/` directory before dispatching agents. Screenshots are referenced in the Phase 6 comparison report when a previous run exists.
 
 ---
 
@@ -369,7 +373,17 @@ Which QA agent(s) should I run?
 Select one or more (e.g., "1 and 2", or "all"):
 ```
 
-### Step 4: Validate Manifest for Dispatch
+### Step 4: Create Screenshot Directory (if --screenshots)
+
+If `--screenshots` was passed, create the screenshot output directory:
+
+```bash
+mkdir -p ./qa-reports/screenshots
+```
+
+This directory is passed to ux-auditor and mobile-ux-auditor agents in their spawn templates.
+
+### Step 5: Validate Manifest for Dispatch
 
 Before dispatching, verify all manifest entries are navigable:
 
@@ -391,9 +405,11 @@ Please provide example values for these routes before QA can proceed.
 
 ## Phase 4: Dispatch Agents
 
-For each screen in the manifest, spawn the selected agent(s) using the Agent tool. This is the mechanical execution phase — every screen in the manifest gets audited, no exceptions.
+Spawn the selected agent(s) using the Agent tool. Every screen in the manifest gets audited, no exceptions.
 
 ### Dispatch Strategy
+
+The default strategy is **1 agent per persona**, not 1 agent per screen. Each persona agent receives the full screen list and processes screens sequentially within a single dispatch. This dramatically reduces overhead — a 35-screen app with 3 personas dispatches 3 agents instead of 105, completing in ~43 minutes total instead of hours.
 
 **For smoke-tester:** Dispatch one agent per workflow (not per screen), since the smoke tester follows workflow steps sequentially. If a screen appears in multiple workflows, it gets tested in each. For coverage-gap screens (in manifest but not in any workflow), dispatch an additional smoke-tester agent with a simple instruction: "Navigate to [example_url], verify the page loads without errors (no 500, no blank page, no redirect loop), and report pass/fail."
 
@@ -443,13 +459,25 @@ Report: PASS if the page loads normally, FAIL with details if any
 check fails.
 ```
 
-**For ux-auditor:** Dispatch one agent per screen. Each agent gets the screen URL, name, and any context from the manifest (auth required, related workflows).
+**For ux-auditor:** Dispatch ONE agent for all screens (not per-screen). The agent receives the full screen list from the manifest and audits each screen sequentially, loading auth once and switching between screens. This enables cross-screen consistency checks within a single agent context.
 
 **For performance-profiler:** Dispatch ONE agent for all routes (not per-screen). The agent receives the full route list and profiles each sequentially, then runs a single static analysis pass across the codebase.
 
-**For mobile-ux-auditor:** Dispatch one agent per screen (same as ux-auditor). Each agent gets the screen URL and inspects it at 393x852 viewport.
+**For mobile-ux-auditor:** Dispatch ONE agent for all screens (same as ux-auditor). The agent receives the full screen list, sets 393x852 viewport once, and audits each screen sequentially.
 
-**For adversarial-breaker:** Dispatch one agent per logical flow or feature area. Group related screens together (e.g., the entire settings flow, the entire checkout flow) so the agent can test sequences and state transitions.
+**For adversarial-breaker:** Dispatch ONE agent for all flows. The agent receives the full screen list grouped by feature area and tests sequences, state transitions, and auth boundaries across all screens.
+
+**Summary of dispatch counts:**
+
+| Persona | Dispatch Count | Scope |
+|---------|---------------|-------|
+| smoke-tester | 1 per workflow + 1 per coverage-gap screen | Workflow-driven |
+| ux-auditor | **1 total** | All screens sequentially |
+| mobile-ux-auditor | **1 total** | All screens at 393x852 |
+| performance-profiler | **1 total** | All routes + static analysis |
+| adversarial-breaker | **1 total** | All flows + auth boundaries |
+
+For a typical 35-screen app, running `all` dispatches ~5-7 agents total (depending on workflow count), not 105+. This completes in roughly 40-50 minutes.
 
 ### Agent Spawn Templates
 
@@ -509,18 +537,19 @@ sequentially. Return your findings in the output format specified in
 your system prompt.
 ```
 
-**UX-auditor and adversarial-breaker template** (dispatched per screen or per flow):
+**UX-auditor template** (dispatched ONCE for all screens):
 
-Use `example_url` from the manifest (not the raw `url` with dynamic segments) so agents receive a navigable path.
+Use `example_url` from the manifest (not the raw `url` with dynamic segments) so the agent receives navigable paths.
 
 ```
-You are operating as the [agent-name] QA agent.
+You are operating as the ux-auditor QA agent.
 
-Target: [screen name] at [base_url][example_url]
-Auth required: [yes/no]
+Target screens (audit ALL sequentially):
+[For each screen in manifest, list:]
+  - [screen name]: [base_url][example_url] (auth: [yes/no], workflows: [refs])
+
 Auth profile to use: [exact profile name, e.g., "admin"]
 Auth profile path: .playwright/profiles/[profile-name].json
-Related workflows: [workflow refs, if any]
 
 To load the auth profile, read the storageState file and run:
 
@@ -545,20 +574,78 @@ To load the auth profile, read the storageState file and run:
     return 'Profile loaded: [profile-name]';
   }
 
-After loading, navigate to [full_url]. If you are redirected to
-[loginUrl from profiles.json], the session has expired — report this
-and stop.
+After loading, verify auth by navigating to [base_url]. If you are
+redirected to [loginUrl from profiles.json], the session has expired —
+report this and stop.
 
-[AGENT SYSTEM PROMPT — insert the body content of the agent definition file here, excluding YAML frontmatter]
+[AGENT SYSTEM PROMPT — insert the body content of agents/ux-auditor.md here, excluding YAML frontmatter]
 
 Base URL: [base_url]
-Screen URL: [full_url]
 
-Begin your audit now. When complete, return your findings in the output
-format specified in your system prompt.
+Screenshots: [yes/no — set to yes if --screenshots flag was passed]
+Screenshot directory: ./qa-reports/screenshots/
+
+Audit each screen in the target list sequentially. For each screen:
+1. Navigate to the screen URL
+2. If screenshots enabled, call browser_take_screenshot and save as
+   ./qa-reports/screenshots/ux-auditor-{screen-slug}-{timestamp}.png
+3. Apply the full 10-category rubric
+4. Record findings before moving to the next screen
+
+After all screens are complete, add a Cross-Screen Consistency section
+comparing patterns across all inspected screens. Return your findings
+in the output format specified in your system prompt.
 ```
 
-For the **adversarial-breaker**, if the user selected "all" profiles in Phase 3, Step 2, dispatch the agent with ALL profile names and instruct it to test with each profile as well as unauthenticated:
+**Adversarial-breaker template** (dispatched ONCE for all flows):
+
+```
+You are operating as the adversarial-breaker QA agent.
+
+Target screens (attack ALL sequentially, grouped by flow):
+[For each screen in manifest, list:]
+  - [screen name]: [base_url][example_url] (auth: [yes/no], workflows: [refs])
+
+Auth profile to use: [exact profile name, e.g., "admin"]
+Auth profile path: .playwright/profiles/[profile-name].json
+
+To load the auth profile, read the storageState file and run:
+
+  async (page) => {
+    const state = <contents of .playwright/profiles/[profile-name].json>;
+    await page.context().addCookies(state.cookies);
+    if (state.origins) {
+      for (const origin of state.origins) {
+        if (origin.localStorage && origin.localStorage.length > 0) {
+          await page.goto(origin.origin);
+          await page.evaluate((items) => {
+            for (const { name, value } of items) localStorage.setItem(name, value);
+          }, origin.localStorage);
+        }
+      }
+    }
+    if (state.sessionStorage && state.sessionStorage.length > 0) {
+      await page.evaluate((items) => {
+        for (const { name, value } of items) sessionStorage.setItem(name, value);
+      }, state.sessionStorage);
+    }
+    return 'Profile loaded: [profile-name]';
+  }
+
+After loading, verify auth by navigating to [base_url]. If redirected
+to login, the session has expired — report this and stop.
+
+[AGENT SYSTEM PROMPT — insert the body content of agents/adversarial-breaker.md here, excluding YAML frontmatter]
+
+Base URL: [base_url]
+
+Group screens by feature area (e.g., auth flow, settings flow, checkout
+flow) and attack each group sequentially. Test sequences, state
+transitions, and edge cases across related screens. Return your
+findings in the output format specified in your system prompt.
+```
+
+For the **adversarial-breaker**, if the user selected "all" profiles in Phase 3, Step 2, append to the template:
 
 ```
 Auth profiles to test:
@@ -615,16 +702,17 @@ Base URL: [base_url]
 Begin your audit now. Profile each route, run static analysis, and return your findings in the output format specified in your system prompt.
 ```
 
-**Mobile-ux-auditor template** (dispatched per screen, same as ux-auditor):
+**Mobile-ux-auditor template** (dispatched ONCE for all screens):
 
 ```
 You are operating as the mobile-ux-auditor QA agent.
 
-Target: [screen name] at [base_url][example_url]
-Auth required: [yes/no]
+Target screens (audit ALL sequentially at 393x852):
+[For each screen in manifest, list:]
+  - [screen name]: [base_url][example_url] (auth: [yes/no], workflows: [refs])
+
 Auth profile to use: [exact profile name]
 Auth profile path: .playwright/profiles/[profile-name].json
-Related workflows: [workflow refs, if any]
 
 To load the auth profile, read the storageState file and run:
 
@@ -652,14 +740,27 @@ To load the auth profile, read the storageState file and run:
 IMPORTANT: Set mobile viewport before inspection:
   browser_resize width=393 height=852
 
-After loading, navigate to [full_url]. If redirected to login, the session has expired — report this and stop.
+After loading, verify auth by navigating to [base_url]. If redirected
+to login, the session has expired — report this and stop.
 
 [AGENT SYSTEM PROMPT — insert the body content of agents/mobile-ux-auditor.md here, excluding YAML frontmatter]
 
 Base URL: [base_url]
-Screen URL: [full_url]
 
-Begin your audit now. When complete, return your findings in the output format specified in your system prompt.
+Screenshots: [yes/no — set to yes if --screenshots flag was passed]
+Screenshot directory: ./qa-reports/screenshots/
+
+Audit each screen in the target list sequentially at 393x852 viewport.
+For each screen:
+1. Navigate to the screen URL
+2. If screenshots enabled, call browser_take_screenshot and save as
+   ./qa-reports/screenshots/mobile-ux-auditor-{screen-slug}-{timestamp}.png
+3. Apply the full 10-category mobile rubric
+4. Record findings before moving to the next screen
+
+After all screens are complete, add a Cross-Screen Consistency section
+comparing mobile-specific patterns. Return your findings in the output
+format specified in your system prompt.
 ```
 
 ### Sequential Dispatch
@@ -732,7 +833,7 @@ After each agent completes, log its result:
 ✓ [flow-name] — adversarial-breaker: 1 critical, 3 high findings
 ```
 
-Track overall progress: `[completed] / [total] dispatches completed`. Note that dispatch units differ by agent type: workflows for smoke-tester, screens for ux-auditor and mobile-ux-auditor, all routes for performance-profiler, and flows for adversarial-breaker.
+Track overall progress: `[completed] / [total] dispatches completed`. Each persona is a single dispatch (except smoke-tester which dispatches per workflow). A typical `all` run has ~5-7 total dispatches.
 
 ---
 
@@ -848,3 +949,271 @@ Would you like me to start fixing the critical and high findings?
 ```
 
 After presenting the summary, delete `./workflows/qa-report-partial.json` if it exists — the partial results have been merged into the final report and are no longer needed.
+
+---
+
+## Phase 6: Comparison Report (Auto-Generated)
+
+This phase runs automatically when a previous QA report exists. It generates an HTML before/after comparison report for visual diffing.
+
+### Step 1: Detect Previous Run
+
+Search for previous reports in `./workflows/`:
+
+```bash
+ls -t ./workflows/qa-report-*.md | head -2
+```
+
+If only one report exists (the current run), skip Phase 6. If two or more exist, use the second-most-recent as the "before" report and the current run as the "after" report.
+
+### Step 2: Parse Reports
+
+Extract from both reports:
+- Per-persona total scores (e.g., UX: 62/75, Mobile: 48/56)
+- Per-screen per-category scores
+- Finding counts by severity
+- Screen-level grades per category
+
+### Step 3: Generate HTML Comparison Report
+
+Write `./qa-reports/comparison-report.html` with the following structure:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QA Comparison — [App Name]</title>
+  <style>
+    :root {
+      --green: #22c55e; --red: #ef4444; --yellow: #eab308;
+      --bg: #0f172a; --surface: #1e293b; --text: #e2e8f0;
+      --border: #334155; --muted: #94a3b8;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: var(--bg); color: var(--text); padding: 2rem; }
+    .header { text-align: center; margin-bottom: 2rem; }
+    .header h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .header .dates { color: var(--muted); font-size: 0.875rem; }
+
+    /* Score delta cards */
+    .delta-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                   gap: 1rem; margin-bottom: 2rem; }
+    .delta-card { background: var(--surface); border-radius: 12px; padding: 1.25rem;
+                  border: 1px solid var(--border); }
+    .delta-card .persona { font-size: 0.75rem; text-transform: uppercase;
+                           letter-spacing: 0.05em; color: var(--muted); }
+    .delta-card .scores { display: flex; align-items: center; gap: 0.75rem;
+                          margin-top: 0.5rem; }
+    .delta-card .before { font-size: 1.25rem; color: var(--muted);
+                          text-decoration: line-through; }
+    .delta-card .arrow { color: var(--muted); }
+    .delta-card .after { font-size: 1.5rem; font-weight: 700; }
+    .delta-card .delta { font-size: 0.875rem; font-weight: 600; margin-top: 0.25rem; }
+    .delta.positive { color: var(--green); }
+    .delta.negative { color: var(--red); }
+    .delta.neutral { color: var(--yellow); }
+
+    /* Filter toggles */
+    .filters { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .filters button { padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border);
+                      background: var(--surface); color: var(--text); cursor: pointer;
+                      font-size: 0.875rem; }
+    .filters button.active { background: #3b82f6; border-color: #3b82f6; }
+
+    /* Category breakdown table */
+    .breakdown { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+    .breakdown th, .breakdown td { padding: 0.75rem 1rem; text-align: left;
+                                    border-bottom: 1px solid var(--border); }
+    .breakdown th { font-size: 0.75rem; text-transform: uppercase;
+                    color: var(--muted); }
+    .breakdown .improved { color: var(--green); }
+    .breakdown .regressed { color: var(--red); }
+    .breakdown .unchanged { color: var(--muted); }
+
+    /* Screen cards */
+    .screen-card { background: var(--surface); border-radius: 12px;
+                   border: 1px solid var(--border); margin-bottom: 1rem;
+                   overflow: hidden; }
+    .screen-card summary { padding: 1rem 1.25rem; cursor: pointer;
+                           display: flex; justify-content: space-between;
+                           align-items: center; }
+    .screen-card summary .title { font-weight: 600; }
+    .screen-card summary .tags { display: flex; gap: 0.5rem; }
+    .screen-card .tag { font-size: 0.7rem; padding: 0.2rem 0.5rem;
+                        border-radius: 4px; }
+    .tag.fix-ux { background: #1e3a5f; color: #60a5fa; }
+    .tag.fix-mobile { background: #1e3a2f; color: #4ade80; }
+    .tag.fix-perf { background: #3a2f1e; color: #fbbf24; }
+    .tag.fix-security { background: #3a1e1e; color: #f87171; }
+    .screen-card .content { padding: 1.25rem; border-top: 1px solid var(--border); }
+
+    /* Screenshot comparison */
+    .screenshot-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+                          margin-top: 1rem; }
+    .screenshot-compare img { width: 100%; border-radius: 8px;
+                              border: 1px solid var(--border); }
+    .screenshot-compare .label { font-size: 0.75rem; color: var(--muted);
+                                 text-align: center; margin-top: 0.25rem; }
+
+    /* Hidden by filter */
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>QA Comparison Report</h1>
+    <div class="dates">
+      <span>Before: [before-date]</span> &mdash;
+      <span>After: [after-date]</span>
+    </div>
+  </div>
+
+  <!-- Score delta cards (before → after per persona) -->
+  <div class="delta-cards">
+    <!-- Repeat for each persona that was run -->
+    <div class="delta-card">
+      <div class="persona">UX Auditor</div>
+      <div class="scores">
+        <span class="before">[before-score]/[total]</span>
+        <span class="arrow">&rarr;</span>
+        <span class="after">[after-score]/[total]</span>
+      </div>
+      <div class="delta [positive|negative|neutral]">[+N|-N|0] ([+X%|-X%])</div>
+    </div>
+    <!-- ... mobile-ux-auditor, performance-profiler, adversarial-breaker, smoke-tester -->
+  </div>
+
+  <!-- Filter toggles -->
+  <div class="filters">
+    <button class="active" data-filter="all">All</button>
+    <button data-filter="desktop">Desktop</button>
+    <button data-filter="mobile">Mobile</button>
+  </div>
+
+  <!-- Category-level breakdown table -->
+  <table class="breakdown">
+    <thead>
+      <tr>
+        <th>Category</th>
+        <th>Before</th>
+        <th>After</th>
+        <th>Delta</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Repeat for each category across all personas -->
+      <tr>
+        <td>[Category Name]</td>
+        <td>[before-score]</td>
+        <td>[after-score]</td>
+        <td class="[improved|regressed|unchanged]">[+N|-N|0]</td>
+        <td>[improved|regressed|unchanged]</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Expandable screen cards with fix-type tags -->
+  <!-- Repeat for each screen -->
+  <details class="screen-card" data-type="[desktop|mobile|both]">
+    <summary>
+      <span class="title">[Screen Name] — [URL]</span>
+      <span class="tags">
+        <!-- Tag by fix type: which persona found issues -->
+        <span class="tag fix-ux">UX</span>
+        <span class="tag fix-mobile">Mobile</span>
+      </span>
+    </summary>
+    <div class="content">
+      <!-- Per-persona score delta for this screen -->
+      <p>UX: [before] &rarr; [after] ([delta])</p>
+      <p>Mobile: [before] &rarr; [after] ([delta])</p>
+
+      <!-- Side-by-side screenshot comparison (if --screenshots was used) -->
+      <div class="screenshot-compare">
+        <div>
+          <img src="screenshots/ux-auditor-[screen]-[before-timestamp].png"
+               alt="Before — desktop" />
+          <div class="label">Before (Desktop)</div>
+        </div>
+        <div>
+          <img src="screenshots/ux-auditor-[screen]-[after-timestamp].png"
+               alt="After — desktop" />
+          <div class="label">After (Desktop)</div>
+        </div>
+      </div>
+      <div class="screenshot-compare">
+        <div>
+          <img src="screenshots/mobile-ux-auditor-[screen]-[before-timestamp].png"
+               alt="Before — mobile" />
+          <div class="label">Before (Mobile)</div>
+        </div>
+        <div>
+          <img src="screenshots/mobile-ux-auditor-[screen]-[after-timestamp].png"
+               alt="After — mobile" />
+          <div class="label">After (Mobile)</div>
+        </div>
+      </div>
+
+      <!-- Findings delta -->
+      <h4>Fixed</h4>
+      <ul><!-- Findings in before but not in after --></ul>
+      <h4>New Issues</h4>
+      <ul><!-- Findings in after but not in before --></ul>
+      <h4>Unchanged</h4>
+      <ul><!-- Findings in both --></ul>
+    </div>
+  </details>
+
+  <script>
+    // Filter toggle logic
+    document.querySelectorAll('.filters button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filters button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        document.querySelectorAll('.screen-card').forEach(card => {
+          if (filter === 'all') {
+            card.classList.remove('hidden');
+          } else {
+            const type = card.dataset.type;
+            card.classList.toggle('hidden', type !== filter && type !== 'both');
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
+```
+
+### Step 4: Present Comparison Summary
+
+After generating the comparison report:
+
+```
+## Comparison Report Generated
+
+Compared [before-date] → [after-date] across [N] screens.
+
+Score changes:
+- UX Auditor: [before]/[total] → [after]/[total] ([delta])
+- Mobile UX: [before]/[total] → [after]/[total] ([delta])
+- Performance: [before]/[total] → [after]/[total] ([delta])
+
+[N] findings fixed, [N] new issues, [N] unchanged.
+
+Report: ./qa-reports/comparison-report.html
+Open in browser to view side-by-side screenshots and expandable screen cards.
+```
+
+### Notes
+
+- The comparison report is self-contained HTML with inline CSS and JS — no external dependencies
+- Screenshot comparison requires `--screenshots` to have been used in both the before and after runs
+- Screen cards are tagged by fix type (UX, Mobile, Perf, Security) based on which persona's findings changed
+- The `data-type` attribute on screen cards enables desktop/mobile filtering
+- If no screenshots exist, the screenshot comparison sections are omitted

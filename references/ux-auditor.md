@@ -61,13 +61,13 @@ Use `deepQuerySelectorAll` instead of `document.querySelectorAll` in scripts tha
 ## Category 2: Component States
 
 - [ ] `[J]` Default state: clear, not ambiguous (pre-filter: script 10)
-- [ ] `[H]` Hover state: present on all interactive elements, provides visual feedback
-- [ ] `[D]` Focus state: visible focus ring for keyboard navigation (accessibility)
-- [ ] `[H]` Active/pressed state: provides tactile feedback
+- [ ] `[H]` Hover state: present on all interactive elements, provides visual feedback (interaction script: Hover State Detection)
+- [ ] `[D]` Focus state: visible focus ring for keyboard navigation (interaction script: Focus State Visibility)
+- [ ] `[H]` Active/pressed state: provides tactile feedback (static script: Active/Pressed #13 + interaction script: Hover State Detection)
 - [ ] `[D]` Disabled state: visually distinct, not clickable
 - [ ] `[H]` Loading state: present where async operations occur, uses consistent pattern
 - [ ] `[J]` Empty state: helpful message and action when no data exists (not just blank space)
-- [ ] `[H]` Error state: clear, specific, actionable error messages near the relevant field
+- [ ] `[H]` Error state: clear, specific, actionable error messages near the relevant field (interaction script: Form Validation Error Trigger)
 
 ---
 
@@ -152,7 +152,7 @@ Use `deepQuerySelectorAll` instead of `document.querySelectorAll` in scripts tha
 
 ### Existing Checks
 
-- [ ] `[H]` Validation timing: inline validation on blur, not only on submit
+- [ ] `[H]` Validation timing: inline validation on blur, not only on submit (interaction script: Form Validation Error Trigger)
 - [ ] `[D]` Required indicators: clear marking of required fields
 - [ ] `[D]` Input types: correct HTML input types (email, tel, number, url)
 - [ ] `[D]` Autofill: standard fields work with browser autofill
@@ -175,11 +175,11 @@ Use `deepQuerySelectorAll` instead of `document.querySelectorAll` in scripts tha
 
 ### Existing Checks
 
-- [ ] `[H]` Action feedback: every user action gets visible confirmation
+- [ ] `[H]` Action feedback: every user action gets visible confirmation (interaction script: Toast/Notification Behavior)
 - [ ] `[H]` Loading indicators: present during async operations, appropriate type (spinner vs skeleton vs progress)
-- [ ] `[J]` Optimistic updates: UI responds immediately where appropriate
+- [ ] `[J]` Optimistic updates: UI responds immediately where appropriate (partially scripted via Toast timing)
 - [ ] `[H]` Error recovery: clear path to retry or correct after errors
-- [ ] `[H]` Success confirmation: user knows the action completed
+- [ ] `[H]` Success confirmation: user knows the action completed (static script: Success Infrastructure #15 + interaction script: Toast/Notification Behavior)
 
 ### Enhanced Checks
 
@@ -187,7 +187,7 @@ Use `deepQuerySelectorAll` instead of `document.querySelectorAll` in scripts tha
 - [ ] `[H]` Blank screen time: 0ms = good, any blank period = bad
 - [ ] `[D]` CLS during loading: 0 = good, <0.1 = warning, >0.1 = bad `[research: Google Web Vitals]`
 - [ ] `[D]` Animation duration: 200-300ms = good, 100-500ms = warning, >500ms = bad `[convention]`
-- [ ] `[H]` Toast/notification duration: 3-5s = good, <2s or no auto-dismiss for errors = bad
+- [ ] `[H]` Toast/notification duration: 3-5s = good, <2s or no auto-dismiss for errors = bad (interaction script: Toast/Notification Behavior)
 - [ ] `[H]` Pull-to-refresh on scrollable lists: present = good, absent = bad
 - [ ] `[H]` Search-as-you-type latency: <200ms good, 200-500ms warning, >500ms bad
 
@@ -1664,6 +1664,418 @@ Note: Full verification requires Playwright interaction. Static pre-check can de
   return { check: 'wcag_redundant_entry_precheck', isMultiStep, signals: multiStepSignals, grade, note: 'Full verification requires Playwright multi-step form interaction' };
 })()
 ```
+
+---
+
+## Interaction-Based Measurement Scripts
+
+These scripts require Playwright interaction (tabbing, hovering, clicking, form submission) and **change page state**. Run them AFTER all static measurement scripts are complete to avoid polluting the initial DOM state.
+
+**Execution order:** Run interaction scripts in this order: (1) Focus/Tab, (2) Hover, (3) Form Validation, (4) Toast/Notification. Each script documents how to reset state afterward.
+
+### 1. Focus State Visibility (Tab-Through)
+
+Tabs through all focusable elements and verifies `:focus-visible` styles. Requires Playwright `browser_press_key` to simulate Tab presses.
+
+**Procedure:**
+1. Run the pre-measurement script below via `browser_evaluate` to catalog all focusable elements
+2. Use Playwright `browser_press_key` to press Tab N times (where N = number of focusable elements)
+3. After each Tab press, run the focus-check script via `browser_evaluate` to capture the active element's focus styling
+
+**Pre-measurement: Catalog focusable elements**
+
+```javascript
+(() => {
+  const focusable = document.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [role="button"], [role="tab"], [role="menuitem"], [role="link"]'
+  );
+  const elements = [];
+  focusable.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    if (rect.top >= window.innerHeight * 3 || rect.bottom <= 0) return;
+    elements.push({
+      tag: el.tagName,
+      text: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 40),
+      tabindex: el.getAttribute('tabindex'),
+      role: el.getAttribute('role')
+    });
+  });
+  return { check: 'focus_state_catalog', focusableCount: elements.length, elements: elements.slice(0, 50) };
+})()
+```
+
+**Per-Tab-press: Check active element focus styling**
+
+Run this after each Tab keypress:
+
+```javascript
+(() => {
+  const el = document.activeElement;
+  if (!el || el === document.body) return { check: 'focus_style_check', skipped: true };
+
+  const rect = el.getBoundingClientRect();
+  const style = getComputedStyle(el);
+
+  // Check for visible focus indicators
+  const outline = style.outlineStyle;
+  const outlineWidth = parseFloat(style.outlineWidth) || 0;
+  const outlineColor = style.outlineColor;
+  const boxShadow = style.boxShadow;
+  const borderColor = style.borderColor;
+
+  const hasOutline = outline !== 'none' && outlineWidth > 0;
+  const hasBoxShadow = boxShadow !== 'none' && boxShadow !== '';
+  const hasBorderChange = borderColor !== 'rgb(0, 0, 0)' && borderColor !== 'transparent';
+
+  // Check outline is not transparent
+  const outlineIsVisible = hasOutline && outlineColor !== 'transparent' && outlineColor !== 'rgba(0, 0, 0, 0)';
+
+  const hasFocusIndicator = outlineIsVisible || hasBoxShadow || hasBorderChange;
+
+  return {
+    check: 'focus_style_check',
+    element: {
+      tag: el.tagName,
+      text: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 40),
+      id: el.id || null,
+      class: (el.className || '').toString().slice(0, 40)
+    },
+    focusStyles: {
+      outline: `${outline} ${outlineWidth}px ${outlineColor}`,
+      boxShadow: boxShadow !== 'none' ? boxShadow.slice(0, 80) : 'none',
+      borderColor
+    },
+    hasFocusIndicator,
+    inViewport: rect.top >= 0 && rect.bottom <= window.innerHeight
+  };
+})()
+```
+
+**Scoring:** Count elements with `hasFocusIndicator: false`. PASS if all have indicators. MAJOR if >20% lack focus styles. CRITICAL if >50% lack focus styles.
+
+**State reset:** Click the document body to defocus: `browser_click` on a neutral area.
+
+### 2. Hover State Detection
+
+Hovers over interactive elements and measures computed style changes. Requires Playwright `browser_hover`.
+
+**Procedure:**
+1. Run the catalog script below to find interactive elements and capture their default styles
+2. For each element (up to 20, prioritizing buttons and links): use Playwright `browser_hover` on the element, then run the comparison script
+3. After all hovers, hover a neutral area to reset
+
+**Pre-measurement: Catalog interactive element default styles**
+
+```javascript
+(() => {
+  const selectors = 'a[href], button:not([disabled]), [role="button"], input[type="submit"], [role="tab"], [role="menuitem"]';
+  const elements = document.querySelectorAll(selectors);
+  const catalog = [];
+
+  elements.forEach((el, i) => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    if (rect.top >= window.innerHeight || rect.bottom <= 0) return;
+
+    const style = getComputedStyle(el);
+    catalog.push({
+      index: i,
+      tag: el.tagName,
+      text: (el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 40),
+      x: Math.round(rect.left + rect.width / 2),
+      y: Math.round(rect.top + rect.height / 2),
+      defaultStyles: {
+        backgroundColor: style.backgroundColor,
+        color: style.color,
+        borderColor: style.borderColor,
+        boxShadow: style.boxShadow !== 'none' ? style.boxShadow.slice(0, 60) : 'none',
+        transform: style.transform,
+        opacity: style.opacity,
+        textDecoration: style.textDecoration
+      }
+    });
+  });
+
+  return { check: 'hover_state_catalog', interactiveCount: catalog.length, elements: catalog.slice(0, 30) };
+})()
+```
+
+**Per-hover: Compare style after hover**
+
+After using `browser_hover` at (x, y) coordinates from the catalog, run:
+
+```javascript
+(() => {
+  const el = document.elementFromPoint(/* x */, /* y */);
+  if (!el) return { check: 'hover_style_check', skipped: true };
+
+  // Walk up to find the interactive ancestor
+  let target = el;
+  while (target && !target.matches('a[href], button, [role="button"], input[type="submit"], [role="tab"], [role="menuitem"]')) {
+    target = target.parentElement;
+  }
+  if (!target) target = el;
+
+  const style = getComputedStyle(target);
+  return {
+    check: 'hover_style_check',
+    hoveredStyles: {
+      backgroundColor: style.backgroundColor,
+      color: style.color,
+      borderColor: style.borderColor,
+      boxShadow: style.boxShadow !== 'none' ? style.boxShadow.slice(0, 60) : 'none',
+      transform: style.transform,
+      opacity: style.opacity,
+      textDecoration: style.textDecoration,
+      cursor: style.cursor
+    }
+  };
+})()
+```
+
+Compare `defaultStyles` from catalog with `hoveredStyles`. A perceivable hover change is any difference in: backgroundColor, color, borderColor, boxShadow, transform, opacity, or textDecoration.
+
+**Scoring:** Count elements with no perceivable hover change. PASS if >80% have hover feedback. MINOR if 60-80%. MAJOR if <60%.
+
+**State reset:** `browser_hover` on a neutral area (e.g., page header or body).
+
+### 3. Form Validation Error Trigger
+
+Submits empty required forms to trigger validation error states, then measures error message quality and positioning.
+
+**Procedure:**
+1. Run the pre-measurement script to find forms with required fields
+2. For each form: use Playwright `browser_click` on the submit button without filling fields
+3. Run the error measurement script to capture validation error state
+
+**Pre-measurement: Find forms with required fields**
+
+```javascript
+(() => {
+  const forms = document.querySelectorAll('form');
+  const formData = [];
+
+  forms.forEach((form, i) => {
+    const rect = form.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
+    const requiredFields = form.querySelectorAll('[required], [aria-required="true"]');
+    if (requiredFields.length === 0) return;
+
+    const submitBtn = form.querySelector('button[type="submit"], input[type="submit"], button:not([type])');
+    if (!submitBtn) return;
+    const btnRect = submitBtn.getBoundingClientRect();
+
+    formData.push({
+      index: i,
+      action: form.action || 'none',
+      requiredFieldCount: requiredFields.length,
+      submitButton: {
+        text: (submitBtn.textContent || submitBtn.value || '').trim().slice(0, 30),
+        x: Math.round(btnRect.left + btnRect.width / 2),
+        y: Math.round(btnRect.top + btnRect.height / 2)
+      }
+    });
+  });
+
+  return { check: 'form_validation_catalog', formsWithRequired: formData.length, forms: formData };
+})()
+```
+
+**Post-submit: Measure validation error state**
+
+Run after clicking the submit button:
+
+```javascript
+(() => {
+  // Check for HTML5 validation popups (constraint validation)
+  const invalidFields = document.querySelectorAll(':invalid:not(form)');
+
+  // Check for custom error messages in DOM
+  const errorEls = document.querySelectorAll(
+    '[class*="error"], [class*="invalid"], [role="alert"], [aria-invalid="true"], ' +
+    '[class*="err-msg"], [class*="field-error"], [class*="validation"]'
+  );
+
+  const errors = [];
+  let inlineCount = 0;
+  let topOfFormCount = 0;
+
+  errorEls.forEach(el => {
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const text = (el.textContent || '').trim();
+    if (!text || text.length < 2) return;
+
+    // Determine position relative to nearest input
+    const nearestInput = el.closest('label, [class*="field"], [class*="form-group"]')?.querySelector('input, select, textarea');
+    let position = 'unknown';
+    if (nearestInput) {
+      const inputRect = nearestInput.getBoundingClientRect();
+      const dist = Math.abs(rect.top - inputRect.bottom);
+      position = dist < 40 ? 'inline' : 'distant';
+      if (position === 'inline') inlineCount++;
+    } else {
+      topOfFormCount++;
+    }
+
+    errors.push({
+      text: text.slice(0, 80),
+      position,
+      hasFieldReference: /email|password|name|phone|address|username/.test(text.toLowerCase()),
+      hasFixGuidance: /must|should|at least|required|enter|provide|format|characters/.test(text.toLowerCase())
+    });
+  });
+
+  const htmlValidationCount = invalidFields.length;
+  const customErrorCount = errors.length;
+  const totalErrors = Math.max(htmlValidationCount, customErrorCount);
+  const grade = totalErrors === 0 ? 'good' :
+    (inlineCount >= customErrorCount * 0.8 && errors.every(e => e.hasFieldReference)) ? 'good' :
+    inlineCount > 0 ? 'warning' : 'bad';
+
+  return {
+    check: 'form_validation_errors',
+    htmlValidationFields: htmlValidationCount,
+    customErrors: customErrorCount,
+    inlineCount,
+    topOfFormCount,
+    errors: errors.slice(0, 15),
+    grade
+  };
+})()
+```
+
+**Scoring:** PASS if errors are inline, reference the field, and provide fix guidance. MINOR if errors exist but are generic. MAJOR if no error feedback at all. **Compound check:** Errors must be inline AND actionable to score as PASS.
+
+**State reset:** Reload the page via `browser_navigate` to the same URL to clear form state.
+
+### 4. Toast/Notification Behavior
+
+Clicks action buttons (save, delete, submit) and monitors for toast/notification appearance, timing, and accessibility.
+
+**Procedure:**
+1. Run the pre-measurement script to find action buttons likely to trigger toasts
+2. For each button (up to 5): click via Playwright `browser_click`, wait 500ms, then run the toast detection script
+3. Note: Only click non-destructive buttons (save, update, close) to avoid side effects. Skip delete/remove buttons.
+
+**Pre-measurement: Find action buttons**
+
+```javascript
+(() => {
+  const buttons = document.querySelectorAll('button, [role="button"], input[type="submit"]');
+  const actionButtons = [];
+  const safeVerbs = /^(save|update|close|dismiss|apply|confirm|copy|share|export|download|refresh)/i;
+  const unsafeVerbs = /^(delete|remove|destroy|drop|reset|clear|purge|revoke|ban)/i;
+
+  buttons.forEach(btn => {
+    const rect = btn.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    if (rect.top >= window.innerHeight || rect.bottom <= 0) return;
+    const text = (btn.textContent || btn.value || btn.getAttribute('aria-label') || '').trim();
+    if (!text || text.length < 2) return;
+
+    const isSafe = safeVerbs.test(text);
+    const isUnsafe = unsafeVerbs.test(text);
+    if (isSafe && !isUnsafe) {
+      actionButtons.push({
+        text: text.slice(0, 40),
+        x: Math.round(rect.left + rect.width / 2),
+        y: Math.round(rect.top + rect.height / 2),
+        tag: btn.tagName
+      });
+    }
+  });
+
+  return { check: 'toast_trigger_catalog', actionButtonCount: actionButtons.length, buttons: actionButtons.slice(0, 10) };
+})()
+```
+
+**Post-click: Detect toast/notification**
+
+Run 500ms after clicking an action button:
+
+```javascript
+(() => {
+  // Detect toast/snackbar/notification elements that appeared
+  const toastSelectors = [
+    '[class*="toast"]', '[class*="Toaster"]', '[class*="snackbar"]',
+    '[class*="notification"]', '[class*="alert-banner"]', '[role="status"]',
+    '[role="alert"]', '[aria-live="polite"]', '[aria-live="assertive"]',
+    '[class*="notistack"]', '[class*="Sonner"]'
+  ];
+
+  const toasts = document.querySelectorAll(toastSelectors.join(', '));
+  const visibleToasts = [];
+
+  toasts.forEach(toast => {
+    const rect = toast.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const style = getComputedStyle(toast);
+    if (style.opacity === '0' || style.visibility === 'hidden') return;
+
+    const text = (toast.textContent || '').trim();
+    if (!text) return;
+
+    visibleToasts.push({
+      text: text.slice(0, 80),
+      position: rect.top < window.innerHeight / 2 ? 'top' : 'bottom',
+      hasAriaLive: toast.getAttribute('aria-live') !== null,
+      hasRole: toast.getAttribute('role') !== null,
+      hasCloseButton: toast.querySelector('button, [class*="close"], [class*="dismiss"]') !== null,
+      computedPosition: style.position,
+      opacity: style.opacity
+    });
+  });
+
+  const appeared = visibleToasts.length > 0;
+  const accessible = visibleToasts.some(t => t.hasAriaLive || t.hasRole);
+  const grade = !appeared ? 'warning' : (appeared && accessible) ? 'good' : 'bad';
+
+  return {
+    check: 'toast_notification_behavior',
+    appeared,
+    count: visibleToasts.length,
+    accessible,
+    toasts: visibleToasts,
+    grade
+  };
+})()
+```
+
+**Scoring:** PASS if toast appears, has ARIA live region, and provides meaningful text. MINOR if toast appears but lacks accessibility attributes. MAJOR if no feedback appears after action. NEEDS MANUAL CHECK only if there are no action buttons to test.
+
+**State reset:** Dismiss any visible toasts by clicking their close buttons, or reload the page.
+
+---
+
+## Automation Target
+
+**Goal: Reduce NEEDS MANUAL CHECK from 15/105 to under 5/105.**
+
+The 4 interaction-based scripts above convert these previously-manual checks to automated:
+
+| Check | Category | Previous Tier | New Tier | Script |
+|-------|----------|---------------|----------|--------|
+| Hover state feedback | Cat 2 | `[H]` manual | `[H]` scripted | Hover State Detection (#2) |
+| Focus state visibility | Cat 2 | `[D]` partial | `[D]` scripted | Focus State Visibility (#1) |
+| Active/pressed state | Cat 2 | `[H]` manual | `[H]` scripted | Active/Pressed (#13 above) + Hover (#2) |
+| Error state messages | Cat 2 | `[H]` manual | `[H]` scripted | Form Validation (#3) |
+| Validation timing | Cat 7 | `[H]` manual | `[H]` scripted | Form Validation (#3) |
+| Error message actionability | Cat 7 | `[H]` manual | `[H]` scripted | Error Actionability (#9 above) + Form Validation (#3) |
+| Toast/notification duration | Cat 8 | `[H]` manual | `[H]` scripted | Toast/Notification (#4) |
+| Action feedback | Cat 8 | `[H]` manual | `[H]` scripted | Toast/Notification (#4) |
+| Success confirmation | Cat 8 | `[H]` manual | `[H]` scripted | Success Infrastructure (#15 above) + Toast (#4) |
+| Optimistic updates | Cat 8 | `[J]` manual | `[J]` partially scripted | Toast (#4) timing comparison |
+| Back navigation | Cat 6 | `[H]` manual | Remains `[H]` manual | Requires multi-page Playwright sequence |
+| Pull-to-refresh | Cat 8 | `[H]` manual | Remains `[H]` manual | Mobile-only, gesture simulation |
+
+**Remaining NEEDS MANUAL CHECK (target: <=5):**
+- Optimistic updates (partial — timing heuristic helps but full verification needs visual diff)
+- Back navigation fidelity (requires multi-page navigation sequence)
+- Pull-to-refresh on scrollable lists (mobile gesture simulation)
+- URL reflects state / deep-linkable (requires multi-step form fill + URL comparison)
 
 ---
 
