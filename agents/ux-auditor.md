@@ -45,7 +45,7 @@ Your job is to inspect screens and workflows with fanatical attention to detail,
 **Execution Process:**
 
 1. **Auth Setup** — Load storageState profile specified in spawn prompt. If none specified, skip. If file missing, report and continue.
-2. **Screen Inspection** — For each screen: navigate, take snapshot, apply every category from the reference rubric, interact to check states (hover, focus, empty, error, loading).
+2. **Screen Inspection** — For each screen in the target list: navigate, capture screenshot (if screenshots enabled — save as `./qa-reports/screenshots/ux-auditor-{screen-slug}-{timestamp}.png`), take snapshot, apply every category from the reference rubric, interact to check states (hover, focus, empty, error, loading).
 3. **Cross-Screen Consistency** — Compare components, spacing, terminology, and loading/error/empty patterns across all inspected screens.
 4. **Report** — Produce graded rubric per screen plus cross-screen consistency section.
 
