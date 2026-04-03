@@ -4,7 +4,7 @@ This reference contains all 10 mobile audit categories, measurement scripts, thr
 
 **Viewport:** 393x852 (iPhone 15 Pro)
 **Setup:** At start of each screen, run `browser_resize width=393 height=852`
-**Total checks:** 56
+**Total checks:** 57
 **Scoring:** Weighted scorecard with graduated scoring (0 / 0.5 / 1.0). Score presented as X/Y Weighted (Z%).
 
 ---
@@ -111,7 +111,7 @@ Input zoom: iOS Safari automatically zooms in when a user focuses an input with 
 
 ---
 
-## Category 4: Viewport & Responsive (6 checks)
+## Category 4: Viewport & Responsive (7 checks)
 
 | # | Check | Tier | Threshold | Method | Severity |
 |---|-------|------|-----------|--------|----------|
@@ -121,6 +121,7 @@ Input zoom: iOS Safari automatically zooms in when a user focuses an input with 
 | 4.4 | Orientation support | `[H]` | Content works in landscape (852x393) | Resize to `852x393`, then check for content loss, layout breakage, or horizontal overflow | MINOR |
 | 4.5 | Reflow at 320px | `[D]` `[research: WCAG 1.4.10]` | No horizontal scroll at 320px width (WCAG 1.4.10) | Resize to `320x852`, then check `scrollWidth <= clientWidth` | MAJOR |
 | 4.6 | Viewport utilization | `[D]` `[heuristic]` | Fixed header + footer heights < 20% of `clientHeight` | Measure combined height of all `position: fixed` or `position: sticky` elements at top/bottom as percentage of viewport height | MINOR |
+| 4.7 | Unbounded list anti-pattern | `[D]` | 0 unpaginated repeated-item containers = good, 1-2 = warning, >2 = bad | Count containers with >3 repeated children that have NO nearby pagination controls ("Page", "Next", "Load more", "Show more", "Showing", `[role="navigation"][aria-label*="pagination"]`). On mobile, unpaginated lists are especially harmful: they increase scroll depth beyond the 5x threshold, slow rendering on mobile devices, and prevent pull-to-refresh from being useful (infinite content without controls). | MAJOR |
 
 ---
 
@@ -1388,6 +1389,60 @@ Classifies checkboxes as web-style or styled toggles, and detects unstyled nativ
 })()
 ```
 
+### 16. Unbounded List Anti-pattern (Mobile)
+
+Detects repeated-item containers that lack pagination controls. On mobile, unpaginated lists are especially harmful: they increase scroll depth beyond the 5x threshold, slow rendering on constrained mobile devices, and prevent pull-to-refresh from being useful when content extends indefinitely. Maps to Cat 4 check 4.7.
+
+```javascript
+(() => {
+  const containers = document.querySelectorAll('div, section, main, ul, ol, tbody, [role="list"]');
+  const paginationPatterns = /\b(page|previous|next|load\s*more|show\s*more|showing|of\s+\d+)\b/i;
+  const unbounded = [];
+
+  containers.forEach(container => {
+    const children = Array.from(container.children);
+    if (children.length < 4) return;
+
+    // Check if children share a common class pattern (>= 50%)
+    const classCounts = {};
+    children.forEach(child => {
+      const key = Array.from(child.classList).sort().join(' ');
+      if (key) classCounts[key] = (classCounts[key] || 0) + 1;
+    });
+    const maxClassCount = Math.max(...Object.values(classCounts), 0);
+    if (maxClassCount < children.length * 0.5) return;
+
+    // This is a repeated-item container. Check for nearby pagination controls.
+    let hasPagination = false;
+    let node = container;
+    for (let i = 0; i < 3 && node; i++) {
+      node = node.parentElement;
+      if (!node) break;
+      const text = node.textContent || '';
+      if (paginationPatterns.test(text)) { hasPagination = true; break; }
+      const navs = node.querySelectorAll('[role="navigation"], [aria-label*="page"], [aria-label*="pagination"]');
+      if (navs.length > 0) { hasPagination = true; break; }
+      const buttons = node.querySelectorAll('button');
+      for (const btn of buttons) {
+        const label = (btn.textContent + ' ' + (btn.getAttribute('aria-label') || '')).toLowerCase();
+        if (/previous|next|load more|show more/.test(label)) { hasPagination = true; break; }
+      }
+      if (hasPagination) break;
+    }
+
+    if (!hasPagination) {
+      const tag = container.tagName.toLowerCase();
+      const id = container.id ? `#${container.id}` : '';
+      const cls = container.className ? `.${String(container.className).split(' ')[0]}` : '';
+      unbounded.push({ selector: `${tag}${id}${cls}`, itemCount: maxClassCount });
+    }
+  });
+
+  const grade = unbounded.length === 0 ? 'good' : unbounded.length <= 2 ? 'warning' : 'bad';
+  return { check: 'unbounded_list_antipattern', unbounded_count: unbounded.length, containers: unbounded, grade };
+})()
+```
+
 ---
 
 ## Severity Grading
@@ -1448,7 +1503,7 @@ If ANY CRITICAL-severity check fails, total weighted score capped at 50%.
 
 ## Weighted Scorecard
 
-**Total checks:** 56 (across 10 categories)
+**Total checks:** 57 (across 10 categories)
 
 Each check is scored as:
 - **1.0** (fully meets threshold)
@@ -1478,7 +1533,7 @@ Each check is scored as:
 | Touch & Interaction | 2x | — | —/7 | — |
 | iOS Safari Specific | 1.5x | — | —/5 | — |
 | iOS Native Feel | 1x | — | —/6 | — |
-| Viewport & Responsive | 1x | — | —/6 | — |
+| Viewport & Responsive | 1x | — | —/7 | — |
 | Mobile Typography | 1.5x | — | —/10 | — |
 | Mobile Form UX | 1.5x | — | —/8 | — |
 | Interstitials & Overlays | 1.5x | — | —/4 | — |
@@ -1497,11 +1552,11 @@ Each check is scored as:
 | 1. Touch & Interaction | 7 | 7 [D] |
 | 2. iOS Safari Specific | 5 | 3 [D], 2 [H] |
 | 3. iOS Native Feel | 6 | 6 [H] |
-| 4. Viewport & Responsive | 6 | 5 [D], 1 [H] |
+| 4. Viewport & Responsive | 7 | 6 [D], 1 [H] |
 | 5. Mobile Typography | 10 | 9 [D], 1 [H] |
 | 6. Mobile Form UX | 8 | 8 [D] |
 | 7. Interstitials & Overlays | 4 | 3 [D], 1 [H] |
 | 8. Mobile Accessibility — WCAG Mobile | 6 | 2 [D], 4 [H] |
 | 9. Gestures & Interaction | 5 | 1 [D], 1 [H], 3 [J] |
 | 10. Animation & Motion | 5 | 2 [D], 2 [H], 1 [J] |
-| **Total** | **56** | **38 [D], 14 [H], 4 [J]** |
+| **Total** | **57** | **39 [D], 14 [H], 4 [J]** |

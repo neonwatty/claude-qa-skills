@@ -472,6 +472,7 @@ Detailed check tables for each performance category. Each check is tagged with t
 | R6  | Layout shifts from dynamic content                         | Content that loads after initial paint and pushes other elements (ads, images without dimensions, lazy-loaded sections without skeleton/placeholder).                                                           | HIGH     | CLS       |
 | R7  | Missing `key` prop or using index as key                   | Array rendering without stable keys causes unnecessary DOM reconciliation. Using array index as key when items can reorder or be inserted.                                                                      | LOW      | INP       |
 | R8  | Heavy state management on render path                      | Zustand/Redux selectors that return new object references on every call, causing re-renders. Check for selectors that don't use shallow comparison.                                                             | MEDIUM   | INP       |
+| R9  | Unpaginated `.map()` rendering without size limits         | Component files containing `.map(` that render arrays without `PAGE_SIZE`, `LIMIT`, `slice`, `pagination`, or `paginate` nearby (within 20 lines). Unbounded `.map()` renders grow with data and degrade INP/LCP as list size increases. Grep for `.map(` in `*.tsx`/`*.jsx` files, then check surrounding context for pagination logic. Flag files where `.map(` appears without any size-limiting pattern. | HIGH     | INP, LCP  |
 
 ### 3. API Routes & Data Fetching
 

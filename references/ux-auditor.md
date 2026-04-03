@@ -193,7 +193,7 @@ Use `deepQuerySelectorAll` instead of `document.querySelectorAll` in scripts tha
 
 ---
 
-## Category 9: Data Display & Scalability (10 checks)
+## Category 9: Data Display & Scalability (11 checks)
 
 - [ ] `[D]` Page scroll depth ratio: <=3x good, 3-5x warning, >5x bad. Method: `scrollHeight / clientHeight` `[heuristic]`
 - [ ] `[D]` Repeated item count without pagination: <=25 good, 25-50 warning, >50 bad
@@ -205,6 +205,7 @@ Use `deepQuerySelectorAll` instead of `document.querySelectorAll` in scripts tha
 - [ ] `[H]` Virtual scroll for large lists: present when items >200 = good, absent = bad
 - [ ] `[D]` Scroll-to-action distance: CTA within 2 viewports = good, >2 = bad
 - [ ] `[D]` Items-per-page count: 10-50 good, 50-100 warning, >100 bad
+- [ ] `[D]` Unbounded list anti-pattern: Any repeated-item container (>3 items) that lacks visible pagination, "load more", or "showing X of Y" controls. Measure: count containers with >3 repeated children that have NO sibling/nearby element containing pagination text patterns ("Page", "of", "Prev", "Next", "Load more", "Show more", "Showing"). <=0 such containers = good, 1-2 = warning, >2 = bad
 
 ---
 
@@ -275,6 +276,58 @@ JavaScript snippets for all automatable checks. Each returns a structured result
 
   const grade = maxCount <= 25 ? 'good' : maxCount <= 50 ? 'warning' : 'bad';
   return { check: 'repeated_item_count', value: maxCount, source: maxSource, grade };
+})()
+```
+
+### Unbounded List Anti-pattern
+
+```javascript
+(() => {
+  const containers = document.querySelectorAll('div, section, main, ul, ol, tbody, [role="list"]');
+  const paginationPatterns = /\b(page|previous|next|load\s*more|show\s*more|showing|of\s+\d+)\b/i;
+  const unbounded = [];
+
+  containers.forEach(container => {
+    const children = Array.from(container.children);
+    if (children.length < 4) return;
+
+    // Check if children share a common class pattern (>= 50%)
+    const classCounts = {};
+    children.forEach(child => {
+      const key = Array.from(child.classList).sort().join(' ');
+      if (key) classCounts[key] = (classCounts[key] || 0) + 1;
+    });
+    const maxClassCount = Math.max(...Object.values(classCounts), 0);
+    if (maxClassCount < children.length * 0.5) return;
+
+    // This is a repeated-item container. Check for nearby pagination controls.
+    let hasPagination = false;
+    let node = container;
+    for (let i = 0; i < 3 && node; i++) {
+      node = node.parentElement;
+      if (!node) break;
+      const text = node.textContent || '';
+      if (paginationPatterns.test(text)) { hasPagination = true; break; }
+      const navs = node.querySelectorAll('[role="navigation"], [aria-label*="page"], [aria-label*="pagination"]');
+      if (navs.length > 0) { hasPagination = true; break; }
+      const buttons = node.querySelectorAll('button');
+      for (const btn of buttons) {
+        const label = (btn.textContent + ' ' + (btn.getAttribute('aria-label') || '')).toLowerCase();
+        if (/previous|next|load more|show more/.test(label)) { hasPagination = true; break; }
+      }
+      if (hasPagination) break;
+    }
+
+    if (!hasPagination) {
+      const tag = container.tagName.toLowerCase();
+      const id = container.id ? `#${container.id}` : '';
+      const cls = container.className ? `.${String(container.className).split(' ')[0]}` : '';
+      unbounded.push({ selector: `${tag}${id}${cls}`, itemCount: maxClassCount });
+    }
+  });
+
+  const grade = unbounded.length === 0 ? 'good' : unbounded.length <= 2 ? 'warning' : 'bad';
+  return { check: 'unbounded_list_antipattern', unbounded_count: unbounded.length, containers: unbounded, grade };
 })()
 ```
 
@@ -2186,9 +2239,9 @@ Each category receives a severity grade based on the number and impact of failed
 | 6. Navigation & Wayfinding | 11 |
 | 7. Forms & Input | 13 |
 | 8. Feedback & Response | 12 |
-| 9. Data Display & Scalability | 10 |
+| 9. Data Display & Scalability | 11 |
 | 10. Visual Complexity & Consistency | 12 |
-| **Total** | **105** |
+| **Total** | **106** |
 
 > **Note:** Not all checks apply to every screen. The denominator adjusts to only count applicable checks. The target total of ~75 reflects a typical screen; screens with no forms, for example, would exclude Category 7 enhanced checks.
 
@@ -2218,7 +2271,7 @@ Each category receives a severity grade based on the number and impact of failed
 | Navigation & Wayfinding | 1x | MAJOR | 7/11 | 4 findings |
 | Forms & Input | 1.5x | MINOR | 11/13 | 2 findings |
 | Feedback & Response | 1x | PASS | 12/12 | -- |
-| Data Display & Scalability | 1x | CRITICAL | 3/10 | 7 findings |
+| Data Display & Scalability | 1x | CRITICAL | 3/11 | 7 findings |
 | Visual Complexity & Consistency | 0.5x | MINOR | 10/12 | 2 findings |
 
 ### Findings Detail
