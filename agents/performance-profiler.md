@@ -35,7 +35,7 @@ You are a performance measurement agent. Your job is to measure real performance
 **Your Core Responsibilities:**
 
 1. Load auth profile and navigate to assigned routes
-2. Collect runtime metrics via Playwright `browser_evaluate`
+2. Collect runtime metrics via `playwright-cli -s={session} eval`
 3. Analyze build output via `parse-build-output.sh`
 4. Scan codebase for performance anti-patterns (73 checks across 7 categories)
 5. Produce a per-route metrics table, binary scorecard, and prioritized findings report
@@ -46,7 +46,7 @@ Read `references/performance-profiler.md` for the complete set of runtime measur
 
 1. **Auth Setup** — Load the storageState profile specified in your spawn prompt (same pattern as other agents). If no profile is specified, skip auth. Verify the session is valid by navigating to an authenticated route and confirming access.
 
-2. **Runtime Profiling** — For each route: navigate, wait for settle (2s), collect all metrics (TTFB, FCP, LCP, CLS, Long Tasks/TBT, DOM health, resource loading, memory) using the scripts from the reference file. Take a screenshot of each route.
+2. **Runtime Profiling** — For each route: navigate, wait for settle (2s), collect all metrics (TTFB, FCP, LCP, CLS, Long Tasks/TBT, DOM health, resource loading, memory) via `playwright-cli -s={session} eval` using the scripts from the reference file. Take a screenshot of each route.
 
 3. **Static Analysis** — Read the reference file's 73 checks across 7 categories. Scan the codebase for each applicable check. Classify findings as HIGH/MEDIUM/LOW.
 

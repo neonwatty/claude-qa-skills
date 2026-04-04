@@ -1,6 +1,6 @@
 ---
 description: Discover all screens, confirm the manifest with the user, then dispatch QA agents to every screen
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion, mcp__playwright__*
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent, AskUserQuestion
 argument-hint: "[smoke|ux|adversarial|performance|mobile|all] [--url URL] [--screenshots]"
 ---
 
@@ -34,7 +34,7 @@ The first positional argument selects which agent(s) to dispatch:
 
 ### Screenshots Flag
 
-`--screenshots` enables before/after screenshot capture. When set, ux-auditor and mobile-ux-auditor agents will call `browser_take_screenshot` (PNG) for each screen and save images to `./qa-reports/screenshots/{persona}-{screen}-{timestamp}.png`. The orchestrator creates the `./qa-reports/screenshots/` directory before dispatching agents. Screenshots are referenced in the Phase 6 comparison report when a previous run exists.
+`--screenshots` enables before/after screenshot capture. When set, ux-auditor and mobile-ux-auditor agents will call `playwright-cli -s={session} screenshot` for each screen and save images to `./qa-reports/screenshots/{persona}-{screen}-{timestamp}.png`. The orchestrator creates the `./qa-reports/screenshots/` directory before dispatching agents. Screenshots are referenced in the Phase 6 comparison report when a previous run exists.
 
 ---
 
@@ -309,15 +309,24 @@ The adversarial-breaker benefits from testing with multiple profiles (and unauth
 
 Record the profile assignment — it will be passed to each agent in the dispatch template.
 
-**Session validation** — before dispatching, verify that each assigned profile's session is still active. For each unique profile in the assignment:
+**Session validation** — before dispatching, verify that each assigned profile's session is still active. For each unique profile in the assignment, use a temporary CLI session:
 
-1. Read the storageState JSON file
-2. Load its cookies into a Playwright page via `browser_run_code`
-3. Navigate to `[base_url]`
-4. Check if the session is still valid:
-   a. If the browser was redirected to the profile's `loginUrl`, the session has expired
+```
+playwright-cli -s=qa-preflight open "[base_url]"
+playwright-cli -s=qa-preflight state-load ".playwright/profiles/[profile-name].json"
+playwright-cli -s=qa-preflight goto "[base_url]"
+playwright-cli -s=qa-preflight snapshot
+```
+
+Check if the session is still valid:
+   a. If the browser was redirected to the profile's `loginUrl` (check `Page URL` in snapshot output), the session has expired
    b. If the final URL is on a different domain (OAuth provider redirect), the session has expired
-   c. Take a `browser_snapshot` — if login-related elements are visible (sign-in forms, "Log in" buttons), the session has expired
+   c. If login-related elements are visible in the snapshot (sign-in forms, "Log in" buttons), the session has expired
+
+After checking all profiles, close the preflight session:
+```
+playwright-cli -s=qa-preflight close
+```
 
 If any session has expired, warn the user immediately:
 
@@ -424,35 +433,18 @@ Auth required: [yes/no]
 Auth profile to use: [exact profile name, e.g., "admin"]
 Auth profile path: .playwright/profiles/[profile-name].json
 
-To load the auth profile, read the storageState file and run:
+To load the auth profile:
 
-  async (page) => {
-    const state = <contents of .playwright/profiles/[profile-name].json>;
-    await page.context().addCookies(state.cookies);
-    if (state.origins) {
-      for (const origin of state.origins) {
-        if (origin.localStorage && origin.localStorage.length > 0) {
-          await page.goto(origin.origin);
-          await page.evaluate((items) => {
-            for (const { name, value } of items) localStorage.setItem(name, value);
-          }, origin.localStorage);
-        }
-      }
-    }
-    if (state.sessionStorage && state.sessionStorage.length > 0) {
-      await page.evaluate((items) => {
-        for (const { name, value } of items) sessionStorage.setItem(name, value);
-      }, state.sessionStorage);
-    }
-    return 'Profile loaded: [profile-name]';
-  }
+  playwright-cli -s={session} state-load ".playwright/profiles/[profile-name].json"
+
+Session name: qa-smoke-gap
 
 There is no workflow file for this screen. Perform a basic smoke check:
 
-1. Navigate to [base_url][example_url]
+1. playwright-cli -s=qa-smoke-gap goto "[base_url][example_url]"
 2. Verify the page loads (no HTTP 500, no blank page, no infinite redirect)
-3. Take a browser_snapshot and confirm content is rendered
-4. Check that no JavaScript errors appear in the console
+3. playwright-cli -s=qa-smoke-gap snapshot — confirm content is rendered
+4. playwright-cli -s=qa-smoke-gap console error — check for JS errors
 5. If auth is required, verify you are not redirected to a login page
 
 Report: PASS if the page loads normally, FAIL with details if any
@@ -496,37 +488,24 @@ This is required because agents dispatched via the Agent tool do not automatical
 ```
 You are operating as the smoke-tester QA agent.
 
+Session name: qa-smoke
+Open your session: playwright-cli -s=qa-smoke open "[base_url]"
+Close when done: playwright-cli -s=qa-smoke close
+
 Workflow file: [path to workflow file, e.g., ./workflows/desktop-workflows.md]
 Auth required: [yes/no]
 Auth profile to use: [exact profile name, e.g., "admin"]
 Auth profile path: .playwright/profiles/[profile-name].json
 
-To load the auth profile, read the storageState file and run:
+To load the auth profile:
 
-  async (page) => {
-    const state = <contents of .playwright/profiles/[profile-name].json>;
-    await page.context().addCookies(state.cookies);
-    if (state.origins) {
-      for (const origin of state.origins) {
-        if (origin.localStorage && origin.localStorage.length > 0) {
-          await page.goto(origin.origin);
-          await page.evaluate((items) => {
-            for (const { name, value } of items) localStorage.setItem(name, value);
-          }, origin.localStorage);
-        }
-      }
-    }
-    if (state.sessionStorage && state.sessionStorage.length > 0) {
-      await page.evaluate((items) => {
-        for (const { name, value } of items) sessionStorage.setItem(name, value);
-      }, state.sessionStorage);
-    }
-    return 'Profile loaded: [profile-name]';
-  }
+  playwright-cli -s={session} state-load ".playwright/profiles/[profile-name].json"
 
-After loading, verify auth by navigating to [base_url]. If you are
-redirected to [loginUrl from profiles.json], the session has expired —
-report this and stop.
+After loading, verify auth:
+  playwright-cli -s={session} goto "[base_url]"
+  playwright-cli -s={session} snapshot
+If the snapshot shows login UI or the URL is [loginUrl], the session
+has expired — report this and stop.
 
 [AGENT SYSTEM PROMPT — insert the body content of the agent definition file here, excluding YAML frontmatter]
 
@@ -544,6 +523,10 @@ Use `example_url` from the manifest (not the raw `url` with dynamic segments) so
 ```
 You are operating as the ux-auditor QA agent.
 
+Session name: qa-ux
+Open your session: playwright-cli -s=qa-ux open "[base_url]"
+Close when done: playwright-cli -s=qa-ux close
+
 Target screens (audit ALL sequentially):
 [For each screen in manifest, list:]
   - [screen name]: [base_url][example_url] (auth: [yes/no], workflows: [refs])
@@ -551,32 +534,15 @@ Target screens (audit ALL sequentially):
 Auth profile to use: [exact profile name, e.g., "admin"]
 Auth profile path: .playwright/profiles/[profile-name].json
 
-To load the auth profile, read the storageState file and run:
+To load the auth profile:
 
-  async (page) => {
-    const state = <contents of .playwright/profiles/[profile-name].json>;
-    await page.context().addCookies(state.cookies);
-    if (state.origins) {
-      for (const origin of state.origins) {
-        if (origin.localStorage && origin.localStorage.length > 0) {
-          await page.goto(origin.origin);
-          await page.evaluate((items) => {
-            for (const { name, value } of items) localStorage.setItem(name, value);
-          }, origin.localStorage);
-        }
-      }
-    }
-    if (state.sessionStorage && state.sessionStorage.length > 0) {
-      await page.evaluate((items) => {
-        for (const { name, value } of items) sessionStorage.setItem(name, value);
-      }, state.sessionStorage);
-    }
-    return 'Profile loaded: [profile-name]';
-  }
+  playwright-cli -s={session} state-load ".playwright/profiles/[profile-name].json"
 
-After loading, verify auth by navigating to [base_url]. If you are
-redirected to [loginUrl from profiles.json], the session has expired —
-report this and stop.
+After loading, verify auth:
+  playwright-cli -s={session} goto "[base_url]"
+  playwright-cli -s={session} snapshot
+If the snapshot shows login UI or the URL is [loginUrl], the session
+has expired — report this and stop.
 
 [AGENT SYSTEM PROMPT — insert the body content of agents/ux-auditor.md here, excluding YAML frontmatter]
 
@@ -586,9 +552,9 @@ Screenshots: [yes/no — set to yes if --screenshots flag was passed]
 Screenshot directory: ./qa-reports/screenshots/
 
 Audit each screen in the target list sequentially. For each screen:
-1. Navigate to the screen URL
-2. If screenshots enabled, call browser_take_screenshot and save as
-   ./qa-reports/screenshots/ux-auditor-{screen-slug}-{timestamp}.png
+1. playwright-cli -s=qa-ux goto "[screen URL]"
+2. If screenshots enabled, run playwright-cli -s=qa-ux screenshot
+   and copy to ./qa-reports/screenshots/ux-auditor-{screen-slug}-{timestamp}.png
 3. Apply the full 10-category rubric
 4. Record findings before moving to the next screen
 
@@ -602,6 +568,10 @@ in the output format specified in your system prompt.
 ```
 You are operating as the adversarial-breaker QA agent.
 
+Session name: qa-adversarial
+Open your session: playwright-cli -s=qa-adversarial open "[base_url]"
+Close when done: playwright-cli -s=qa-adversarial close
+
 Target screens (attack ALL sequentially, grouped by flow):
 [For each screen in manifest, list:]
   - [screen name]: [base_url][example_url] (auth: [yes/no], workflows: [refs])
@@ -609,31 +579,15 @@ Target screens (attack ALL sequentially, grouped by flow):
 Auth profile to use: [exact profile name, e.g., "admin"]
 Auth profile path: .playwright/profiles/[profile-name].json
 
-To load the auth profile, read the storageState file and run:
+To load the auth profile:
 
-  async (page) => {
-    const state = <contents of .playwright/profiles/[profile-name].json>;
-    await page.context().addCookies(state.cookies);
-    if (state.origins) {
-      for (const origin of state.origins) {
-        if (origin.localStorage && origin.localStorage.length > 0) {
-          await page.goto(origin.origin);
-          await page.evaluate((items) => {
-            for (const { name, value } of items) localStorage.setItem(name, value);
-          }, origin.localStorage);
-        }
-      }
-    }
-    if (state.sessionStorage && state.sessionStorage.length > 0) {
-      await page.evaluate((items) => {
-        for (const { name, value } of items) sessionStorage.setItem(name, value);
-      }, state.sessionStorage);
-    }
-    return 'Profile loaded: [profile-name]';
-  }
+  playwright-cli -s={session} state-load ".playwright/profiles/[profile-name].json"
 
-After loading, verify auth by navigating to [base_url]. If redirected
-to login, the session has expired — report this and stop.
+After loading, verify auth:
+  playwright-cli -s={session} goto "[base_url]"
+  playwright-cli -s={session} snapshot
+If the snapshot shows login UI or the URL is the loginUrl, the session
+has expired — report this and stop.
 
 [AGENT SYSTEM PROMPT — insert the body content of agents/adversarial-breaker.md here, excluding YAML frontmatter]
 
@@ -665,33 +619,18 @@ For performance-profiler: dispatch one agent for ALL routes (not per-screen). Th
 ```
 You are operating as the performance-profiler QA agent.
 
+Session name: qa-perf
+Open your session: playwright-cli -s=qa-perf open "[base_url]"
+Close when done: playwright-cli -s=qa-perf close
+
 Target routes: [list all routes from manifest with example_urls]
 Auth required: [yes/no]
 Auth profile to use: [exact profile name]
 Auth profile path: .playwright/profiles/[profile-name].json
 
-To load the auth profile, read the storageState file and run:
+To load the auth profile:
 
-  async (page) => {
-    const state = <contents of .playwright/profiles/[profile-name].json>;
-    await page.context().addCookies(state.cookies);
-    if (state.origins) {
-      for (const origin of state.origins) {
-        if (origin.localStorage && origin.localStorage.length > 0) {
-          await page.goto(origin.origin);
-          await page.evaluate((items) => {
-            for (const { name, value } of items) localStorage.setItem(name, value);
-          }, origin.localStorage);
-        }
-      }
-    }
-    if (state.sessionStorage && state.sessionStorage.length > 0) {
-      await page.evaluate((items) => {
-        for (const { name, value } of items) sessionStorage.setItem(name, value);
-      }, state.sessionStorage);
-    }
-    return 'Profile loaded: [profile-name]';
-  }
+  playwright-cli -s={session} state-load ".playwright/profiles/[profile-name].json"
 
 After loading, verify auth by navigating to [base_url]. If redirected to login, the session has expired — report this and stop.
 
@@ -707,6 +646,10 @@ Begin your audit now. Profile each route, run static analysis, and return your f
 ```
 You are operating as the mobile-ux-auditor QA agent.
 
+Session name: qa-mobile
+Open your session: playwright-cli -s=qa-mobile open "[base_url]"
+Close when done: playwright-cli -s=qa-mobile close
+
 Target screens (audit ALL sequentially at 393x852):
 [For each screen in manifest, list:]
   - [screen name]: [base_url][example_url] (auth: [yes/no], workflows: [refs])
@@ -714,34 +657,18 @@ Target screens (audit ALL sequentially at 393x852):
 Auth profile to use: [exact profile name]
 Auth profile path: .playwright/profiles/[profile-name].json
 
-To load the auth profile, read the storageState file and run:
+To load the auth profile:
 
-  async (page) => {
-    const state = <contents of .playwright/profiles/[profile-name].json>;
-    await page.context().addCookies(state.cookies);
-    if (state.origins) {
-      for (const origin of state.origins) {
-        if (origin.localStorage && origin.localStorage.length > 0) {
-          await page.goto(origin.origin);
-          await page.evaluate((items) => {
-            for (const { name, value } of items) localStorage.setItem(name, value);
-          }, origin.localStorage);
-        }
-      }
-    }
-    if (state.sessionStorage && state.sessionStorage.length > 0) {
-      await page.evaluate((items) => {
-        for (const { name, value } of items) sessionStorage.setItem(name, value);
-      }, state.sessionStorage);
-    }
-    return 'Profile loaded: [profile-name]';
-  }
+  playwright-cli -s={session} state-load ".playwright/profiles/[profile-name].json"
 
 IMPORTANT: Set mobile viewport before inspection:
-  browser_resize width=393 height=852
+  playwright-cli -s=qa-mobile resize 393 852
 
-After loading, verify auth by navigating to [base_url]. If redirected
-to login, the session has expired — report this and stop.
+After loading, verify auth:
+  playwright-cli -s={session} goto "[base_url]"
+  playwright-cli -s={session} snapshot
+If the snapshot shows login UI or the URL is the loginUrl, the session
+has expired — report this and stop.
 
 [AGENT SYSTEM PROMPT — insert the body content of agents/mobile-ux-auditor.md here, excluding YAML frontmatter]
 
@@ -752,9 +679,9 @@ Screenshot directory: ./qa-reports/screenshots/
 
 Audit each screen in the target list sequentially at 393x852 viewport.
 For each screen:
-1. Navigate to the screen URL
-2. If screenshots enabled, call browser_take_screenshot and save as
-   ./qa-reports/screenshots/mobile-ux-auditor-{screen-slug}-{timestamp}.png
+1. playwright-cli -s=qa-mobile goto "[screen URL]"
+2. If screenshots enabled, run playwright-cli -s=qa-mobile screenshot
+   and copy to ./qa-reports/screenshots/mobile-ux-auditor-{screen-slug}-{timestamp}.png
 3. Apply the full 10-category mobile rubric
 4. Record findings before moving to the next screen
 
@@ -763,29 +690,24 @@ comparing mobile-specific patterns. Return your findings in the output
 format specified in your system prompt.
 ```
 
-### Sequential Dispatch
+### Parallel Dispatch
 
-Spawn agents **sequentially**, not in parallel. Do NOT batch multiple Agent tool calls in the same response turn. All agents share the same Playwright MCP server and browser instance — parallel dispatches would cause agents to interfere with each other's browser state (e.g., Agent A navigates to `/dashboard` while Agent B navigates to `/settings`, producing invalid snapshots).
+Spawn agents **in parallel**. Each agent uses its own named `playwright-cli` session (e.g., `-s=qa-smoke`, `-s=qa-ux`, `-s=qa-mobile`), so sessions are fully isolated — no shared browser state, no interference between agents.
 
-For each dispatch:
-1. **Clean browser state** — Before spawning the agent, clear all cookies, localStorage, and sessionStorage from the browser to prevent state leakage from previous agents or the pre-flight session validation:
-   ```javascript
-   async (page) => {
-     await page.context().clearCookies();
-     await page.evaluate(() => {
-       localStorage.clear();
-       sessionStorage.clear();
-     });
-     return 'Browser state cleared for next agent';
-   }
-   ```
-   Each agent is responsible for loading its own profile from scratch.
-2. **Spawn the agent** and wait for it to complete. Do not spawn the next agent until you have received and processed the current agent's result.
-3. **Save partial results** — After each agent completes, append its findings to `./workflows/qa-report-partial.json` (see Incremental Results below). This enables resume on crash.
-4. **Log its results** (see Progress Tracking below)
-5. **Then spawn the next agent** — only after step 4 is complete.
+Batch multiple Agent tool calls in the same response turn to run agents concurrently. Each agent:
+1. **Opens its own session** — `playwright-cli -s={session} open "[base_url]"`
+2. **Loads its own auth profile** — `playwright-cli -s={session} state-load ".playwright/profiles/[profile].json"`
+3. **Operates independently** — navigates, snapshots, clicks without affecting other sessions
+4. **Closes its session** when done — `playwright-cli -s={session} close`
 
-This is slower than parallel dispatch but produces reliable results. If speed is critical, the user can run multiple `/run-qa` sessions in separate terminals, each with its own Playwright MCP server.
+No browser state clearing is needed between agents — each session is born clean.
+
+After all agents complete:
+1. **Save results** to `./workflows/qa-report-partial.json` (see Incremental Results below)
+2. **Log results** (see Progress Tracking below)
+3. **Cleanup** — `playwright-cli close-all` as a safety net
+
+For a typical 35-screen app running `all`, this dispatches 5 agents concurrently and completes in roughly 8-12 minutes instead of 40-50 minutes sequential.
 
 ### Incremental Results
 
@@ -948,7 +870,9 @@ Full report: ./workflows/qa-report-[timestamp].md
 Would you like me to start fixing the critical and high findings?
 ```
 
-After presenting the summary, delete `./workflows/qa-report-partial.json` if it exists — the partial results have been merged into the final report and are no longer needed.
+After presenting the summary:
+1. Delete `./workflows/qa-report-partial.json` if it exists — the partial results have been merged into the final report and are no longer needed.
+2. Run `playwright-cli close-all` to clean up any remaining browser sessions.
 
 ---
 

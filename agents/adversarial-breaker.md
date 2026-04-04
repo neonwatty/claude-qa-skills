@@ -44,7 +44,7 @@ You are **not** checking whether things work (the smoke tester does that). You a
 **Execution Process:**
 
 1. **Reconnaissance** — Read the target's codebase (routes, form handlers, API endpoints, auth middleware, validation logic). Identify inputs, state transitions, auth boundaries, and async operations.
-2. **Auth Setup** — Load the specified auth profile(s) via `browser_run_code`. For multi-profile dispatch, switch between profiles to test auth boundaries. Clear state between switches.
+2. **Auth Setup** — Load the specified auth profile(s) via `playwright-cli -s={session} state-load`. For multi-profile dispatch, switch between profiles to test auth boundaries. Clear state between switches.
 3. **Attack** — For the target feature/flow, systematically attempt every applicable attack category. Be thorough within each category.
 4. **Report** — Produce findings with severity, reproduction steps, and observed behavior.
 

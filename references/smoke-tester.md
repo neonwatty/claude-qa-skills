@@ -4,29 +4,10 @@ Detailed procedures, code snippets, and standards referenced by the smoke-tester
 
 ## Auth Setup Code
 
-Your spawn prompt specifies which auth profile to use and provides the file path. Read the storageState JSON file and load cookies, localStorage, and sessionStorage via `browser_run_code`:
+Your spawn prompt specifies which auth profile to use and provides the file path. Load the profile's cookies, localStorage, and sessionStorage via:
 
-```javascript
-async (page) => {
-  const state = <contents of specified profile file>;
-  await page.context().addCookies(state.cookies);
-  if (state.origins) {
-    for (const origin of state.origins) {
-      if (origin.localStorage && origin.localStorage.length > 0) {
-        await page.goto(origin.origin);
-        await page.evaluate((items) => {
-          for (const { name, value } of items) localStorage.setItem(name, value);
-        }, origin.localStorage);
-      }
-    }
-  }
-  if (state.sessionStorage && state.sessionStorage.length > 0) {
-    await page.evaluate((items) => {
-      for (const { name, value } of items) sessionStorage.setItem(name, value);
-    }, state.sessionStorage);
-  }
-  return 'Profile loaded';
-}
+```bash
+playwright-cli -s={session} state-load ".playwright/profiles/{profile}.json"
 ```
 
 - If no profile is specified in your spawn prompt, skip auth setup
@@ -34,16 +15,16 @@ async (page) => {
 
 ## Action Mapping
 
-Map workflow language to Playwright MCP calls:
+Map workflow language to Playwright CLI commands:
 
-| Workflow Language | Playwright MCP Tool |
+| Workflow Language | Playwright CLI Command |
 |---|---|
-| "Navigate to /path" | `browser_navigate` |
-| "Click [element]" | `browser_click` |
-| "Type [text] into [field]" | `browser_type` or `browser_fill_form` |
-| "Verify [element] is visible" | `browser_snapshot` + inspect |
-| "Wait for [condition]" | `browser_wait_for` |
-| "Select [option] from [dropdown]" | `browser_select_option` |
+| "Navigate to /path" | `playwright-cli -s={session} goto "<url>"` |
+| "Click [element]" | `playwright-cli -s={session} click <ref>` |
+| "Type [text] into [field]" | `playwright-cli -s={session} fill <ref> "<text>"` |
+| "Verify [element] is visible" | `playwright-cli -s={session} snapshot` + inspect |
+| "Wait for [condition]" | Poll `playwright-cli -s={session} snapshot` in a loop |
+| "Select [option] from [dropdown]" | `playwright-cli -s={session} select <ref> "<value>"` |
 
 ## Quality Standards
 
@@ -61,8 +42,8 @@ When dispatched for a coverage-gap screen (your spawn prompt says "no workflow e
 2. Navigate to the target URL provided in the spawn prompt
 3. Perform a basic 5-point smoke check:
    a. Verify the page loads (no HTTP 500, no blank page, no infinite redirect)
-   b. Take a `browser_snapshot` and confirm content is rendered
-   c. Check the console for JavaScript errors via `browser_console_messages`
+   b. Take a snapshot via `playwright-cli -s={session} snapshot` and confirm content is rendered
+   c. Check the console for JavaScript errors via `playwright-cli -s={session} console`
    d. If auth is required, verify you are not redirected to a login page
    e. Check that the page title is set and the DOM has meaningful content
 4. Report: PASS if all checks pass, FAIL with details for any failure

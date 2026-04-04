@@ -50,13 +50,14 @@ function deepQuerySelectorAll(selector, root = document) {
 
 ## Runtime Measurement Scripts
 
-Measurement patterns for capturing performance metrics in authenticated browser sessions using `browser_evaluate`. These must be run AFTER `browser_navigate` but BEFORE any user interaction, then read AFTER a settle period.
+Measurement patterns for capturing performance metrics in authenticated browser sessions using `playwright-cli -s={session} eval`. These must be run AFTER `playwright-cli -s={session} goto` but BEFORE any user interaction, then read AFTER a settle period.
 
 ### Step 1: Navigate and Wait for Load
 
 ```
-browser_navigate url="<route-url>"
-browser_wait_for text="<expected-content>" timeout=10000
+playwright-cli -s={session} goto "<route-url>"
+# Poll snapshot until expected content appears (max 3s, 500ms interval)
+for i in 1 2 3 4 5 6; do playwright-cli -s={session} snapshot | grep -q "<expected-content>" && break; sleep 0.5; done
 ```
 
 Wait for the page to be interactive before reading metrics.
@@ -64,7 +65,7 @@ Wait for the page to be interactive before reading metrics.
 ### Step 2: Collect Navigation Timing (TTFB, DOM Load, Full Load)
 
 ```javascript
-browser_evaluate function:
+playwright-cli -s={session} eval "
 () => {
   const nav = performance.getEntriesByType('navigation')[0];
   if (!nav) return { available: false };
@@ -89,12 +90,13 @@ browser_evaluate function:
     dom_interactive_ms: Math.round(nav.domInteractive - nav.startTime),
   };
 }
+"
 ```
 
 ### Step 3: Collect LCP (Largest Contentful Paint)
 
 ```javascript
-browser_evaluate function:
+playwright-cli -s={session} eval "
 () => {
   return new Promise(resolve => {
     try {
@@ -120,12 +122,13 @@ browser_evaluate function:
     }
   });
 }
+"
 ```
 
 ### Step 4: Collect CLS (Cumulative Layout Shift)
 
 ```javascript
-browser_evaluate function:
+playwright-cli -s={session} eval "
 () => {
   return new Promise(resolve => {
     let sessionWindows = [];
@@ -201,12 +204,13 @@ browser_evaluate function:
     }, 5000);
   });
 }
+"
 ```
 
 ### Step 5: Collect Resource Loading (Heavy Resources)
 
 ```javascript
-browser_evaluate function:
+playwright-cli -s={session} eval "
 () => {
   const resources = performance.getEntriesByType('resource');
   const heavy = resources
@@ -239,23 +243,25 @@ browser_evaluate function:
     heavy_resources: heavy,
   };
 }
+"
 ```
 
 ### Step 6: Collect FCP (First Contentful Paint)
 
 ```javascript
-browser_evaluate function:
+playwright-cli -s={session} eval "
 () => {
   const entries = performance.getEntriesByType('paint');
   const fcp = entries.find(e => e.name === 'first-contentful-paint');
   return fcp ? { available: true, fcp_ms: Math.round(fcp.startTime) } : { available: false };
 }
+"
 ```
 
 ### Step 7: Collect Long Tasks / TBT (Total Blocking Time)
 
 ```javascript
-browser_evaluate function:
+playwright-cli -s={session} eval "
 () => {
   return new Promise(resolve => {
     try {
@@ -284,12 +290,13 @@ browser_evaluate function:
     }
   });
 }
+"
 ```
 
 ### Step 8: Collect DOM Health
 
 ```javascript
-browser_evaluate function:
+playwright-cli -s={session} eval "
 () => {
   const all = document.querySelectorAll('*');
   let maxDepth = 0;
@@ -303,12 +310,13 @@ browser_evaluate function:
   });
   return { total_nodes: all.length, max_depth: maxDepth, max_children: maxChildren };
 }
+"
 ```
 
 ### Step 9: Collect Memory Snapshot
 
 ```javascript
-browser_evaluate function:
+playwright-cli -s={session} eval "
 () => {
   if (performance.memory) {
     return {
@@ -320,6 +328,7 @@ browser_evaluate function:
   }
   return { available: false };
 }
+"
 ```
 
 ## Viewport Profiling
@@ -329,26 +338,26 @@ For comprehensive profiling, measure at both viewport sizes:
 **Desktop (1280x720):**
 
 ```
-browser_resize width=1280 height=720
+playwright-cli -s={session} resize 1280 720
 ```
 
 **Mobile (393x852):**
 
 ```
-browser_resize width=393 height=852
+playwright-cli -s={session} resize 393 852
 ```
 
 Compare metrics across viewports — mobile often has different LCP elements and more layout shifts.
 
 ## Page Settled Detection
 
-Before running any measurement script, ensure the page is settled. After `browser_navigate` and `browser_wait_for`:
+Before running any measurement script, ensure the page is settled. After `playwright-cli -s={session} goto` and polling `playwright-cli -s={session} snapshot` for expected content:
 
 1. Wait 2 seconds for lazy loading and layout shifts
 2. Run this settle check:
 
 ```javascript
-browser_evaluate:
+playwright-cli -s={session} eval "
 (() => {
   return {
     readyState: document.readyState,
@@ -357,6 +366,7 @@ browser_evaluate:
     pendingImages: [...document.images].filter(img => !img.complete).length
   };
 })()
+"
 ```
 
 If `runningAnimations > 0` or `pendingImages > 0`, wait an additional 2 seconds and re-check. Maximum 3 settle attempts before proceeding.
@@ -367,8 +377,8 @@ For each route to profile:
 
 ```
 0. Run Page Settled Detection (see above)
-1. browser_navigate url="<route>"
-2. browser_wait_for text="<expected>" timeout=10000
+1. playwright-cli -s={session} goto "<route>"
+2. Poll playwright-cli -s={session} snapshot until "<expected>" appears (max 3s, 500ms interval)
 3. Run Page Settled Detection settle check (wait + verify)
 4. Collect Navigation Timing (Step 2)
 5. Collect LCP (Step 3)
@@ -378,7 +388,7 @@ For each route to profile:
 9. Collect Long Tasks / TBT (Step 7)
 10. Collect DOM Health (Step 8)
 11. Collect Memory Snapshot (Step 9)
-12. browser_take_screenshot (visual record)
+12. playwright-cli -s={session} screenshot (visual record)
 13. Record all metrics for this route
 ```
 
@@ -386,7 +396,7 @@ Repeat at each viewport size if doing multi-viewport profiling.
 
 ### SPA Soft Navigation Limitation
 
-The profiling loop uses `browser_navigate` for each route, which triggers full page loads. In SPAs with client-side routing (Next.js App Router, React Router, SvelteKit), real users navigate via link clicks that produce soft navigations. Metrics from hard navigations may differ significantly from the in-app experience:
+The profiling loop uses `playwright-cli -s={session} goto` for each route, which triggers full page loads. In SPAs with client-side routing (Next.js App Router, React Router, SvelteKit), real users navigate via link clicks that produce soft navigations. Metrics from hard navigations may differ significantly from the in-app experience:
 
 - **LCP** may be much higher on hard navigation (full page load) vs soft navigation (incremental update)
 - **CLS** patterns differ (hard nav has initial layout; soft nav has transition shifts)
@@ -394,8 +404,8 @@ The profiling loop uses `browser_navigate` for each route, which triggers full p
 - **TBT** may be lower on soft navigation (no initial JS parsing)
 
 **Mitigation:** For SPA routes, consider an additional measurement pass:
-1. Navigate to the app's entry point via `browser_navigate`
-2. Click through to the target route via internal links using `browser_click`
+1. Navigate to the app's entry point via `playwright-cli -s={session} goto`
+2. Click through to the target route via internal links using `playwright-cli -s={session} click <ref>`
 3. Wait for content to settle (use Page Settled Detection)
 4. Measure metrics after the soft navigation
 

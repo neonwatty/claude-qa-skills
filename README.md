@@ -19,13 +19,13 @@ claude plugin install qa-skills@neonwatty-qa
 ```
                                               ┌→  Converters  →  .spec.ts  →  CI (GitHub Actions)
 /setup-profiles  →  Generators  →  workflow  ─┤
-                                    markdown   └→  Runner (Playwright MCP)  →  interactive local testing
+                                    markdown   └→  Runner (Playwright CLI)  →  interactive local testing
 ```
 
 1. **Authenticate** — Run `/setup-profiles` to create persistent browser profiles for each user role
 2. **Generate** — Explore your codebase, then walk through the live app with you step-by-step via Playwright to co-author workflow documentation
 3. **Convert** — Translate workflows into self-contained Playwright test projects with auth and CI
-4. **Run** — Execute workflows interactively via Playwright MCP, or run generated tests in CI
+4. **Run** — Execute workflows interactively via Playwright CLI, or run generated tests in CI
 
 ## Commands
 
@@ -81,7 +81,7 @@ claude plugin install qa-skills@neonwatty-qa
 
 | Skill                 | Trigger         | Description                                                                   |
 | --------------------- | --------------- | ----------------------------------------------------------------------------- |
-| **playwright-runner** | "run workflows" | Executes workflow markdown interactively via Playwright MCP with auth support |
+| **playwright-runner** | "run workflows" | Executes workflow markdown interactively via Playwright CLI with auth support |
 
 ## Agents
 
@@ -165,12 +165,8 @@ Converters generate `auth.setup.ts` with `process.env` credential references for
 
 ## Requirements
 
-- **Playwright MCP** — Bundled with this plugin via `.mcp.json` (auto-configured on install)
+- **Playwright CLI** — `npm install -g @playwright/cli@latest && playwright-cli install`
 - **Playwright** — `npx playwright install` in generated test projects
-
-No other MCP dependencies required.
-
-> **Already have Playwright MCP?** If you have Playwright MCP configured in your global `~/.claude/settings.json` or project `.mcp.json`, the plugin's bundled server may create a duplicate. In that case, delete the plugin's `.mcp.json` file (located in the plugin's install directory) to use your existing server instead.
 
 ## Local Development
 

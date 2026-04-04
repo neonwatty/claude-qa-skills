@@ -71,7 +71,7 @@ Additional limitations specific to iOS Simulator MCP (`ui_type`, `ui_tap`, etc.)
 
 ### Chrome Mobile Viewport
 
-Playwright MCP provides powerful automation but has these additional constraints:
+Playwright CLI provides powerful automation but has these additional constraints:
 
 - Browser permission dialogs cannot be automated via standard Playwright tools
 - Native browser alerts (`alert()`, `confirm()`, `prompt()`) can be handled by Playwright automatically
@@ -84,19 +84,18 @@ Playwright MCP provides powerful automation but has these additional constraints
 
 ```python
 try:
-    await browser_click({ ref: target_ref })
+    run(f"playwright-cli -s={session} click {target_ref}")
 except ElementNotFoundError:
     # Take diagnostic screenshot
-    await browser_take_screenshot({
-        filename: f"workflows/screenshots/{workflow}/errors/step-{num}-not-found.png"
-    })
+    run(f"playwright-cli -s={session} screenshot")
+    # save to: workflows/screenshots/{workflow}/errors/step-{num}-not-found.png
 
     # Try alternative selector
-    snapshot = await browser_snapshot()
+    snapshot = run(f"playwright-cli -s={session} snapshot")
     alternative_ref = find_alternative_element(snapshot, target_description)
 
     if alternative_ref:
-        await browser_click({ ref: alternative_ref })
+        run(f"playwright-cli -s={session} click {alternative_ref}")
     else:
         log_finding({
             "severity": "high",
@@ -117,12 +116,10 @@ except ElementNotFoundError:
 
 ```python
 try:
-    measurements = await browser_evaluate({
-        function: "() => iOSHIGAudit.measureTouchTargets()"
-    })
+    measurements = run(f'playwright-cli -s={session} eval "() => iOSHIGAudit.measureTouchTargets()"')
 except JavaScriptError as e:
     print("Automated measurement failed, using fallback approach")
-    snapshot = await browser_snapshot()
+    snapshot = run(f"playwright-cli -s={session} snapshot")
     measurements = manual_touch_target_analysis(snapshot)
 ```
 

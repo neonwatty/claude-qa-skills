@@ -1,30 +1,28 @@
 ---
 description: Create or refresh Playwright authentication profiles for the current project
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion, mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_run_code, mcp__playwright__browser_close
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 ---
 
 # Setup Playwright Authentication Profiles
 
 Set up persistent Playwright `storageState` authentication profiles for the current project. This enables authenticated browser automation without logging in every session.
 
-## Step 1: Check MCP Configuration
+## Step 1: Check CLI Installation
 
-Verify that a Playwright MCP server is configured. Check the project's `.mcp.json` and the user's global MCP config (`~/.claude/settings.json`) for a Playwright MCP server entry.
+Verify that `@playwright/cli` is installed by running via Bash:
 
-If no Playwright MCP server is configured, guide the user to add one:
-
-```json
-{
-  "playwright": {
-    "command": "npx",
-    "args": ["-y", "@playwright/mcp@latest"]
-  }
-}
+```
+playwright-cli --version
 ```
 
-This format is for project-level `.mcp.json` files. For global config in `~/.claude/settings.json`, use the `"mcpServers": { ... }` wrapper instead.
+If the command is not found, guide the user to install it:
 
-The Playwright MCP server runs in headed mode by default, which is required for the interactive login flow.
+```bash
+npm install -g @playwright/cli@latest
+playwright-cli install
+```
+
+The `install` command initializes the workspace and detects available browsers. The CLI supports `--headed` mode, which is required for the interactive login flow.
 
 ## Step 2: Check for Existing Profiles
 
@@ -98,31 +96,29 @@ For each profile, one at a time:
 1. **Announce:** Tell the user which role to log in as. For example:
    > "I'm opening the browser to the login page. Please log in as the **admin** user. Tell me when you're done."
 
-2. **Navigate:** Use `browser_navigate` to open the profile's `loginUrl` in Playwright. The browser runs in headed mode by default so the user can see and interact with it.
+2. **Open browser:** Use `playwright-cli` via Bash to open a headed browser session for the profile's `loginUrl`:
+
+   ```
+   playwright-cli -s=setup-profiles open --headed "{loginUrl}"
+   ```
+
+   The `--headed` flag opens a visible browser window so the user can see and interact with it.
 
 3. **Wait:** Ask the user to complete the login manually. This handles all auth methods — username/password, Google OAuth, 2FA, etc. Wait for the user to confirm they are logged in.
 
-4. **Capture:** Use `browser_run_code` to capture the storage state and sessionStorage:
+4. **Capture:** Save the storage state (cookies + localStorage) to the profile file:
 
-   First, capture the Playwright storageState (cookies + localStorage):
-
-   ```javascript
-   async (page) => {
-     return await page.context().storageState();
-   }
+   ```
+   playwright-cli -s=setup-profiles state-save ".playwright/profiles/<role-name>.json"
    ```
 
    Then, capture sessionStorage separately (Playwright's `storageState()` does not include it):
 
-   ```javascript
-   async (page) => {
-     return await page.evaluate(() => {
-       return Object.entries(sessionStorage).map(([name, value]) => ({ name, value }));
-     });
-   }
+   ```
+   playwright-cli -s=setup-profiles eval "() => JSON.stringify(Object.entries(sessionStorage).map(([name, value]) => ({name, value})))"
    ```
 
-   Merge the sessionStorage data into the storageState JSON before saving. Add it as a `sessionStorage` field alongside the existing `cookies` and `origins`:
+   Read the saved profile JSON, merge the sessionStorage data into it as a `sessionStorage` field alongside the existing `cookies` and `origins`, and write the merged file:
 
    ```json
    {
@@ -136,28 +132,36 @@ For each profile, one at a time:
 
    If sessionStorage is empty, set `"sessionStorage": []`. Save the merged JSON to `.playwright/profiles/<role-name>.json` using the Write tool.
 
-5. **Validate:** After saving, verify the captured state is usable. Navigate to a page that requires authentication (use the app's root URL or a known protected route) and check that the session is recognized. If the browser is redirected to the login page, warn the user that the capture may be incomplete and offer to retry.
+5. **Validate:** After saving, verify the captured state is usable. Navigate to a page that requires authentication (use the app's root URL or a known protected route) and check via snapshot that the session is recognized:
+
+   ```
+   playwright-cli -s=setup-profiles goto "{base_url}"
+   playwright-cli -s=setup-profiles snapshot
+   ```
+
+   If the snapshot shows a login page or the URL redirects to the login page, warn the user that the capture may be incomplete and offer to retry.
 
 6. **Confirm:** Tell the user the profile was saved successfully.
 
-7. **Next:** Clear all cookies and localStorage for the next login. Use `browser_run_code`:
+7. **Next:** Clear all session data for the next login:
 
-   ```javascript
-   async (page) => {
-     await page.context().clearCookies();
-     await page.evaluate(() => {
-       localStorage.clear();
-       sessionStorage.clear();
-     });
-     return 'Session cleared for next profile';
-   }
+   ```
+   playwright-cli -s=setup-profiles delete-data
    ```
 
-   Then navigate to the next profile's `loginUrl`. Reuse the same browser instance — do not call `browser_close` between profiles.
+   Then navigate to the next profile's `loginUrl`. Reuse the same browser session — do not close between profiles:
+
+   ```
+   playwright-cli -s=setup-profiles goto "{next_loginUrl}"
+   ```
 
 If the user wants to cancel mid-loop, save whatever profiles have been completed so far — they are still usable.
 
-After ALL profiles are captured, close the browser with `browser_close`.
+After ALL profiles are captured, close the browser:
+
+```
+playwright-cli -s=setup-profiles close
+```
 
 ## Step 7: Update CLAUDE.md
 
@@ -177,7 +181,7 @@ Authenticated browser profiles are available at `.playwright/profiles/`.
 Available profiles:
 - role-name: Role description
 Config: `.playwright/profiles.json`
-To load a profile, use `browser_run_code` to restore cookies via `addCookies()`, localStorage via `page.evaluate()`, and sessionStorage (if present) from the profile JSON file.
+To load a profile, use `playwright-cli -s={session} state-load .playwright/profiles/<role>.json` to restore cookies and localStorage. Restore sessionStorage entries individually with `sessionstorage-set` if the profile includes them.
 Run `/setup-profiles` to create new profiles or refresh expired sessions.
 ```
 
