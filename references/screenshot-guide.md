@@ -71,7 +71,7 @@ Use `screenshot({ output_path: "workflows/screenshots/ios-audit/wfNN-stepNN.png"
 
 ### Chrome Mobile Viewport
 
-Use `browser_take_screenshot({ filename: "workflows/screenshots/{workflow}/step-{num}.png", type: "png" })` from Playwright MCP. Capture before/after each workflow step execution.
+Use `playwright-cli -s={session} screenshot` to capture screenshots. Save to `workflows/screenshots/{workflow}/step-{num}.png`. Capture before/after each workflow step execution.
 
 ## Screenshot Optimization
 

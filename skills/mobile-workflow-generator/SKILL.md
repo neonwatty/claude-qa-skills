@@ -7,7 +7,7 @@ description: Generates mobile browser workflow documentation by exploring the ap
 
 You are a senior QA engineer creating comprehensive mobile browser workflow documentation for Playwright-based testing with a mobile viewport (393x852, iPhone 15 Pro equivalent). Your job is to deeply explore the application and generate thorough, testable workflows that cover all key user journeys as experienced on a mobile device. Every workflow you produce must be specific enough that another engineer -- or an automated Playwright script running in a mobile-sized viewport -- can follow it step-by-step without ambiguity.
 
-You combine static codebase analysis (via parallel Explore agents) with a required live walkthrough (via Playwright MCP in a mobile viewport) to co-author each workflow step with the user. The walkthrough uses Playwright to navigate the running app at mobile dimensions, capture screenshots at each step, and present them to the user for verification and edge case decisions. You are aware of the iOS Human Interface Guidelines and mobile web best practices, and you flag any deviations or anti-patterns that could degrade the mobile user experience.
+You combine static codebase analysis (via parallel Explore agents) with a required live walkthrough (via Playwright CLI in a mobile viewport) to co-author each workflow step with the user. The walkthrough uses Playwright CLI commands via Bash to navigate the running app at mobile dimensions, capture screenshots at each step, and present them to the user for verification and edge case decisions. You are aware of the iOS Human Interface Guidelines and mobile web best practices, and you flag any deviations or anti-patterns that could degrade the mobile user experience.
 
 ---
 
@@ -30,7 +30,7 @@ Every run of this skill creates the following task tree. Tasks are completed in 
   +-- [Explore Task] "Explore: Routes & Navigation"        (agent)
   +-- [Explore Task] "Explore: Components & Features"      (agent)
   +-- [Explore Task] "Explore: State & Data"               (agent)
-  +-- [Walkthrough Task] "Walkthrough: Mobile Journeys"    (Playwright MCP)
+  +-- [Walkthrough Task] "Walkthrough: Mobile Journeys"    (Playwright CLI)
   +-- [Approval Task] "Approval: User Review #1"
   +-- [Write Task]    "Write: mobile-workflows.md"
 ```
@@ -644,7 +644,7 @@ async (page) => {
 Navigate to the base URL and verify the session is still valid:
 1. If the browser is redirected to the profile's `loginUrl`, the session has expired.
 2. If the final URL is on a different domain (e.g., an OAuth provider), the session has expired.
-3. Take a `browser_snapshot` — if login-related UI is visible instead of the expected page content, the session has expired.
+3. Run `playwright-cli -s=gen-mobile snapshot` — if login-related UI is visible instead of the expected page content, the session has expired.
 
 If expiry is detected, inform the user and suggest running `/setup-profiles` to refresh it.
 
@@ -728,7 +728,7 @@ Once the user confirms, **configure the Playwright browser context with a mobile
 
 Before navigating, configure the mobile viewport:
 
-1. Set viewport to mobile dimensions using `browser_resize` with width 393 and height 852.
+1. Set viewport to mobile dimensions using `playwright-cli -s=gen-mobile resize 393 852`.
 
 > **Note for converter skill:** When generating Playwright test files, use context options instead:
 > ```javascript
@@ -750,22 +750,25 @@ When Playwright fills form fields during execution:
 Playwright execution sequence:
 
 ```
-1. browser_navigate to the first route
-2. browser_take_screenshot to capture the initial state at mobile dimensions
+0. playwright-cli -s=gen-mobile open "{base_url}"   # start session
+   playwright-cli -s=gen-mobile resize 393 852       # set mobile viewport
+1. playwright-cli -s=gen-mobile goto "{first_route}" # navigate to the first route
+2. playwright-cli -s=gen-mobile screenshot           # capture the initial state at mobile dimensions
 3. For each subsequent action:
    a. Execute the action:
-      - browser_click for taps (Playwright MCP uses browser_click for both click and tap; the mobile viewport context handles touch simulation)
-      - browser_type or browser_fill_form for text input
-      - browser_navigate for direct navigation
-   b. browser_take_screenshot to capture the result
+      - playwright-cli -s=gen-mobile click {ref} for taps (Playwright CLI uses click for both click and tap; the mobile viewport context handles touch simulation)
+      - playwright-cli -s=gen-mobile fill or type for text input
+      - playwright-cli -s=gen-mobile goto "{url}" for direct navigation
+   b. playwright-cli -s=gen-mobile screenshot to capture the result
 4. Store each screenshot with its step number for use in Step 3
+5. playwright-cli -s=gen-mobile close                # end session
 ```
 
 ### Handling Playwright Failures
 
 If an action fails during execution (element not found, timeout, navigation error):
 
-1. Capture a screenshot of the current error state via `browser_take_screenshot`.
+1. Capture a screenshot of the current error state via `playwright-cli -s=gen-mobile screenshot`.
 2. Continue to the next action if possible.
 3. In Phase 5, Step 3, flag the failed step by presenting the error state screenshot and explaining what went wrong.
 4. Use `AskUserQuestion` to ask the user whether to:

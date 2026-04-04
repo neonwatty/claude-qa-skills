@@ -10,8 +10,8 @@ Each check maps to a binary Pass (1) or Fail (0). The total score per screen is 
 
 Each check is tagged with its measurement confidence level:
 
-- **`[D]` Deterministic** — Fully measurable via `browser_evaluate`. Returns a numeric value with a clear threshold. Same page always produces the same result. High confidence.
-- **`[H]` Heuristic** — Measurable via `browser_evaluate` but with known false positive/negative risks (<5% error rate), OR requires Playwright interaction sequence. Reliable signal, not definitive.
+- **`[D]` Deterministic** — Fully measurable via `playwright-cli -s={session} eval`. Returns a numeric value with a clear threshold. Same page always produces the same result. High confidence.
+- **`[H]` Heuristic** — Measurable via `playwright-cli -s={session} eval` but with known false positive/negative risks (<5% error rate), OR requires Playwright interaction sequence. Reliable signal, not definitive.
 - **`[J]` LLM-Judgment** — Requires visual interpretation or semantic understanding. A programmatic pre-filter narrows what the LLM evaluates by 75-85%. Lower confidence.
 
 ### Threshold Citation Legend
@@ -226,7 +226,7 @@ Use `deepQuerySelectorAll` instead of `document.querySelectorAll` in scripts tha
 
 ---
 
-## Measurement Scripts (`browser_evaluate`)
+## Measurement Scripts (`playwright-cli eval`)
 
 JavaScript snippets for all automatable checks. Each returns a structured result object.
 
@@ -1728,12 +1728,12 @@ These scripts require Playwright interaction (tabbing, hovering, clicking, form 
 
 ### 1. Focus State Visibility (Tab-Through)
 
-Tabs through all focusable elements and verifies `:focus-visible` styles. Requires Playwright `browser_press_key` to simulate Tab presses.
+Tabs through all focusable elements and verifies `:focus-visible` styles. Requires Playwright CLI `playwright-cli -s={session} press` to simulate Tab presses.
 
 **Procedure:**
-1. Run the pre-measurement script below via `browser_evaluate` to catalog all focusable elements
-2. Use Playwright `browser_press_key` to press Tab N times (where N = number of focusable elements)
-3. After each Tab press, run the focus-check script via `browser_evaluate` to capture the active element's focus styling
+1. Run the pre-measurement script below via `playwright-cli -s={session} eval` to catalog all focusable elements
+2. Use Playwright CLI `playwright-cli -s={session} press Tab` N times (where N = number of focusable elements)
+3. After each Tab press, run the focus-check script via `playwright-cli -s={session} eval` to capture the active element's focus styling
 
 **Pre-measurement: Catalog focusable elements**
 
@@ -1807,15 +1807,15 @@ Run this after each Tab keypress:
 
 **Scoring:** Count elements with `hasFocusIndicator: false`. PASS if all have indicators. MAJOR if >20% lack focus styles. CRITICAL if >50% lack focus styles.
 
-**State reset:** Click the document body to defocus: `browser_click` on a neutral area.
+**State reset:** Click the document body to defocus: `playwright-cli -s={session} click` on a neutral area.
 
 ### 2. Hover State Detection
 
-Hovers over interactive elements and measures computed style changes. Requires Playwright `browser_hover`.
+Hovers over interactive elements and measures computed style changes. Requires Playwright CLI `playwright-cli -s={session} hover`.
 
 **Procedure:**
 1. Run the catalog script below to find interactive elements and capture their default styles
-2. For each element (up to 20, prioritizing buttons and links): use Playwright `browser_hover` on the element, then run the comparison script
+2. For each element (up to 20, prioritizing buttons and links): use Playwright CLI `playwright-cli -s={session} hover` on the element, then run the comparison script
 3. After all hovers, hover a neutral area to reset
 
 **Pre-measurement: Catalog interactive element default styles**
@@ -1856,7 +1856,7 @@ Hovers over interactive elements and measures computed style changes. Requires P
 
 **Per-hover: Compare style after hover**
 
-After using `browser_hover` at (x, y) coordinates from the catalog, run:
+After using `playwright-cli -s={session} hover` at (x, y) coordinates from the catalog, run:
 
 ```javascript
 (() => {
@@ -1891,7 +1891,7 @@ Compare `defaultStyles` from catalog with `hoveredStyles`. A perceivable hover c
 
 **Scoring:** Count elements with no perceivable hover change. PASS if >80% have hover feedback. MINOR if 60-80%. MAJOR if <60%.
 
-**State reset:** `browser_hover` on a neutral area (e.g., page header or body).
+**State reset:** `playwright-cli -s={session} hover` on a neutral area (e.g., page header or body).
 
 ### 3. Form Validation Error Trigger
 
@@ -1899,7 +1899,7 @@ Submits empty required forms to trigger validation error states, then measures e
 
 **Procedure:**
 1. Run the pre-measurement script to find forms with required fields
-2. For each form: use Playwright `browser_click` on the submit button without filling fields
+2. For each form: use Playwright CLI `playwright-cli -s={session} click` on the submit button without filling fields
 3. Run the error measurement script to capture validation error state
 
 **Pre-measurement: Find forms with required fields**
@@ -2002,7 +2002,7 @@ Run after clicking the submit button:
 
 **Scoring:** PASS if errors are inline, reference the field, and provide fix guidance. MINOR if errors exist but are generic. MAJOR if no error feedback at all. **Compound check:** Errors must be inline AND actionable to score as PASS.
 
-**State reset:** Reload the page via `browser_navigate` to the same URL to clear form state.
+**State reset:** Reload the page via `playwright-cli -s={session} goto` to the same URL to clear form state.
 
 ### 4. Toast/Notification Behavior
 
@@ -2010,7 +2010,7 @@ Clicks action buttons (save, delete, submit) and monitors for toast/notification
 
 **Procedure:**
 1. Run the pre-measurement script to find action buttons likely to trigger toasts
-2. For each button (up to 5): click via Playwright `browser_click`, wait 500ms, then run the toast detection script
+2. For each button (up to 5): click via Playwright CLI `playwright-cli -s={session} click`, wait 500ms, then run the toast detection script
 3. Note: Only click non-destructive buttons (save, update, close) to avoid side effects. Skip delete/remove buttons.
 
 **Pre-measurement: Find action buttons**

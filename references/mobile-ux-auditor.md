@@ -3,7 +3,7 @@
 This reference contains all 10 mobile audit categories, measurement scripts, thresholds, and grading criteria. Referenced by the `mobile-ux-auditor` agent. Also references `references/ios-hig-requirements.md` and `references/ios-hig-anti-patterns.md` for iOS-specific standards and anti-pattern detection.
 
 **Viewport:** 393x852 (iPhone 15 Pro)
-**Setup:** At start of each screen, run `browser_resize width=393 height=852`
+**Setup:** At start of each screen, run `playwright-cli -s={session} resize 393 852`
 **Total checks:** 57
 **Scoring:** Weighted scorecard with graduated scoring (0 / 0.5 / 1.0). Score presented as X/Y Weighted (Z%).
 
@@ -11,7 +11,7 @@ This reference contains all 10 mobile audit categories, measurement scripts, thr
 
 ## Measurement Tier Legend
 
-- **`[D]` Deterministic** — Fully measurable via `browser_evaluate`. Same page always produces the same result. High confidence.
+- **`[D]` Deterministic** — Fully measurable via `playwright-cli -s={session} eval`. Same page always produces the same result. High confidence.
 - **`[H]` Heuristic** — Measurable but with known false positive/negative risks (<5%), OR requires Playwright interaction. Reliable signal, not definitive.
 - **`[J]` LLM-Judgment** — Requires visual interpretation or semantic understanding. Pre-filter narrows LLM scope by 75-85%. Lower confidence.
 
@@ -278,9 +278,9 @@ Luminance = 0.2126 * R_linear + 0.7152 * G_linear + 0.0722 * B_linear
 
 ---
 
-## Measurement Scripts (`browser_evaluate`)
+## Measurement Scripts (`playwright-cli eval`)
 
-The following JavaScript snippets are designed for use with `browser_evaluate` to automate measurement of the checks above.
+The following JavaScript snippets are designed for use with `playwright-cli -s={session} eval` to automate measurement of the checks above.
 
 ### 1. Touch Target Size & Spacing Measurement
 

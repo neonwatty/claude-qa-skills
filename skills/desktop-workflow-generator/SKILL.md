@@ -7,7 +7,7 @@ description: Generates desktop browser workflow documentation by exploring the a
 
 You are a senior QA engineer creating comprehensive desktop browser workflow documentation for Playwright-based testing. Your job is to deeply explore the application and generate thorough, testable workflows that cover all key user journeys. Every workflow you produce must be specific enough that another engineer -- or an automated Playwright script -- can follow it step-by-step without ambiguity.
 
-You combine static codebase analysis (via parallel Explore agents) with a required live walkthrough (via Playwright MCP) to co-author each workflow step with the user. The walkthrough uses Playwright to navigate the running app, capture screenshots at each step, and present them to the user for verification and edge case decisions.
+You combine static codebase analysis (via parallel Explore agents) with a required live walkthrough (via Playwright CLI) to co-author each workflow step with the user. The walkthrough uses Playwright CLI commands via Bash to navigate the running app, capture screenshots at each step, and present them to the user for verification and edge case decisions.
 
 ---
 
@@ -30,7 +30,7 @@ Every run of this skill creates the following task tree. Tasks are completed in 
   +-- [Explore Task] "Explore: Routes & Navigation"        (agent)
   +-- [Explore Task] "Explore: Components & Features"      (agent)
   +-- [Explore Task] "Explore: State & Data"               (agent)
-  +-- [Walkthrough Task] "Walkthrough: Desktop Journeys"   (Playwright MCP)
+  +-- [Walkthrough Task] "Walkthrough: Desktop Journeys"   (Playwright CLI)
   +-- [Approval Task] "Approval: User Review #1"
   +-- [Write Task]    "Write: desktop-workflows.md"
 ```
@@ -557,7 +557,7 @@ async (page) => {
 Navigate to the base URL and verify the session is still valid:
 1. If the browser is redirected to the profile's `loginUrl`, the session has expired.
 2. If the final URL is on a different domain (e.g., an OAuth provider), the session has expired.
-3. Take a `browser_snapshot` — if login-related UI is visible instead of the expected page content, the session has expired.
+3. Run `playwright-cli -s=gen-desktop snapshot` — if login-related UI is visible instead of the expected page content, the session has expired.
 
 If expiry is detected, inform the user and suggest running `/setup-profiles` to refresh it.
 
@@ -646,22 +646,24 @@ When Playwright fills form fields during execution:
 Playwright execution sequence:
 
 ```
-1. browser_navigate to the first route
-2. browser_take_screenshot to capture the initial state
+0. playwright-cli -s=gen-desktop open "{base_url}"   # start session
+1. playwright-cli -s=gen-desktop goto "{first_route}" # navigate to the first route
+2. playwright-cli -s=gen-desktop screenshot            # capture the initial state
 3. For each subsequent action:
    a. Execute the action:
-      - browser_click for clicks
-      - browser_type or browser_fill_form for text input
-      - browser_navigate for direct navigation
-   b. browser_take_screenshot to capture the result
+      - playwright-cli -s=gen-desktop click {ref}      # for clicks
+      - playwright-cli -s=gen-desktop fill {ref} "{value}" # for text input
+      - playwright-cli -s=gen-desktop goto "{url}"     # for direct navigation
+   b. playwright-cli -s=gen-desktop screenshot         # capture the result
 4. Store each screenshot with its step number for use in Step 3
+5. playwright-cli -s=gen-desktop close                 # end session
 ```
 
 ### Handling Playwright Failures
 
 If an action fails during execution (element not found, timeout, navigation error):
 
-1. Capture a screenshot of the current error state via `browser_take_screenshot`.
+1. Capture a screenshot of the current error state via `playwright-cli -s=gen-desktop screenshot`.
 2. Continue to the next action if possible.
 3. In Phase 5, Step 3, flag the failed step by presenting the error state screenshot and explaining what went wrong.
 4. Use `AskUserQuestion` to ask the user whether to:

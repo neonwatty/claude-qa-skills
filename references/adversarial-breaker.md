@@ -12,50 +12,20 @@ For multi-profile dispatch (when the caller provides multiple profiles): your sp
 ```
 For each profile in the provided list:
   1. Read .playwright/profiles/<profile-name>.json
-  2. Load cookies, localStorage, and sessionStorage via browser_run_code:
+  2. Load cookies, localStorage, and sessionStorage via state-load:
 ```
 
-```javascript
-async (page) => {
-  const state = <contents of profile file>;
-  await page.context().addCookies(state.cookies);
-  if (state.origins) {
-    for (const origin of state.origins) {
-      if (origin.localStorage && origin.localStorage.length > 0) {
-        await page.goto(origin.origin);
-        await page.evaluate((items) => {
-          for (const { name, value } of items) localStorage.setItem(name, value);
-        }, origin.localStorage);
-      }
-    }
-  }
-  if (state.sessionStorage && state.sessionStorage.length > 0) {
-    await page.evaluate((items) => {
-      for (const { name, value } of items) sessionStorage.setItem(name, value);
-    }, state.sessionStorage);
-  }
-  return 'Profile loaded';
-}
+```bash
+playwright-cli -s={session} state-load ".playwright/profiles/{profile}.json"
 ```
 
 3. Test the target screens with this role
 
 ### Clearing Auth State
 
-Clear all auth state before switching profiles:
+Clear all auth state before switching profiles by loading a fresh session or navigating to a clean state.
 
-```javascript
-async (page) => {
-  await page.context().clearCookies();
-  await page.evaluate(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-  });
-  return 'Auth state cleared';
-}
-```
-
-5. Test the same screens unauthenticated
+4. Test the same screens unauthenticated
 
 - If no profiles are specified, report that auth boundary testing is limited without profiles and proceed with unauthenticated testing only.
 
@@ -115,7 +85,7 @@ async (page) => {
 
 ### 7. Security Headers
 
-Check HTTP response headers for security best practices. Run this via `browser_evaluate`:
+Check HTTP response headers for security best practices. Run this via `playwright-cli -s={session} eval`:
 
 ```javascript
 (() => {

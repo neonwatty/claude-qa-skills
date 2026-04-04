@@ -1,13 +1,13 @@
 ---
 name: multi-user-workflow-generator
-description: Generates multi-user workflow documentation by interviewing the user about personas, exploring the codebase for multi-user patterns, then walking through the live app with per-persona Playwright browser contexts to co-author interleaved, persona-tagged workflows. Use when the user says "generate multi-user workflows", "create multi-user workflows", or "generate concurrent user workflows". Produces persona-tagged workflow markdown that feeds into the multi-user converter and Playwright runner.
+description: Generates multi-user workflow documentation by interviewing the user about personas, exploring the codebase for multi-user patterns, then walking through the live app with per-persona Playwright CLI named sessions to co-author interleaved, persona-tagged workflows. Use when the user says "generate multi-user workflows", "create multi-user workflows", or "generate concurrent user workflows". Produces persona-tagged workflow markdown that feeds into the multi-user converter and Playwright runner.
 ---
 
 # Multi-User Workflow Generator
 
 You are a senior QA engineer specializing in multi-user, concurrent, and real-time testing. Your job is to generate comprehensive, persona-tagged workflow documentation for applications where multiple users interact simultaneously -- collaborative editors, shared dashboards, role-based admin panels, invitation flows, and any feature where one user's actions affect another user's experience. Every workflow you produce must clearly label which persona performs each action and include explicit sync-verification steps so that another engineer -- or an automated Playwright multi-context script -- can follow it without ambiguity.
 
-You combine a persona interview, static codebase analysis (via parallel Explore agents tuned for auth/roles, multi-user features, and real-time sync), and a required live interactive walkthrough (via Playwright MCP with per-persona browser contexts) to co-author each workflow step with the user. The walkthrough uses Playwright to navigate the running app as each persona, capture screenshots at each step, and present them to the user for verification, sync timing decisions, and edge case choices.
+You combine a persona interview, static codebase analysis (via parallel Explore agents tuned for auth/roles, multi-user features, and real-time sync), and a required live interactive walkthrough (via Playwright CLI commands executed through Bash, with per-persona named sessions) to co-author each workflow step with the user. The walkthrough uses Playwright CLI to navigate the running app as each persona, capture screenshots at each step, and present them to the user for verification, sync timing decisions, and edge case choices.
 
 ---
 
@@ -31,7 +31,7 @@ Every run of this skill creates the following task tree. Tasks are completed in 
   +-- [Explore Task]   "Explore: Auth & Roles"               (agent)
   +-- [Explore Task]   "Explore: Multi-User Features"         (agent)
   +-- [Explore Task]   "Explore: Real-Time Sync"              (agent)
-  +-- [Walkthrough Task] "Walkthrough: Multi-User Journeys"   (Playwright MCP)
+  +-- [Walkthrough Task] "Walkthrough: Multi-User Journeys"   (Playwright CLI)
   +-- [Approval Task]  "Approval: User Review #1"
   +-- [Write Task]     "Write: multi-user-workflows.md"
 ```
@@ -775,7 +775,7 @@ I matched your personas to saved profiles:
 Proceed with these mappings? (yes / adjust)
 ```
 
-If the user confirms, load each profile into a separate browser context using the same JavaScript pattern as the "Create Per-Persona Browser Contexts" section below (which includes full cookie, localStorage, and sessionStorage restoration with session validation).
+If the user confirms, load each profile into its persona's named session using the `state-load` command as described in the "Open Per-Persona Named Sessions" section below (which restores auth state and validates the session).
 
 Inform the user which profiles were loaded and whether any sessions have expired. For expired sessions, suggest running `/setup-profiles` to refresh them.
 
@@ -811,7 +811,7 @@ Assign a profile to each unmatched persona:
 - Viewer: [admin / host / (available profiles)]
 ```
 
-Record the user's assignments and use those `<matched-profile-name>` values when loading browser contexts.
+Record the user's assignments and use those `<matched-profile-name>` values when loading session profiles.
 
 **If no profiles exist:**
 
@@ -833,9 +833,19 @@ Or provide credentials for each:
 Please provide values, confirm env var names, or run /setup-profiles first.
 ```
 
-### Create Per-Persona Browser Contexts
+### Open Per-Persona Named Sessions
 
-Create a separate Playwright browser context for each persona with its own `storageState`. This ensures each persona has an independent, authenticated session.
+Open a dedicated Playwright CLI session for each persona. Each persona gets its own named session (`gen-admin`, `gen-host`, `gen-guest1`, etc.), ensuring independent, isolated browser state. All sessions are opened at the start of the walkthrough and closed at the end.
+
+**Session naming convention:** `gen-{persona-lowercase}` (e.g., `gen-admin`, `gen-host`, `gen-guest1`, `gen-viewer`).
+
+**Open all sessions:**
+
+```
+For each persona in the Persona Registry:
+  Run via Bash:
+    playwright-cli -s=gen-{persona} goto "{base_url}"
+```
 
 **If using profiles:**
 
@@ -843,49 +853,33 @@ Use the profile-to-persona mapping confirmed in Step 1 above. Each persona's mat
 
 ```
 For each persona in the Persona Registry:
-  1. Read .playwright/profiles/<matched-profile-name>.json
-  2. Create a new Playwright BrowserContext
-  3. Restore cookies, localStorage, and sessionStorage via browser_run_code:
+  1. Load saved auth state into the persona's session via Bash:
 
-     ```javascript
-     async (page) => {
-       const state = <contents of .playwright/profiles/<matched-profile-name>.json>;
-       await page.context().addCookies(state.cookies);
-       if (state.origins) {
-         for (const origin of state.origins) {
-           if (origin.localStorage && origin.localStorage.length > 0) {
-             await page.goto(origin.origin);
-             await page.evaluate((items) => {
-               for (const { name, value } of items) localStorage.setItem(name, value);
-             }, origin.localStorage);
-           }
-         }
-       }
-       if (state.sessionStorage && state.sessionStorage.length > 0) {
-         await page.evaluate((items) => {
-           for (const { name, value } of items) sessionStorage.setItem(name, value);
-         }, state.sessionStorage);
-       }
-       return 'Profile loaded: <matched-profile-name>';
-     }
-     ```
+     playwright-cli -s=gen-{persona} state-load ".playwright/profiles/{matched-profile-name}.json"
 
-  4. Navigate to the base URL and verify the session is still valid:
+  2. Navigate to the base URL and verify the session is still valid:
+
+     playwright-cli -s=gen-{persona} goto "{base_url}"
+
      - If redirected to the profile's loginUrl, the session has expired
      - If the final URL is on a different domain, the session has expired
-     - Take a browser_snapshot — if login UI is visible, the session has expired
-  5. Associate the context with the persona name
+     - Take a snapshot to check — if login UI is visible, the session has expired:
+
+     playwright-cli -s=gen-{persona} snapshot
+
+  3. The session is now associated with the persona name via the -s flag
 ```
 
 **If using credentials:**
 
 ```
 For each persona in the Persona Registry:
-  1. Create a new Playwright BrowserContext
-  2. Navigate to the login page
-  3. Authenticate using the persona's credentials
-  4. Save the storageState for the context
-  5. Associate the context with the persona name
+  1. Navigate to the login page via Bash:
+
+     playwright-cli -s=gen-{persona} goto "{base_url}/login"
+
+  2. Authenticate using the persona's credentials (click/type commands)
+  3. The session retains auth state for all subsequent commands
 ```
 
 ### Create the Walkthrough Task
@@ -907,7 +901,7 @@ TaskCreate:
 
 ## Phase 6: Iterative Walkthrough [PER JOURNEY]
 
-This is the core phase. For each confirmed journey from Phase 4, walk through the live app with the user to co-author the workflow steps using per-persona Playwright browser contexts. Repeat Steps 1, 2, and 3 for every journey.
+This is the core phase. For each confirmed journey from Phase 4, walk through the live app with the user to co-author the workflow steps using per-persona Playwright CLI named sessions. Repeat Steps 1, 2, and 3 for every journey.
 
 ### Step 1: Confirm Screen Flow
 
@@ -932,7 +926,7 @@ If the user wants to add intermediate screens or change persona ordering, update
 
 Present the proposed actions at each transition, with persona tags. These proposals are informed by the code exploration results from Phase 3 (e.g., the Auth & Roles agent found an invite form, the Multi-User Features agent found an invitation acceptance flow).
 
-When the persona changes between consecutive steps, Playwright switches to that persona's browser context.
+When the persona changes between consecutive steps, Playwright CLI commands target that persona's named session via the `-s` flag (no explicit switching needed).
 
 Use `AskUserQuestion`:
 
@@ -942,14 +936,14 @@ Journey 1: Team Invitation Flow
 Proposed actions:
   Step 1: [Admin] Navigate to /team/settings
   Step 2: [Admin] Click "Invite Member" button -> Fill email field with Guest1's email -> Click "Send Invite"
-  Step 3: [Guest1] Navigate to /inbox  (switching to Guest1's browser context)
+  Step 3: [Guest1] Navigate to /inbox  (using gen-guest1 session)
   Step 4: [Guest1] Click the invitation notification -> Click "Accept"
-  Step 5: [Admin] Navigate to /team/members  (switching back to Admin's browser context)
+  Step 5: [Admin] Navigate to /team/members  (using gen-admin session)
 
 Are these the right actions? Any to add, remove, or adjust?
 ```
 
-Once the user confirms, **execute the confirmed actions via Playwright and capture a screenshot at each step**. The user does not interact during Playwright execution. Each step executes in the correct persona's browser context.
+Once the user confirms, **execute the confirmed actions via Playwright CLI commands (through Bash) and capture a screenshot at each step**. The user does not interact during Playwright execution. Each step executes in the correct persona's named session.
 
 ### Data for Form Fields
 
@@ -959,19 +953,19 @@ When Playwright fills form fields during execution:
 - For non-auth forms that require specific data (e.g., creating a document, filling settings), use reasonable test data.
 - If a form requires domain-specific input that cannot be guessed, flag it during Step 3 and ask the user what values to use.
 
-Playwright execution sequence:
+Playwright CLI execution sequence:
 
 ```
-1. Identify the persona for this step
-2. Switch to that persona's browser context
-3. browser_navigate to the target route (if navigating)
-4. browser_take_screenshot to capture the state in this persona's context
+1. Identify the persona for this step (determines the session name: gen-{persona})
+2. Use that persona's named session for all commands (the -s flag handles context switching)
+3. playwright-cli -s=gen-{persona} goto "{url}" to navigate to the target route (if navigating)
+4. playwright-cli -s=gen-{persona} screenshot to capture the state in this persona's session
 5. For each action in this step:
-   a. Execute the action:
-      - browser_click for clicks
-      - browser_type or browser_fill_form for text input
-      - browser_navigate for direct navigation
-   b. browser_take_screenshot to capture the result
+   a. Execute the action via Bash:
+      - playwright-cli -s=gen-{persona} click {ref} for clicks
+      - playwright-cli -s=gen-{persona} fill {ref} "{text}" for text input
+      - playwright-cli -s=gen-{persona} goto "{url}" for direct navigation
+   b. playwright-cli -s=gen-{persona} screenshot to capture the result
 6. Store each screenshot with its step number and persona name for use in Step 3
 ```
 
@@ -979,7 +973,7 @@ Playwright execution sequence:
 
 If an action fails during execution (element not found, timeout, navigation error):
 
-1. Capture a screenshot of the current error state via `browser_take_screenshot`.
+1. Capture a screenshot of the current error state via `playwright-cli -s=gen-{persona} screenshot`.
 2. Continue to the next action if possible.
 3. In Phase 6, Step 3, flag the failed step by presenting the error state screenshot and explaining what went wrong.
 4. Use `AskUserQuestion` to ask the user whether to:
@@ -1004,7 +998,7 @@ Use `AskUserQuestion` for each step:
 ```
 Journey 1: Team Invitation Flow -- Step 3
 [Guest1] /inbox
-[screenshot from Guest1's browser context]
+[screenshot from Guest1's session (gen-guest1)]
 
 I see Guest1's inbox page. There is a notification area at the top and
 an invitation card from Admin.
@@ -1118,6 +1112,18 @@ TaskUpdate:
     total_edge_cases: 18
     total_sync_points: 14
 ```
+
+### Close All Persona Sessions
+
+After all journeys are complete, close every Playwright CLI session that was opened at the start of the walkthrough:
+
+```
+For each persona in the Persona Registry:
+  Run via Bash:
+    playwright-cli -s=gen-{persona} close
+```
+
+This frees browser resources and ensures no stale sessions remain.
 
 ---
 

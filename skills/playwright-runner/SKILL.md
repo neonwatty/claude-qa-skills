@@ -1,15 +1,15 @@
 ---
 name: playwright-runner
-description: Executes workflow markdown files interactively via Playwright MCP, stepping through each workflow action in a real browser. Use when the user says "run workflows", "run playwright", "test workflows", "execute workflows", or wants to interactively test their app against workflow documentation. Supports desktop, mobile, and multi-user workflows with authentication.
-allowed-tools: Read, Write, Bash, Glob, Grep, AskUserQuestion, mcp__playwright__*
+description: Executes workflow markdown files interactively via Playwright CLI, stepping through each workflow action in a real browser. Use when the user says "run workflows", "run playwright", "test workflows", "execute workflows", or wants to interactively test their app against workflow documentation. Supports desktop, mobile, and multi-user workflows with authentication.
+allowed-tools: Read, Write, Bash, Glob, Grep, AskUserQuestion
 argument-hint: "[desktop|mobile|multi-user] [--url URL]"
 ---
 
 # Playwright Runner
 
-You are a senior QA engineer executing interactive workflow tests against a live application via Playwright MCP tools. Your job is to read workflow markdown files from the `/workflows/` directory, step through each workflow action in a real browser using Playwright MCP tool calls, verify expected outcomes after every step, and produce a structured pass/fail execution report.
+You are a senior QA engineer executing interactive workflow tests against a live application via the Playwright CLI (`playwright-cli`). Your job is to read workflow markdown files from the `/workflows/` directory, step through each workflow action in a real browser using `playwright-cli` commands via the Bash tool, verify expected outcomes after every step, and produce a structured pass/fail execution report.
 
-Unlike the generator and converter skills, this skill does not produce files -- it drives a real browser session. Every action you take uses the `mcp__playwright__*` tool family directly. You interpret the natural-language workflow steps, map them to the appropriate Playwright MCP tool call, execute the action, take a snapshot to verify the result, and record the outcome.
+Unlike the generator and converter skills, this skill does not produce files -- it drives a real browser session. Every action you take runs `playwright-cli -s={session} <command>` via Bash, where `{session}` is a named browser session (e.g., `runner-desktop`, `runner-mobile`, or `runner-{persona}` for multi-user). You interpret the natural-language workflow steps, map them to the appropriate CLI command, execute via Bash, take a snapshot to verify the result, and record the outcome.
 
 ---
 
@@ -232,35 +232,29 @@ I found [N] authentication profiles for this project:
 Which profile should I use for this workflow run?
 ```
 
-Once a profile is selected, load it by reading the storageState JSON and using `browser_run_code` to restore cookies, localStorage, and sessionStorage:
+Once a profile is selected, load it into the current named session:
 
-```javascript
-async (page) => {
-  const state = <contents of .playwright/profiles/<selected-profile>.json>;
-  await page.context().addCookies(state.cookies);
-  if (state.origins) {
-    for (const origin of state.origins) {
-      if (origin.localStorage && origin.localStorage.length > 0) {
-        await page.goto(origin.origin);
-        await page.evaluate((items) => {
-          for (const { name, value } of items) localStorage.setItem(name, value);
-        }, origin.localStorage);
-      }
-    }
-  }
-  if (state.sessionStorage && state.sessionStorage.length > 0) {
-    await page.evaluate((items) => {
-      for (const { name, value } of items) sessionStorage.setItem(name, value);
-    }, state.sessionStorage);
-  }
-  return 'Profile loaded: <selected-profile>';
-}
+```
+playwright-cli -s={session} state-load ".playwright/profiles/<selected-profile>.json"
+```
+
+If the profile JSON contains a `sessionStorage` field, restore those entries after navigating to the origin:
+
+```
+playwright-cli -s={session} goto "<origin>"
+playwright-cli -s={session} sessionstorage-set "<name>" "<value>"
 ```
 
 After loading, navigate to the base URL and verify the session is still valid:
-1. If the browser is redirected to the profile's `loginUrl`, the session has expired.
+
+```
+playwright-cli -s={session} goto "{base_url}"
+playwright-cli -s={session} snapshot
+```
+
+1. If the browser is redirected to the profile's `loginUrl` (check the `Page URL` in the snapshot output), the session has expired.
 2. If the final URL is on a different domain (e.g., an OAuth provider), the session has expired.
-3. Take a `browser_snapshot` — if login-related UI is visible instead of the expected page content, the session has expired.
+3. If login-related UI is visible in the snapshot instead of the expected page content, the session has expired.
 
 If expiry is detected, inform the user and suggest running `/setup-profiles` to refresh it.
 
@@ -303,21 +297,25 @@ Email: [user enters email]
 Password: [user enters password]
 ```
 
-Then perform the login via Playwright MCP:
+Then perform the login via Playwright CLI:
 
 ```
-1. browser_navigate to [base_url]/login (or detected login route)
-2. browser_snapshot to find the login form fields
-3. browser_type email into the email field
-4. browser_type password into the password field
-5. browser_click the sign-in / login button
-6. browser_snapshot to verify successful login (dashboard, home, etc.)
+1. playwright-cli -s={session} goto "{base_url}/login"
+2. playwright-cli -s={session} snapshot                    # find login form fields
+3. playwright-cli -s={session} fill {email-ref} "{email}"
+4. playwright-cli -s={session} fill {password-ref} "{password}"
+5. playwright-cli -s={session} click {submit-ref}
+6. playwright-cli -s={session} snapshot                    # verify successful login
 7. Record the authenticated browser state for subsequent workflows
 ```
 
 **Strategy 3: Existing storageState**
 
-Ask the user for the JSON file path, then read and apply it. Use `browser_evaluate` to set cookies and localStorage from the JSON.
+Ask the user for the JSON file path, then load it directly:
+
+```
+playwright-cli -s={session} state-load "{path-to-json}"
+```
 
 **Strategy 4: Skip Auth**
 
@@ -325,7 +323,7 @@ Log that auth was skipped. Workflows marked `<!-- auth: required -->` will be at
 
 ### Step 5: Multi-User Auth
 
-For multi-user workflows, authentication must be established for each persona. The runner uses separate browser tabs -- one per persona.
+For multi-user workflows, authentication must be established for each persona. The runner uses **separate named sessions** -- one per persona (e.g., `runner-admin`, `runner-user`, `runner-guest`). This provides full isolation between personas (no shared cookies, localStorage, or navigation state).
 
 **If profiles exist**, match each persona to a profile:
 
@@ -352,7 +350,18 @@ I matched your personas to saved profiles:
 Proceed with these mappings? (yes / adjust)
 ```
 
-If all personas are matched and confirmed, load each matched profile into a separate browser tab.
+If all personas are matched and confirmed, open a separate named session for each persona and load its profile:
+
+```
+playwright-cli -s=runner-admin open "{base_url}"
+playwright-cli -s=runner-admin state-load ".playwright/profiles/admin.json"
+
+playwright-cli -s=runner-user open "{base_url}"
+playwright-cli -s=runner-user state-load ".playwright/profiles/user.json"
+
+playwright-cli -s=runner-guest open "{base_url}"
+playwright-cli -s=runner-guest state-load ".playwright/profiles/guest.json"
+```
 
 **If some personas are unmatched:**
 
@@ -416,14 +425,16 @@ Workflows are executed in document order (by workflow number). Core workflows ru
 **For mobile platform:** Set the viewport before starting any workflow.
 
 ```
-browser_resize width=393 height=852
+playwright-cli -s=runner-mobile resize 393 852
 ```
 
-**For multi-user platform:** Verify all persona tabs are open and authenticated.
+**For multi-user platform:** Verify all persona sessions are open and authenticated.
 
 ```
-browser_tabs action="list" to verify all persona tabs exist
+playwright-cli list
 ```
+
+This should show one session per persona (e.g., `runner-admin`, `runner-user`, `runner-guest`), each with status `open`.
 
 ### Per-Workflow Execution
 
@@ -473,34 +484,31 @@ TaskCreate:
 After every action, take a snapshot, visually inspect the result, AND run a DOM assertion for hard evidence.
 
 ```
-1. Execute the action (navigate, click, type, etc.)
-2. browser_snapshot to capture the current page state
+1. Execute the action (navigate, click, type, etc.) via playwright-cli
+2. playwright-cli -s={session} snapshot to capture the current page state
 3. Examine the snapshot for the expected outcome (visual check)
-4. Run a DOM assertion via browser_evaluate to collect hard evidence:
+4. Run a DOM assertion via eval to collect hard evidence:
 
    For Verify steps: identify the key element from the snapshot's accessibility
-   tree (by its ref), then run browser_evaluate with that ref to check:
+   tree (by its ref), then run eval with that ref to check:
 
-   browser_evaluate:
-     ref: [element ref from snapshot]
-     function: |
-       (element) => {
-         if (!element) return { exists: false, visible: false, text: null };
-         const style = window.getComputedStyle(element);
-         const rect = element.getBoundingClientRect();
-         const inViewport = rect.top < window.innerHeight && rect.bottom > 0
-           && rect.left < window.innerWidth && rect.right > 0;
-         return {
-           exists: true,
-           visible: style.display !== 'none'
-             && style.visibility !== 'hidden'
-             && style.opacity !== '0'
-             && rect.width > 0 && rect.height > 0,
-           inViewport,
-           text: element.textContent?.trim().substring(0, 200) || null,
-           tagName: element.tagName.toLowerCase(),
-         };
-       }
+   playwright-cli -s={session} eval "(element) => {
+     if (!element) return { exists: false, visible: false, text: null };
+     const style = window.getComputedStyle(element);
+     const rect = element.getBoundingClientRect();
+     const inViewport = rect.top < window.innerHeight && rect.bottom > 0
+       && rect.left < window.innerWidth && rect.right > 0;
+     return {
+       exists: true,
+       visible: style.display !== 'none'
+         && style.visibility !== 'hidden'
+         && style.opacity !== '0'
+         && rect.width > 0 && rect.height > 0,
+       inViewport,
+       text: element.textContent?.trim().substring(0, 200) || null,
+       tagName: element.tagName.toLowerCase(),
+     };
+   }" {ref}
 
 5. Record BOTH the visual assessment AND the DOM result in the step task:
 
@@ -537,11 +545,21 @@ After every action, take a snapshot, visually inspect the result, AND run a DOM 
 
 **When to skip the DOM assertion (thorough mode):** For action steps that are not Verify steps (e.g., "Click the Submit button", "Type text in field"), the DOM assertion is optional. The snapshot-first execution pattern already confirms the action succeeded. DOM assertions are REQUIRED for all Verify steps in thorough mode.
 
-**Wait-before-assert pattern:** For ALL Verify steps in thorough mode, execute a `browser_wait_for` BEFORE taking the snapshot and running the DOM assertion:
+**Wait-before-assert pattern:** For ALL Verify steps in thorough mode, poll the snapshot BEFORE running the DOM assertion. The CLI has no `wait_for` command, so use a polling pattern:
 
-- **Text checks:** `browser_wait_for` text="[expected text]" timeout=3000
-- **State checks:** `browser_evaluate` polling for attribute/state (disabled, checked, aria-expanded) with 2-3s max timeout
-- **Element appearance:** `browser_wait_for` text="[element text]" timeout=3000
+```bash
+# Wait for expected text to appear (max 3 seconds, poll every 500ms)
+for i in 1 2 3 4 5 6; do
+  OUTPUT=$(playwright-cli -s={session} snapshot --raw 2>&1)
+  if echo "$OUTPUT" | grep -q "{expected text}"; then break; fi
+  sleep 0.5
+done
+```
+
+- **Text checks:** Poll snapshot for expected text (max 3s)
+- **State checks:** Poll `eval` for attribute/state (disabled, checked, aria-expanded) with 2-3s max
+- **Element appearance:** Poll snapshot for element text (max 3s)
+- **Text disappearance:** Poll snapshot, break when text is NOT found (invert the grep: `! grep -q`)
 
 This is unconditional — do not try to judge whether the element is "already present" vs. "appearing." The cost is a few seconds per Verify step; the benefit is eliminating an entire class of intermittent false negatives from SPA re-renders, animations, and async data loading.
 
@@ -554,41 +572,35 @@ When a Verify step asserts something "is visible" or "appears," check `inViewpor
 
 **Shadow DOM detection:** Before running DOM assertions, check if the target element is inside a Shadow DOM:
 
-```javascript
-browser_evaluate:
-  ref: [element ref]
-  function: |
-    (element) => {
-      const root = element.getRootNode();
-      return {
-        inShadowDOM: root instanceof ShadowRoot,
-        hostTag: root instanceof ShadowRoot ? root.host.tagName.toLowerCase() : null
-      };
-    }
+```bash
+playwright-cli -s={session} eval "(element) => {
+  const root = element.getRootNode();
+  return {
+    inShadowDOM: root instanceof ShadowRoot,
+    hostTag: root instanceof ShadowRoot ? root.host.tagName.toLowerCase() : null
+  };
+}" {ref}
 ```
 
 If `inShadowDOM` is true: flag `dom_check: "text may be inaccurate — shadow DOM element (host: <hostTag>)"` and fall back to visual verification for text content. DOM checks for existence and visibility remain valid.
 
 **Cross-origin iframe detection:** Before running DOM assertions, check if the target element is inside a cross-origin iframe:
 
-```javascript
-browser_evaluate:
-  ref: [element ref]
-  function: |
-    (element) => {
-      let doc = element.ownerDocument;
-      let inIframe = false;
-      let crossOrigin = false;
-      try {
-        while (doc !== doc.defaultView?.parent?.document) {
-          inIframe = true;
-          doc = doc.defaultView.parent.document;
-        }
-      } catch (e) {
-        crossOrigin = true; // SecurityError = cross-origin
-      }
-      return { inIframe, crossOrigin };
+```bash
+playwright-cli -s={session} eval "(element) => {
+  let doc = element.ownerDocument;
+  let inIframe = false;
+  let crossOrigin = false;
+  try {
+    while (doc !== doc.defaultView?.parent?.document) {
+      inIframe = true;
+      doc = doc.defaultView.parent.document;
     }
+  } catch (e) {
+    crossOrigin = true;
+  }
+  return { inIframe, crossOrigin };
+}" {ref}
 ```
 
 If `crossOrigin` is true: flag `dom_check: "unavailable — cross-origin iframe context"` and fall back to visual-only verification.
@@ -599,7 +611,7 @@ If `crossOrigin` is true: flag `dom_check: "unavailable — cross-origin iframe 
 |-----------|-----------|----------|
 | Shadow DOM element | `element.getRootNode() instanceof ShadowRoot` | Flag `dom_check: "text may be inaccurate — shadow DOM element"`, fall back to visual for text |
 | Cross-origin iframe | `SecurityError` walking `ownerDocument` ancestry | Flag `dom_check: "unavailable — iframe context"`, fall back to visual |
-| `browser_evaluate` failure (JS error, timeout, stale ref) | Caught at invocation | Fall back to visual, log failure reason in evidence metadata |
+| `eval` failure (JS error, timeout, stale ref) | Caught at invocation | Fall back to visual, log failure reason in evidence metadata |
 | Visual/DOM conflict | Step 4 vs step 5 disagreement | DOM wins for pass/fail; report discrepancy with both results for user review |
 
 ### Structured Evidence Log
@@ -659,7 +671,7 @@ Format:
 
 On failure, do NOT abort the workflow. Instead:
 
-1. Take a screenshot for evidence: `browser_take_screenshot`
+1. Take a screenshot for evidence: `playwright-cli -s={session} screenshot`
 2. Create an Issue task with failure details:
 
 ```
@@ -682,30 +694,31 @@ TaskCreate:
 For multi-user workflows, steps are tagged with a persona (e.g., `[admin]`, `[user]`). Before executing each step:
 
 1. Identify the persona tag in the step text.
-2. Use `browser_tabs action="select"` to switch to that persona's tab.
-3. Execute the step action in the selected tab.
+2. Use the persona's named session for all CLI commands.
+3. Execute the step action in that session.
 4. Take a snapshot to verify the outcome.
 
 ```
 Example multi-user workflow step:
 
   "[admin] Navigate to /admin/users"
-    1. browser_tabs action="select" index=[admin_tab_index]
-    2. browser_navigate url="[base_url]/admin/users"
-    3. browser_snapshot to verify admin users page loads
+    1. playwright-cli -s=runner-admin goto "{base_url}/admin/users"
+    2. playwright-cli -s=runner-admin snapshot
 ```
 
-When a step requires verifying that one persona's action is visible to another persona, switch tabs after the action:
+When a step requires verifying that one persona's action is visible to another persona, use the other persona's session:
 
 ```
   "[admin] Approve the user's post"
-    1. Switch to admin tab, click "Approve"
-    2. browser_snapshot to verify approval in admin view
+    1. playwright-cli -s=runner-admin click {approve-ref}
+    2. playwright-cli -s=runner-admin snapshot    # verify approval in admin view
 
   "[user] Verify the post shows as approved"
-    1. Switch to user tab
-    2. browser_snapshot to verify approval is visible to user
+    1. playwright-cli -s=runner-user reload
+    2. playwright-cli -s=runner-user snapshot     # verify approval visible to user
 ```
+
+No tab switching needed — each persona has its own isolated browser session.
 
 #### Step 7: Complete Workflow Task
 
@@ -731,105 +744,107 @@ Result values: `"passed"` if all steps passed, `"failed"` if all steps failed, `
 
 This table maps workflow natural language to Playwright MCP tool calls. This is the primary reference for interpreting workflow steps.
 
+All commands below are run via the Bash tool. `{session}` is the named session (e.g., `runner-desktop`).
+
 ### Navigation
 
-| Workflow Language | Playwright MCP Tool Call |
+| Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Navigate to \[URL\] | `browser_navigate` url="\[base_url\]\[URL\]" |
-| Navigate to the [page name] page | `browser_navigate` url="[base_url]/[inferred-route]" |
-| Go back to the previous page | `browser_navigate_back` |
-| Refresh the page | `browser_navigate` url="[current page URL]" (re-navigate to the same URL; do NOT use `browser_evaluate` with `location.reload()` as it destroys the execution context) |
+| Navigate to \[URL\] | `playwright-cli -s={session} goto "{base_url}{URL}"` |
+| Navigate to the [page name] page | `playwright-cli -s={session} goto "{base_url}/[inferred-route]"` |
+| Go back to the previous page | `playwright-cli -s={session} go-back` |
+| Refresh the page | `playwright-cli -s={session} reload` |
 
 ### Click Actions
 
-| Workflow Language | Playwright MCP Tool Call |
+| Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Click the "[label]" button | `browser_snapshot` to find the button ref, then `browser_click` ref="[ref]" |
-| Click the "[label]" link | `browser_snapshot` to find the link ref, then `browser_click` ref="[ref]" |
-| Click the "[label]" menu item | `browser_snapshot` to find the menu item ref, then `browser_click` ref="[ref]" |
-| Click the first [item] in the list | `browser_snapshot` to find the first item ref, then `browser_click` ref="[ref]" |
-| Double-click [element] | `browser_click` ref="[ref]" doubleClick=true |
+| Click the "[label]" button | `playwright-cli -s={session} snapshot` to find the button ref, then `playwright-cli -s={session} click {ref}` |
+| Click the "[label]" link | `playwright-cli -s={session} snapshot` to find the link ref, then `playwright-cli -s={session} click {ref}` |
+| Click the "[label]" menu item | `playwright-cli -s={session} snapshot` to find the menu item ref, then `playwright-cli -s={session} click {ref}` |
+| Click the first [item] in the list | `playwright-cli -s={session} snapshot` to find the first item ref, then `playwright-cli -s={session} click {ref}` |
+| Double-click [element] | `playwright-cli -s={session} dblclick {ref}` |
 
 ### Text Input
 
-| Workflow Language | Playwright MCP Tool Call |
+| Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Type "[text]" in the [field name] field | `browser_snapshot` to find the field ref, then `browser_type` ref="[ref]" text="[text]" |
-| Clear the [field name] field | `browser_snapshot` to find the field ref, then `browser_type` ref="[ref]" text="" |
-| Type "[text]" and press Enter | `browser_type` ref="[ref]" text="[text]" submit=true |
+| Type "[text]" in the [field name] field | `playwright-cli -s={session} snapshot` to find the field ref, then `playwright-cli -s={session} fill {ref} "[text]"` |
+| Clear the [field name] field | `playwright-cli -s={session} snapshot` to find the field ref, then `playwright-cli -s={session} fill {ref} ""` |
+| Type "[text]" and press Enter | `playwright-cli -s={session} fill {ref} "[text]"` then `playwright-cli -s={session} press Enter` |
 
 ### Form Interactions
 
-| Workflow Language | Playwright MCP Tool Call |
+| Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Select "[option]" from the [dropdown] | `browser_select_option` ref="[ref]" values=["[option]"] |
-| Check the "[label]" checkbox | `browser_fill_form` fields with type="checkbox" value="true" |
-| Uncheck the "[label]" checkbox | `browser_fill_form` fields with type="checkbox" value="false" |
-| Fill in [field] with "[value]" | `browser_fill_form` fields with type="textbox" value="[value]" |
+| Select "[option]" from the [dropdown] | `playwright-cli -s={session} select {ref} "[option]"` |
+| Check the "[label]" checkbox | `playwright-cli -s={session} check {ref}` |
+| Uncheck the "[label]" checkbox | `playwright-cli -s={session} uncheck {ref}` |
+| Fill in [field] with "[value]" | `playwright-cli -s={session} fill {ref} "[value]"` |
 
 ### Mouse Actions
 
-| Workflow Language | Playwright MCP Tool Call |
+| Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Hover over the "[label]" [element] | `browser_hover` ref="[ref]" |
-| Drag "[source]" to "[target]" | `browser_drag` startRef="[source-ref]" endRef="[target-ref]" |
-| Scroll down to [element/section] | `browser_snapshot` to find the target element ref, then `browser_evaluate` ref="[ref]" function="(element) => element.scrollIntoView({ behavior: 'smooth', block: 'center' })" (via ref — do NOT fabricate CSS selectors) |
+| Hover over the "[label]" [element] | `playwright-cli -s={session} hover {ref}` |
+| Drag "[source]" to "[target]" | `playwright-cli -s={session} drag {source-ref} {target-ref}` |
+| Scroll down to [element/section] | `playwright-cli -s={session} snapshot` to find the target element ref, then `playwright-cli -s={session} eval "(element) => element.scrollIntoView({ behavior: 'smooth', block: 'center' })" {ref}` |
 
 ### Keyboard Actions
 
-| Workflow Language | Playwright MCP Tool Call |
+| Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Press [Key] | `browser_press_key` key="[Key]" |
-| Press Escape to close the modal | `browser_press_key` key="Escape" |
-| Press Enter to submit | `browser_press_key` key="Enter" |
-| Press Tab to move to next field | `browser_press_key` key="Tab" |
+| Press [Key] | `playwright-cli -s={session} press [Key]` |
+| Press Escape to close the modal | `playwright-cli -s={session} press Escape` |
+| Press Enter to submit | `playwright-cli -s={session} press Enter` |
+| Press Tab to move to next field | `playwright-cli -s={session} press Tab` |
 
 ### Verification Actions
 
-| Workflow Language | Playwright MCP Tool Call |
+| Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Verify [element] is visible | `browser_snapshot` then check for element in snapshot output |
-| Verify text "[text]" appears | `browser_snapshot` then check for text in snapshot output |
-| Verify URL contains [path] | `browser_evaluate` function="() => window.location.href" then check result |
-| Verify [element] has text "[text]" | `browser_snapshot` then check element text matches |
-| Verify page title is "[title]" | `browser_evaluate` function="() => document.title" then check result |
+| Verify [element] is visible | `playwright-cli -s={session} snapshot` then check for element in output |
+| Verify text "[text]" appears | `playwright-cli -s={session} snapshot` then check for text in output |
+| Verify URL contains [path] | `playwright-cli -s={session} eval "() => window.location.href"` then check result |
+| Verify [element] has text "[text]" | `playwright-cli -s={session} snapshot` then check element text matches |
+| Verify page title is "[title]" | `playwright-cli -s={session} eval "() => document.title"` then check result |
 
 ### Wait Actions
 
-| Workflow Language | Playwright MCP Tool Call |
+| Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Wait for [element] to appear | `browser_wait_for` text="[element text]" |
-| Wait for [element] to disappear | `browser_wait_for` textGone="[element text]" |
-| Wait for [N] seconds | `browser_wait_for` time=[N] |
-| Wait for loading to complete | `browser_wait_for` textGone="Loading" |
+| Wait for [element] to appear | Poll `playwright-cli -s={session} snapshot` in a loop (max 3s, 500ms interval), check for text |
+| Wait for [element] to disappear | Poll `playwright-cli -s={session} snapshot` in a loop, check text is gone |
+| Wait for [N] seconds | `sleep [N]` |
+| Wait for loading to complete | Poll `playwright-cli -s={session} snapshot` in a loop, check "Loading" text is gone |
 
 ### File Upload
 
-| Workflow Language | Playwright MCP Tool Call |
+| Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Upload "[filename]" | `browser_file_upload` paths=["[absolute-path]"] |
+| Upload "[filename]" | `playwright-cli -s={session} upload "[absolute-path]"` |
 
-### Tab Management (Multi-User)
+### Session Management (Multi-User)
 
-| Workflow Language | Playwright MCP Tool Call |
+| Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Switch to [persona] view | `browser_tabs` action="select" index=[persona_tab_index] |
-| Open a new tab for [persona] | `browser_tabs` action="new" |
-| List all open tabs | `browser_tabs` action="list" |
+| Switch to [persona] view | Use the persona's named session: `playwright-cli -s=runner-{persona} ...` |
+| Open a new session for [persona] | `playwright-cli -s=runner-{persona} open "{base_url}"` |
+| List all active sessions | `playwright-cli list` |
 
 ### Screenshots and Debugging
 
-| Workflow Language | Playwright MCP Tool Call |
+| Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Take a screenshot | `browser_take_screenshot` type="png" |
-| Capture current page state | `browser_snapshot` |
-| Check console for errors | `browser_console_messages` level="error" |
+| Take a screenshot | `playwright-cli -s={session} screenshot` |
+| Capture current page state | `playwright-cli -s={session} snapshot` |
+| Check console for errors | `playwright-cli -s={session} console error` |
 
 ---
 
 ## Step Interpretation Guide
 
-For every step, follow this sequence: (1) check for a persona tag like `[admin]` and switch tabs if present, (2) identify the primary verb and map it to the Action Mapping Reference table above, (3) for element-targeting actions, take a `browser_snapshot` first, find the target element by text/label/placeholder/testid, extract its ref, then execute, (4) after the action, take another `browser_snapshot` and check the verification sub-step for pass/fail.
+For every step, follow this sequence: (1) check for a persona tag like `[admin]` and use that persona's named session (`runner-admin`), (2) identify the primary verb and map it to the Action Mapping Reference table above, (3) for element-targeting actions, run `playwright-cli -s={session} snapshot` first, find the target element by text/label/placeholder/testid, extract its ref, then execute, (4) after the action, run `playwright-cli -s={session} snapshot` again and check the verification sub-step for pass/fail.
 
 ### Handling Ambiguous Steps
 
@@ -1020,7 +1035,7 @@ When running mobile workflows, the runner must simulate a mobile viewport and ac
 Before executing any mobile workflow step, set the viewport:
 
 ```
-browser_resize width=393 height=852
+playwright-cli -s=runner-mobile resize 393 852
 ```
 
 This simulates an iPhone 14 Pro screen. The viewport must be set once at the start and maintained throughout execution.
@@ -1029,24 +1044,24 @@ This simulates an iPhone 14 Pro screen. The viewport must be set once at the sta
 
 Mobile workflows may use touch-oriented language. Map these to equivalent Playwright MCP actions:
 
-| Mobile Workflow Language | Playwright MCP Equivalent |
+| Mobile Workflow Language | CLI Command (via Bash) |
 |---|---|
-| Tap the "[label]" button | `browser_click` ref="[ref]" (tap = click in Playwright) |
-| Swipe left on [element] | `browser_evaluate` to simulate touch swipe, or `browser_press_key` key="ArrowLeft" |
-| Swipe down to refresh | `browser_navigate` url="[current page URL]" (re-navigate; do NOT use `location.reload()` inside `browser_evaluate`) |
-| Long-press [element] | `browser_click` ref="[ref]" (long-press not directly supported; log limitation) |
-| Pull down to refresh | `browser_navigate` url="[current page URL]" (re-navigate; do NOT use `location.reload()` inside `browser_evaluate`) |
-| Tap the back arrow | `browser_navigate_back` |
-| Scroll to bottom of list | `browser_evaluate` function="() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })" |
+| Tap the "[label]" button | `playwright-cli -s={session} click {ref}` (tap = click in Playwright) |
+| Swipe left on [element] | `playwright-cli -s={session} eval "() => { ... }" {ref}` to simulate touch swipe, or `playwright-cli -s={session} press ArrowLeft` |
+| Swipe down to refresh | `playwright-cli -s={session} reload` |
+| Long-press [element] | `playwright-cli -s={session} click {ref}` (long-press not directly supported; log limitation) |
+| Pull down to refresh | `playwright-cli -s={session} reload` |
+| Tap the back arrow | `playwright-cli -s={session} go-back` |
+| Scroll to bottom of list | `playwright-cli -s={session} eval "() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })"` |
 
 ### Mobile Verification Patterns
 
 Mobile layouts differ from desktop. When verifying mobile-specific elements:
 
-- **Bottom navigation bars** -- Verify via `browser_snapshot` that bottom nav items are visible.
-- **Hamburger menus** -- Click the menu icon first, then verify the slide-out menu appears.
+- **Bottom navigation bars** -- Verify via snapshot that bottom nav items are visible.
+- **Hamburger menus** -- Click the menu icon first, then verify the slide-out menu appears via snapshot.
 - **Sticky headers** -- Scroll down, then verify the header remains visible in the snapshot.
-- **Touch targets** -- Log if elements appear smaller than 44x44px (cannot directly measure via MCP, note as a potential concern).
+- **Touch targets** -- Log if elements appear smaller than 44x44px (can measure via `eval` with `getBoundingClientRect()`).
 
 ---
 
@@ -1054,22 +1069,22 @@ Mobile layouts differ from desktop. When verifying mobile-specific elements:
 
 Multi-user workflows involve multiple personas acting concurrently or sequentially in the same application. The runner uses separate browser tabs to simulate each persona.
 
-### Tab Management
+### Session Management
 
 ```
-Persona-to-tab mapping (established during Phase 2):
-  admin -> tab index 0
-  user  -> tab index 1
-  guest -> tab index 2
+Persona-to-session mapping (established during Phase 2):
+  admin -> runner-admin
+  user  -> runner-user
+  guest -> runner-guest
 ```
 
 Before each persona-tagged step:
 
 ```
 1. Read the persona tag: [admin], [user], [guest]
-2. browser_tabs action="select" index=[persona_tab_index]
-3. Execute the step in the selected tab
-4. browser_snapshot to verify the outcome
+2. Use that persona's named session for all commands
+3. Execute the step: playwright-cli -s=runner-{persona} <command>
+4. playwright-cli -s=runner-{persona} snapshot to verify the outcome
 ```
 
 ### Cross-Persona Verification
@@ -1078,16 +1093,15 @@ Many multi-user workflows require verifying that one persona's action is visible
 
 ```
 Step N: [admin] Approve the post
-  1. Switch to admin tab
-  2. Click "Approve"
-  3. Verify approval confirmation in admin view
+  1. playwright-cli -s=runner-admin click {approve-ref}
+  2. playwright-cli -s=runner-admin snapshot       # verify in admin view
 
 Step N+1: [user] Verify post shows as approved
-  1. Switch to user tab
-  2. Refresh the page (or navigate to the post)
-  3. browser_snapshot
-  4. Verify "Approved" status is visible in user view
+  1. playwright-cli -s=runner-user reload
+  2. playwright-cli -s=runner-user snapshot         # verify in user view
 ```
+
+No tab switching needed — each persona has its own fully isolated session.
 
 ### Concurrency Simulation
 
@@ -1095,11 +1109,13 @@ True concurrency is not possible with sequential tab switching. For workflows th
 
 ```
 "[admin] and [user] both open the document editor"
-  1. Switch to admin tab, navigate to /editor/doc-1
-  2. Switch to user tab, navigate to /editor/doc-1
-  3. Switch back to admin tab, verify editor loaded
-  4. Switch to user tab, verify editor loaded and shows admin's presence
+  1. playwright-cli -s=runner-admin goto "{base_url}/editor/doc-1"
+  2. playwright-cli -s=runner-user goto "{base_url}/editor/doc-1"
+  3. playwright-cli -s=runner-admin snapshot    # verify editor loaded
+  4. playwright-cli -s=runner-user snapshot     # verify editor loaded + admin's presence
 ```
+
+With separate sessions, steps 1 and 2 can even be run concurrently (via parallel Bash calls).
 
 Log in the step metadata that true concurrency was simulated via sequential execution.
 
@@ -1123,7 +1139,7 @@ Never write credentials to disk or include them in task metadata, reports, or ou
 
 ### Application Not Running
 
-If `browser_navigate` to the base URL fails or returns an error page:
+If `playwright-cli -s={session} goto` to the base URL fails or returns an error page:
 
 ```
 1. Inform the user: "Cannot reach [base_url]. Is the application running?"
@@ -1131,7 +1147,7 @@ If `browser_navigate` to the base URL fails or returns an error page:
    a. Provide a different URL
    b. Wait and retry
    c. Cancel execution
-3. If retry: attempt navigation again after a browser_wait_for time=5.
+3. If retry: sleep 5, then attempt navigation again.
 ```
 
 ### Authentication Failure
@@ -1139,7 +1155,7 @@ If `browser_navigate` to the base URL fails or returns an error page:
 If the login flow does not result in a successful redirect:
 
 ```
-1. Take a browser_snapshot to capture the current state.
+1. Run playwright-cli -s={session} snapshot to capture the current state.
 2. Check for error messages in the snapshot (e.g., "Invalid credentials").
 3. Inform the user of the specific error.
 4. Ask if they want to provide different credentials or skip auth.
@@ -1150,7 +1166,7 @@ If the login flow does not result in a successful redirect:
 When a step references an element that cannot be found in the snapshot:
 
 ```
-1. Take a browser_snapshot.
+1. Run playwright-cli -s={session} snapshot.
 2. Log the full snapshot content in the step task metadata.
 3. Mark the step as "failed" with reason "element_not_found".
 4. Include the element description and what was found instead.
@@ -1162,10 +1178,10 @@ When a step references an element that cannot be found in the snapshot:
 If a page does not load within a reasonable time:
 
 ```
-1. browser_wait_for time=10
-2. browser_snapshot to check if the page eventually loaded.
+1. sleep 10
+2. playwright-cli -s={session} snapshot to check if the page eventually loaded.
 3. If still not loaded, mark the step as "failed" with reason "timeout".
-4. Take a screenshot for evidence.
+4. playwright-cli -s={session} screenshot for evidence.
 5. Continue to the next step.
 ```
 
@@ -1174,7 +1190,7 @@ If a page does not load within a reasonable time:
 If a dialog appears unexpectedly during execution:
 
 ```
-1. browser_handle_dialog accept=true (dismiss it to continue).
+1. playwright-cli -s={session} dialog-accept (dismiss it to continue).
 2. Log the dialog in the step task metadata.
 3. Continue with the current step.
 ```
@@ -1184,7 +1200,7 @@ If a dialog appears unexpectedly during execution:
 At the end of each workflow, optionally check for console errors:
 
 ```
-1. browser_console_messages level="error"
+1. playwright-cli -s={session} console error
 2. If errors are found, log them in the workflow task metadata.
 3. These do not cause step failures but are included in the report.
 ```
@@ -1193,29 +1209,30 @@ At the end of each workflow, optionally check for console errors:
 
 ## Workflow Writing Standards Compatibility
 
-The runner is fully compatible with the Workflow Writing Standards used by the generator skills. All standard verb forms (Navigate, Click, Type, Select, Check, Uncheck, Toggle, Clear, Scroll, Hover, Wait, Verify, Upload, Drag, Press, Refresh) map directly to the Playwright MCP tool calls documented in the Action Mapping Reference above. The runner recognizes these verbs at the start of each step line and dispatches to the corresponding tool.
+The runner is fully compatible with the Workflow Writing Standards used by the generator skills. All standard verb forms (Navigate, Click, Type, Select, Check, Uncheck, Toggle, Clear, Scroll, Hover, Wait, Verify, Upload, Drag, Press, Refresh) map directly to the `playwright-cli` commands documented in the Action Mapping Reference above. The runner recognizes these verbs at the start of each step line and dispatches to the corresponding CLI command via Bash.
 
 ---
 
 ## Snapshot-First Execution Pattern
 
-The Playwright MCP tools are snapshot-driven. Unlike Playwright API code that uses selectors, MCP tools use element refs from snapshots. Every action that targets an element follows this pattern:
+The Playwright CLI is snapshot-driven. Unlike Playwright API code that uses CSS selectors, the CLI uses element refs from snapshots. Every action that targets an element follows this pattern:
 
 ```
 PATTERN: Snapshot -> Find -> Act -> Verify
 
-1. SNAPSHOT: Call browser_snapshot to get the current page accessibility tree.
-   The snapshot returns all visible elements with their refs (e.g., ref="s12").
+1. SNAPSHOT: Run `playwright-cli -s={session} snapshot` via Bash.
+   The snapshot returns a YAML accessibility tree with all visible elements
+   and their refs (e.g., ref=e12).
 
 2. FIND: Search the snapshot output for the target element.
    Match by: visible text, role, label, placeholder, or test ID.
    Extract the element's ref value.
 
-3. ACT: Call the appropriate action tool with the ref.
-   Example: browser_click ref="s12"
+3. ACT: Run the appropriate CLI command with the ref via Bash.
+   Example: `playwright-cli -s={session} click e12`
 
-4. VERIFY: Call browser_snapshot again to get the updated page state.
-   Check that the expected outcome is present in the new snapshot.
+4. VERIFY: Run `playwright-cli -s={session} snapshot` again via Bash.
+   Check that the expected outcome is present in the updated snapshot.
 ```
 
 This pattern is fundamental. NEVER attempt to click, type, or interact with an element without first taking a snapshot to find its ref. Refs are ephemeral -- they change between snapshots, so always use the ref from the most recent snapshot.
@@ -1225,13 +1242,13 @@ This pattern is fundamental. NEVER attempt to click, type, or interact with an e
 For the step: `Click the "Save Changes" button`
 
 ```
-1. browser_snapshot
-   -> Returns: ... button "Save Changes" [ref=s47] ...
+1. playwright-cli -s={session} snapshot
+   -> Returns: ... button "Save Changes" [ref=e47] ...
 
-2. browser_click ref="s47" element="Save Changes button"
+2. playwright-cli -s={session} click e47
    -> Button is clicked
 
-3. browser_snapshot
+3. playwright-cli -s={session} snapshot
    -> Returns: ... text "Changes saved successfully" ...
    -> Verification: success text found -> PASS
 ```
@@ -1239,14 +1256,14 @@ For the step: `Click the "Save Changes" button`
 For the step: `Type "hello@example.com" in the email field`
 
 ```
-1. browser_snapshot
-   -> Returns: ... textbox "Email" [ref=s23] ...
+1. playwright-cli -s={session} snapshot
+   -> Returns: ... textbox "Email" [ref=e23] ...
 
-2. browser_type ref="s23" text="hello@example.com"
+2. playwright-cli -s={session} fill e23 "hello@example.com"
    -> Text is entered
 
-3. browser_snapshot
-   -> Returns: ... textbox "Email" value="hello@example.com" [ref=s23] ...
+3. playwright-cli -s={session} snapshot
+   -> Returns: ... textbox "Email" value="hello@example.com" [ref=e23] ...
    -> Verification: field value matches -> PASS
 ```
 
@@ -1254,11 +1271,11 @@ For the step: `Type "hello@example.com" in the email field`
 
 ## Constraints
 
-- **MCP tools only** -- This skill uses Playwright MCP tools (`mcp__playwright__*`) for all browser interaction. It does NOT run Playwright CLI commands, generate Playwright code, or use `npx playwright`. Every browser action is a direct MCP tool call.
+- **CLI via Bash only** -- This skill uses `playwright-cli` commands via the Bash tool for all browser interaction. Every browser action is a `playwright-cli -s={session} <command>` call. It does NOT use MCP tools, generate Playwright code, or use `npx playwright test`.
 - **No file generation** -- This skill does not generate test files. It executes workflows interactively and produces an execution report. Use the converter skills to generate Playwright test projects for CI.
 - **Continue on failure** -- When a step fails, the runner logs the failure and continues to the next step. It never aborts a workflow or the entire run due to a single failure.
 - **Credentials in memory only** -- User credentials are held in the session and never written to disk, task metadata, or output files.
-- **Snapshot before action** -- Every element interaction requires a preceding `browser_snapshot` to obtain the element ref. Refs are ephemeral and must not be cached across snapshots.
+- **Snapshot before action** -- Every element interaction requires a preceding `playwright-cli -s={session} snapshot` to obtain the element ref. Refs are ephemeral and must not be cached across snapshots.
 - **Report always written** -- Even if all workflows pass, the runner writes an execution report file.
 - **Viewport preserved** -- For mobile runs, the 393x852 viewport must be set once and maintained throughout. Do not resize during execution.
-- **One tab per persona** -- Multi-user execution uses one browser tab per persona. Tabs are created during auth setup and reused throughout. Never close persona tabs during execution.
+- **One session per persona** -- Multi-user execution uses one named session per persona (e.g., `runner-admin`, `runner-user`). Sessions are opened during auth setup and reused throughout. Never close persona sessions during execution. Run `playwright-cli close-all` only after the full run completes.

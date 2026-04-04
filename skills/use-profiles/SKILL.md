@@ -13,7 +13,7 @@ Load saved Playwright `storageState` authentication profiles before browser auto
 
 This skill applies when ALL of the following are true:
 1. The current project has a `.playwright/profiles.json` file
-2. Browser automation work is about to begin (using Playwright MCP tools)
+2. Browser automation work is about to begin (using Playwright CLI via Bash)
 3. The target page requires authentication
 
 ## Profile Discovery
@@ -44,35 +44,26 @@ Determine which profile to use based on conversation context:
 
 ## Loading a Profile
 
-Before navigating to any authenticated page, load the profile:
+Before navigating to any authenticated page, load the profile using `playwright-cli` via the Bash tool. The `{session}` placeholder below refers to the current named session (e.g., `runner-desktop`, `qa-ux` — set by the invoking skill or command).
 
 1. Verify the storageState file exists at `.playwright/profiles/<role-name>.json`. If it does not exist, inform the user and suggest running `/setup-profiles` to create it.
 
-2. Read the storageState JSON file. It contains `cookies`, `origins` (localStorage), and optionally `sessionStorage` arrays.
+2. Load the profile's cookies and localStorage into the browser session:
 
-3. Use `browser_run_code` (MCP tool: `mcp__playwright__browser_run_code`) to restore cookies, localStorage, and sessionStorage from the storageState.
+   ```
+   playwright-cli -s={session} state-load ".playwright/profiles/<role-name>.json"
+   ```
 
-   ```javascript
-   async (page) => {
-     const state = STATE_JSON_HERE;
-     await page.context().addCookies(state.cookies);
-     if (state.origins) {
-       for (const origin of state.origins) {
-         if (origin.localStorage && origin.localStorage.length > 0) {
-           await page.goto(origin.origin);
-           await page.evaluate((items) => {
-             for (const { name, value } of items) localStorage.setItem(name, value);
-           }, origin.localStorage);
-         }
-       }
-     }
-     if (state.sessionStorage && state.sessionStorage.length > 0) {
-       await page.evaluate((items) => {
-         for (const { name, value } of items) sessionStorage.setItem(name, value);
-       }, state.sessionStorage);
-     }
-     return 'Profile loaded';
-   }
+   This restores all cookies and per-origin localStorage from the storageState JSON — the same format used by Playwright's `storageState()`.
+
+3. If the profile JSON contains a `sessionStorage` field (not part of standard storageState — added by `/setup-profiles`), restore it separately after navigating to the target origin:
+
+   ```
+   playwright-cli -s={session} goto "<origin>"
+   ```
+   Then for each sessionStorage entry:
+   ```
+   playwright-cli -s={session} sessionstorage-set "<name>" "<value>"
    ```
 
 4. Navigate to the target authenticated page. Cookies are sent with the request, localStorage is already populated, and sessionStorage is restored — so server-side, client-side, and SPA auth libraries (Supabase, Firebase, Auth0) will recognize the session.
@@ -81,9 +72,9 @@ Before navigating to any authenticated page, load the profile:
 
 After loading a profile and navigating to the target page, check whether the session is still valid using these heuristics in order:
 
-1. **URL redirect:** If the browser is redirected to a URL matching the `loginUrl` from the profile config, the session has likely expired.
+1. **URL redirect:** If the browser is redirected to a URL matching the `loginUrl` from the profile config, the session has likely expired. Check the URL in the snapshot output's `Page URL` line.
 2. **Auth-provider redirect:** If the final URL is on a different domain (e.g., `accounts.google.com`, `auth0.com`), the app redirected to an OAuth provider — the session has expired.
-3. **Page content check:** Take a `browser_snapshot` and look for login-related elements: sign-in forms, "Log in" / "Sign in" buttons, or "session expired" text. If the target page was expected to show authenticated content but instead shows a login UI, the session has expired.
+3. **Page content check:** Run `playwright-cli -s={session} snapshot` via Bash and look for login-related elements: sign-in forms, "Log in" / "Sign in" buttons, or "session expired" text. If the target page was expected to show authenticated content but instead shows a login UI, the session has expired.
 
 If expiry is detected:
 - Inform the user that the session for the profile appears to have expired
