@@ -5,8 +5,8 @@ node_modules/
 .claude/
 mockups/
 
-# Playwright MCP artifacts
-.playwright-mcp/
+# Playwright CLI artifacts
+.playwright-cli/
 
 # Mobile workflow config (may contain credentials)
 workflows/mobile-config.json

@@ -1141,7 +1141,7 @@ test('workflow with Admin and Guest1 only', async ({ browser }) => {
 
 ## Constraints
 
-- **Tools allowed** -- This skill only uses Read, Write, Glob, Grep, and the Task/Explore tools. Do NOT use Chrome MCP, iOS Simulator MCP, Playwright MCP, or any other browser automation tool. All browser interactions are generated as code, never executed during conversion.
+- **Tools allowed** -- This skill only uses Read, Write, Glob, Grep, and the Task/Explore tools. Do NOT use Chrome MCP, iOS Simulator MCP, Playwright CLI, or any other browser automation tool. All browser interactions are generated as code, never executed during conversion.
 - **Output location** -- All test files go to `e2e/multi-user/`. The CI workflow goes to `.github/workflows/e2e-multi-user.yml` at the repository root.
 - **Per-persona auth is always generated** -- A setup file is generated for every persona in the Persona Registry, even if not all personas appear in every workflow. Each setup file gracefully handles missing credentials.
 - **Vercel headers are always included** -- The `x-vercel-protection-bypass` and `x-vercel-set-bypass-cookie` headers are conditionally applied in both `playwright.config.ts` and the `createAuthContext` helper when the environment variable is set.

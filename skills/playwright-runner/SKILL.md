@@ -79,7 +79,7 @@ The first positional argument specifies which workflow platform to run:
 
 | Flag | Behavior |
 |------|----------|
-| _(none)_ | **Thorough** — full DOM assertions + `browser_wait_for` + viewport checks on every Verify step |
+| _(none)_ | **Thorough** — full DOM assertions + wait-for-element polling + viewport checks on every Verify step |
 | `--fail-fast` | **Fail-fast** — verify pages load (status 200, key element visible), skip DOM detail checks, stop workflow on any failure |
 
 ### Auto-Detection
@@ -414,7 +414,7 @@ TaskCreate:
 
 ## Phase 3: Execute Workflows
 
-This is the core phase. For each non-deprecated workflow, execute every step sequentially using Playwright MCP tools. Verify expected outcomes after each step. Record pass/fail results.
+This is the core phase. For each non-deprecated workflow, execute every step sequentially using Playwright CLI commands. Verify expected outcomes after each step. Record pass/fail results.
 
 ### Execution Order
 
@@ -459,12 +459,12 @@ TaskCreate:
 Read the workflow's `**Preconditions:**` block. For each precondition:
 
 - **"User is logged in"** -- Verify auth was established in Phase 2. If not, log a warning and proceed (the workflow may fail at auth-gated steps).
-- **"At least N [items] exist"** -- Navigate to the relevant listing page and verify via `browser_snapshot`. If the precondition is not met, log a warning in the workflow task metadata.
+- **"At least N [items] exist"** -- Navigate to the relevant listing page and verify via `playwright-cli -s={session} snapshot`. If the precondition is not met, log a warning in the workflow task metadata.
 - **"Feature flag [name] is enabled"** -- Log as an unchecked precondition (cannot verify feature flags from the browser).
 
 #### Step 3: Execute Each Step
 
-For each numbered step in the workflow, create a step task and execute the corresponding Playwright MCP action.
+For each numbered step in the workflow, create a step task and execute the corresponding Playwright CLI command.
 
 ```
 TaskCreate:
@@ -477,7 +477,7 @@ TaskCreate:
     expected: "Dashboard heading is visible"
 ```
 
-**Interpretation and execution:** Read the natural-language step, determine the appropriate Playwright MCP tool call, execute it, then verify the expected outcome.
+**Interpretation and execution:** Read the natural-language step, determine the appropriate Playwright CLI command, execute it, then verify the expected outcome.
 
 #### Step 4: Verify After Each Step
 
@@ -541,7 +541,7 @@ After every action, take a snapshot, visually inspect the result, AND run a DOM 
 7. If both visual and DOM checks fail: mark step as failed, create Issue task.
 ```
 
-**Fail-fast mode (`--fail-fast`):** When the `--fail-fast` flag is set, skip DOM assertions and detailed verification entirely. For Verify steps, take a snapshot and do a visual pass/fail check only. Do not run `browser_evaluate` or `browser_wait_for` for Verify steps. Stop the entire run on the first step failure (no continuation). Fail-fast mode is a smoke test: does the happy path complete without errors?
+**Fail-fast mode (`--fail-fast`):** When the `--fail-fast` flag is set, skip DOM assertions and detailed verification entirely. For Verify steps, take a snapshot and do a visual pass/fail check only. Do not run `playwright-cli -s={session} eval` or wait-for-element polling for Verify steps. Stop the entire run on the first step failure (no continuation). Fail-fast mode is a smoke test: does the happy path complete without errors?
 
 **When to skip the DOM assertion (thorough mode):** For action steps that are not Verify steps (e.g., "Click the Submit button", "Type text in field"), the DOM assertion is optional. The snapshot-first execution pattern already confirms the action succeeded. DOM assertions are REQUIRED for all Verify steps in thorough mode.
 
@@ -742,7 +742,7 @@ Result values: `"passed"` if all steps passed, `"failed"` if all steps failed, `
 
 ## Action Mapping Reference
 
-This table maps workflow natural language to Playwright MCP tool calls. This is the primary reference for interpreting workflow steps.
+This table maps workflow natural language to Playwright CLI commands. This is the primary reference for interpreting workflow steps.
 
 All commands below are run via the Bash tool. `{session}` is the named session (e.g., `runner-desktop`).
 
@@ -848,11 +848,11 @@ For every step, follow this sequence: (1) check for a persona tag like `[admin]`
 
 ### Handling Ambiguous Steps
 
-When a step references an element ambiguously (e.g., "Click the button" without specifying which), take a `browser_snapshot`, list matching elements, click the single match or best-guess from context if multiple exist, and mark the step `"ambiguous"` rather than `"failed"` if the result is unexpected.
+When a step references an element ambiguously (e.g., "Click the button" without specifying which), take a snapshot via `playwright-cli -s={session} snapshot`, list matching elements, click the single match or best-guess from context if multiple exist, and mark the step `"ambiguous"` rather than `"failed"` if the result is unexpected.
 
 ### Handling MANUAL Steps
 
-Steps marked `[MANUAL]` cannot be executed via Playwright MCP. Create a step task with `result: "skipped"` and `reason: "manual_step"`, then continue with the next automatable step.
+Steps marked `[MANUAL]` cannot be executed via Playwright CLI. Create a step task with `result: "skipped"` and `reason: "manual_step"`, then continue with the next automatable step.
 
 ---
 
@@ -1042,7 +1042,7 @@ This simulates an iPhone 14 Pro screen. The viewport must be set once at the sta
 
 ### Mobile-Specific Action Mapping
 
-Mobile workflows may use touch-oriented language. Map these to equivalent Playwright MCP actions:
+Mobile workflows may use touch-oriented language. Map these to equivalent Playwright CLI commands:
 
 | Mobile Workflow Language | CLI Command (via Bash) |
 |---|---|

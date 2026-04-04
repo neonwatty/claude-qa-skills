@@ -1069,7 +1069,7 @@ Prefer selectors in this order: (1) `getByRole` (2) `getByLabel` (3) `getByPlace
 
 ## Constraints
 
-- **Tools allowed** -- This skill only uses Read, Write, Glob, Grep, and the Task/Explore tools. Do NOT use Chrome MCP, iOS Simulator MCP, Playwright MCP, or any other browser automation tool. All browser interactions are generated as code, never executed during conversion.
+- **Tools allowed** -- This skill only uses Read, Write, Glob, Grep, and the Task/Explore tools. Do NOT use Chrome MCP, iOS Simulator MCP, Playwright CLI, or any other browser automation tool. All browser interactions are generated as code, never executed during conversion.
 - **Output location** -- All test files go to `e2e/mobile/`. The CI workflow goes to `.github/workflows/mobile-e2e.yml` at the repository root.
 - **Auth is always generated** -- `auth.setup.ts` is always included, even if zero workflows require authentication. It gracefully handles missing credentials.
 - **Vercel headers are always included** -- The `x-vercel-protection-bypass` and `x-vercel-set-bypass-cookie` headers are conditionally applied in `playwright.config.ts` when the environment variable is set.

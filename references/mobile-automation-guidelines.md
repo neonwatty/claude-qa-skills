@@ -92,7 +92,7 @@ When workflows require specific setup:
 
 ### Mobile Browser (Chrome Viewport)
 
-**Playwright MCP provides powerful automation for mobile browser testing.**
+**Playwright CLI provides powerful automation for mobile browser testing.**
 
 **What CAN be automated:**
 - Navigation and URL changes
@@ -106,7 +106,7 @@ When workflows require specific setup:
 - Console message reading
 - File input via programmatic upload
 
-**Additional limitations specific to Playwright MCP:**
+**Additional limitations specific to Playwright CLI:**
 
 | Limitation | Example | Recommendation |
 |------------|---------|----------------|

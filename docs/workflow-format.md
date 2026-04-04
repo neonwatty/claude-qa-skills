@@ -163,7 +163,7 @@ All action steps must begin with one of these verbs:
 | Refresh | Reload the current page |
 | Verify | Assert an expected outcome |
 
-> **Note:** "Pause" is the workflow verb for user-visible wait steps. Internal timing mechanisms use `browser_wait_for` — these are distinct concepts.
+> **Note:** "Pause" is the workflow verb for user-visible wait steps. Internal timing mechanisms use snapshot polling via `playwright-cli` — these are distinct concepts.
 
 ---
 
