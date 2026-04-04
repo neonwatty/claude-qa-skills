@@ -973,6 +973,12 @@ Next steps:
 
 ---
 
+## Phase 5: Session Reflection
+
+Read `references/reflection-protocol.md` and execute it before finishing.
+
+---
+
 ## Session Recovery
 
 If the skill is invoked and an existing task list is found, use this decision tree to determine where to resume.

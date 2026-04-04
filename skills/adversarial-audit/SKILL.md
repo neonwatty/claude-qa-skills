@@ -155,3 +155,9 @@ See [references/report-structure.md](references/report-structure.md) for the ful
 - [references/verification-prompts.md](references/verification-prompts.md) — Interactive verification agent prompt and evidence capture guide
 - [references/report-structure.md](references/report-structure.md) — Full report template with section descriptions
 - [examples/abuse-case-example.md](examples/abuse-case-example.md) — Complete example abuse cases across all seven categories
+
+---
+
+## Phase 8: Session Reflection
+
+Read `references/reflection-protocol.md` and execute it before finishing.

@@ -10,3 +10,6 @@ mockups/
 
 # Mobile workflow config (may contain credentials)
 workflows/mobile-config.json
+
+# QA learnings ledger (per-project, not committed to plugin repo)
+.qa-learnings/
