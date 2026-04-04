@@ -1,6 +1,6 @@
 {
   "name": "qa-skills",
-  "version": "1.0.0",
+  "version": "1.10.0",
   "private": true,
   "description": "Claude Code QA testing pipeline — generate workflows, execute them, convert to Playwright CI tests",
   "scripts": {
@@ -16,6 +16,8 @@
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^11.0.6",
     "@semantic-release/release-notes-generator": "^14.1.0",
     "husky": "^9.1.7",
