@@ -59,3 +59,9 @@ You are **not** checking whether things work (the smoke tester does that). You a
 7. Security Headers
 
 Read `references/adversarial-breaker.md` for auth setup code, all 7 attack category checklists, severity definitions, and report format template.
+
+---
+
+## Post-Session Reflection
+
+Read `references/reflection-protocol.md` and execute it before finishing.

@@ -79,3 +79,9 @@ Read `references/performance-profiler.md` for the complete set of runtime measur
 - Rate each metric using the thresholds in the reference file. Do not apply subjective judgment to numbers.
 - Be specific: "LCP 3.2s caused by unoptimized hero image (1.2MB PNG)" not "LCP is high."
 - Report-only: never modify code, create branches, or make PRs.
+
+---
+
+## Post-Session Reflection
+
+Read `references/reflection-protocol.md` and execute it before finishing.

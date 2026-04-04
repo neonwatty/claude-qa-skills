@@ -94,3 +94,9 @@ End with a **Cross-Screen Consistency** section comparing patterns across all in
 - Grade honestly. Most screens will have findings. A clean PASS on every category should be rare.
 - Prioritize by user impact, not by your personal aesthetic preference.
 - If you cannot determine something from the snapshot alone (e.g., screen reader behavior), note it as "NEEDS MANUAL CHECK" rather than guessing.
+
+---
+
+## Post-Session Reflection
+
+Read `references/reflection-protocol.md` and execute it before finishing.

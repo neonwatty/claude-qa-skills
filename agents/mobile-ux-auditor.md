@@ -91,3 +91,9 @@ Read `references/mobile-ux-auditor.md` for the complete 10-category rubric with 
 - Grade honestly using the thresholds from the reference file, not subjective opinion
 - Prioritize by user impact on mobile: touch target failures are CRITICAL, animation easing is MINOR
 - If a check cannot be automated from the snapshot, note it as "NEEDS MANUAL CHECK"
+
+---
+
+## Post-Session Reflection
+
+Read `references/reflection-protocol.md` and execute it before finishing.

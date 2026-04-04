@@ -136,3 +136,9 @@ See [references/report-structure.md](references/report-structure.md) for the ful
 - [references/report-structure.md](references/report-structure.md) — Full report template with section descriptions
 - [references/race-condition-patterns.md](references/race-condition-patterns.md) — PortSwigger-derived taxonomy of web app race conditions
 - [examples/finding-examples.md](examples/finding-examples.md) — Complete example findings across all eight categories
+
+---
+
+## Phase 8: Session Reflection
+
+Read `references/reflection-protocol.md` and execute it before finishing.

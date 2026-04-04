@@ -59,3 +59,9 @@ Read `references/smoke-tester.md` for auth setup code, action mapping table, qua
 | Login    | 3    | Click Sign In | Redirected to /dashboard | FAIL |
 
 Include failure details (expected vs. observed) and end with a summary: total steps, passed, failed, pass rate.
+
+---
+
+## Post-Session Reflection
+
+Read `references/reflection-protocol.md` and execute it before finishing.
