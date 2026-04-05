@@ -110,6 +110,10 @@ e2e/<platform>/
 └── .gitignore
 ```
 
+## Continuous Learnings
+
+Every agent and skill silently reflects after its session — noting gaps in coverage, false signals, and tooling friction. Observations are appended to `.qa-learnings/ledger.md` in the consuming project. Over multiple QA runs the ledger accumulates field data. Run `"review learnings"` to synthesize entries into prioritized, actionable plugin improvements.
+
 ## Authentication
 
 **Local:** `/setup-profiles` saves `storageState` per role. Config is committed (`.playwright/profiles.json`), auth data is gitignored (`.playwright/profiles/*.json`).
