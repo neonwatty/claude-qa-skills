@@ -118,7 +118,7 @@ If yes:
 
 1. Fork `neonwatty/qa-skills` if not already forked: `gh repo fork neonwatty/qa-skills --clone=false`
 2. Clone the fork to a temp directory, create branch `learnings/[short-slug]`
-3. Apply each suggested edit by reading the target file, making the change, and committing
+3. Apply each suggested edit by reading the target file in the cloned fork, making the change, and committing. Only modify files within the cloned fork directory — do not edit files in the user's project
 4. Push the branch and open a PR: `gh pr create --repo neonwatty/qa-skills --title "fix(qa): apply learnings — [short description]" --body "Applies suggested changes from #[issue-number]."`
 5. Display the PR URL
 
