@@ -1,7 +1,7 @@
 ---
 name: submit-learnings
 description: Filters and submits accumulated QA learnings as a GitHub issue (with optional PR) on the plugin repo. Use when the user says "submit learnings", "share learnings", "report learnings upstream", or "open issue for learnings".
-allowed-tools: Read, Glob, Grep, Bash, AskUserQuestion
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 ---
 
 # Submit Learnings
@@ -60,6 +60,7 @@ Format the selected observations into a GitHub issue body:
 
 **Entries:** [N selected] of [N total] from [comma-separated sources]
 **Date range:** [earliest timestamp] to [latest timestamp]
+**Submitted by:** [output of `gh api user --jq .login`]
 
 ### Observations
 
