@@ -22,8 +22,8 @@ No learnings recorded yet. Run QA sessions — each agent and skill automaticall
 
 Then stop.
 
-Parse each entry by splitting on `## ` headers. For each entry, extract:
-- **Timestamp** — the ISO timestamp after `## `
+Parse each entry by splitting on `##` headers. For each entry, extract:
+- **Timestamp** — the ISO timestamp after `##`
 - **Source** — the agent or skill name after ` — `
 - **Observation** — the body text
 - **Suggested change** — the line starting with `**Suggested change:**`
