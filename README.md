@@ -1,6 +1,6 @@
 # Claude QA Skills
 
-QA testing pipeline for [Claude Code](https://claude.ai/code) — generate workflow docs, convert to Playwright E2E tests, run interactively or in CI, and audit apps with five specialized QA agents. Supports desktop, mobile, and multi-user flows with profile-based authentication.
+QA testing pipeline for [Claude Code](https://claude.ai/code) — generate workflow docs, convert to Playwright E2E tests, run interactively or in CI, and audit apps with six specialized QA agents. Supports desktop, mobile, and multi-user flows with profile-based authentication.
 
 > **Full walkthrough:** [Claude Code Browser Testing and iOS Automation with MCP Workflows](https://neonwatty.com/posts/claude-code-workflow-testing-mcp/)
 
