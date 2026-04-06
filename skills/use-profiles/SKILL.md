@@ -68,6 +68,49 @@ Before navigating to any authenticated page, load the profile using `playwright-
 
 4. Navigate to the target authenticated page. Cookies are sent with the request, localStorage is already populated, and sessionStorage is restored — so server-side, client-side, and SPA auth libraries (Supabase, Firebase, Auth0) will recognize the session.
 
+## Test Data Files & Acceptance Criteria
+
+After loading a profile, check whether it has a `files` array and/or `acceptance` object in `profiles.json`. These are optional fields — many profiles will not have them.
+
+### Surfacing available files
+
+If the profile has `files`, inform the caller with a summary:
+
+> This profile has **N** test data file(s) available:
+> 1. valid-deck.pptx — Clean deck, passes all checks
+> 2. profanity-deck.pptx — Profanity in notes, should flag
+> 3. *(cloud)* oversized-deck.pptx — 200MB deck, tests size limit
+>
+> Profile acceptance criteria: upload accepted, processing completes
+
+Mark cloud-hosted files (those with `url` instead of `path`) with *(cloud)* for clarity.
+
+This information is surfaced but not acted on by this skill — the consumer (workflow generator, runner, agent) decides whether and how to use it.
+
+### File path validation
+
+For each file entry with a `path` field, verify the file exists at the given path relative to the project root. If a file is missing, warn:
+
+> Profile "speaker" references test file "test-fixtures/valid-deck.pptx" which does not exist. The file may have been moved or deleted.
+
+Do not fail or block on missing files — just warn. Files with `url` are not validated (they may require authentication or be on private networks).
+
+### Acceptance criteria summary
+
+If the profile has `acceptance`, include a human-readable summary of the configured criteria. Map the fields as follows:
+
+| Field | Summary text |
+|-------|-------------|
+| `uploadAccepted: true` | upload accepted |
+| `processingCompletes: true` | processing completes |
+| `resultDownloadable: true` | result downloadable |
+| `errorExpected: true` | error expected |
+| `expectedStatus: "clear"` | expected status: "clear" |
+
+If individual files have `acceptance` overrides, note which files override the profile defaults:
+
+> File "corrupted.pptx" overrides profile acceptance: upload rejected, error expected
+
 ## Session Expiry Detection
 
 After loading a profile and navigating to the target page, check whether the session is still valid using these heuristics in order:

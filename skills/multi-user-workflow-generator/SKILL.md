@@ -882,6 +882,19 @@ For each persona in the Persona Registry:
   3. The session retains auth state for all subsequent commands
 ```
 
+**Per-Persona Test Data Files**
+
+After all persona sessions are loaded, check each persona's matched profile for `files` and `acceptance` fields. Build a per-persona test data registry:
+
+```
+Test data files by persona:
+- Speaker: 2 files (valid-deck.pptx, corrupted.pptx), acceptance: upload accepted, processing completes
+- Planner: no test files
+- Admin: no test files
+```
+
+This registry is used during the walkthrough when a persona encounters a file upload step. Each persona uses files from their own profile only.
+
 ### Create the Walkthrough Task
 
 ```
@@ -1531,6 +1544,43 @@ Use these exact verb forms and patterns when writing workflow steps. Consistency
 | Drag | [Persona] Drag "[source]" to "[target]" | [Editor] Drag "Task A" to the "Done" column |
 | Press | [Persona] Press [key/shortcut] | [Host] Press Escape to close the share dialog |
 | Refresh | [Persona] Refresh the page | [Guest1] Refresh the page and verify data from [Host] persists |
+
+### Per-Persona Test Data File Selection at Upload Steps
+
+When writing an `Upload` step during the walkthrough, check whether the **current persona's** profile has `files` configured. If it does:
+
+1. Present the persona's available test files:
+
+   ```
+   [Speaker] has test data files available:
+   
+   1. valid-deck.pptx — Clean deck, passes all checks
+   2. corrupted.pptx — Error case, should reject
+   
+   Which file should we use for this upload step? (number, "skip" to use a different file, or "none")
+   ```
+
+2. If the user selects a file:
+   - For `path` entries: use the path relative to the project root in the Upload step
+   - For `url` entries: note the URL in a comment above the Upload step and write the Upload step with the filename only
+   - Tag the step with the persona as usual (e.g., `[Speaker] Upload "test-fixtures/valid-deck.pptx" to the file dropzone`)
+
+3. After the upload step completes, if `acceptance` criteria exist (profile-level merged with any file-level overrides via shallow merge), add persona-tagged Verify steps:
+
+   | Criterion | Generated Verify Step |
+   |-----------|----------------------|
+   | `uploadAccepted: true` | `[Speaker] Verify no error message or validation error is displayed` |
+   | `uploadAccepted: false` | `[Speaker] Verify an error message or validation error is displayed` |
+   | `processingCompletes: true` | `[Speaker] Verify the processing indicator resolves to a terminal state` |
+   | `resultDownloadable: true` | `[Speaker] Verify a download button or link is available` |
+   | `errorExpected: true` | `[Speaker] Verify an error message is displayed and the app remains functional` |
+   | `expectedStatus: "X"` | `[Speaker] Verify the status shows "X"` |
+
+   Confirm each with the user via snapshot inspection before recording.
+
+4. If the user selects "skip" or "none", write the Upload step as normal without test data integration.
+
+**Cross-persona verification:** When one persona uploads a file and another persona is expected to see the result (e.g., speaker uploads, planner reviews), the acceptance criteria apply to the uploading persona's step. Verification of the downstream persona's view should be captured as separate Verify steps tagged with that persona.
 
 ---
 

@@ -22,7 +22,7 @@ playwright-cli install
 /setup-profiles
 ```
 
-`/setup-profiles` opens a headed browser for each user role. You log in manually (handles OAuth, 2FA, etc.) and the session state is saved to `.playwright/profiles/`. All generators, agents, and the runner load these profiles automatically.
+`/setup-profiles` opens a headed browser for each user role. You log in manually (handles OAuth, 2FA, etc.) and the session state is saved to `.playwright/profiles/`. Profiles can also include optional test data files (local fixtures or cloud URLs) and acceptance criteria for file-processing workflows. All generators, agents, and the runner load these profiles automatically.
 
 ## The Pipeline
 
@@ -36,7 +36,7 @@ playwright-cli install
 
 | Command | Description |
 |---------|-------------|
-| `/setup-profiles` | Create or refresh Playwright auth profiles |
+| `/setup-profiles` | Create or refresh Playwright auth profiles, optionally define test data files and acceptance criteria |
 | `/run-qa [smoke\|ux\|adversarial\|all]` | Discover screens, confirm manifest, dispatch QA agents |
 
 > **Framework support:** Route discovery is optimized for **Next.js** (App Router and Pages Router), with support for React Router, Remix, and SvelteKit. Other frameworks fall back to generic route-pattern matching.
@@ -80,7 +80,7 @@ playwright-cli install
 
 | Skill | Trigger | Description |
 |-------|---------|-------------|
-| **use-profiles** | Automatic | Loads saved auth profiles before browser automation |
+| **use-profiles** | Automatic | Loads saved auth profiles and surfaces test data files before browser automation |
 
 ## Agents (6)
 
@@ -114,7 +114,7 @@ e2e/<platform>/
 
 ## Authentication
 
-**Local:** `/setup-profiles` saves `storageState` per role. Config is committed (`.playwright/profiles.json`), auth data is gitignored (`.playwright/profiles/*.json`).
+**Local:** `/setup-profiles` saves `storageState` per role. Config is committed (`.playwright/profiles.json`), auth data is gitignored (`.playwright/profiles/*.json`). Profiles optionally include `files` (test fixtures) and `acceptance` (verification criteria) for file-processing workflows — generators offer file selection at upload steps and verify acceptance criteria automatically.
 
 **CI:** Converters generate `auth.setup.ts` with `process.env` credential references. Uses GitHub secrets for credentials and Vercel deployment protection bypass.
 
