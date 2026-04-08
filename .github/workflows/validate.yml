@@ -121,7 +121,8 @@ jobs:
           git add package.json .claude-plugin/plugin.json
           git commit -m "chore(release): ${VERSION} [skip ci]"
           git push origin "$BRANCH"
-          gh pr create \
+          PR_URL=$(gh pr create \
             --title "chore(release): ${VERSION}" \
             --body "Auto-generated version bump from release v${VERSION}." \
-            --label "released"
+            --label "released")
+          gh pr merge "$PR_URL" --squash --auto
