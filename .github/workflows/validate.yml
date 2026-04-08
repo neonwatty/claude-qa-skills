@@ -86,6 +86,42 @@ jobs:
         run: npm ci
 
       - name: Run semantic-release
-        run: npx semantic-release
+        id: release
+        run: |
+          npx semantic-release
+          git fetch --tags
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          VERSION="${LATEST_TAG#v}"
+          CURRENT=$(node -e "console.log(require('./package.json').version)")
+          if [ "$VERSION" != "$CURRENT" ]; then
+            echo "new_version=$VERSION" >> "$GITHUB_OUTPUT"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create version bump PR
+        if: steps.release.outputs.new_version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.new_version }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            for (const f of ['package.json', '.claude-plugin/plugin.json']) {
+              const pkg = JSON.parse(fs.readFileSync(f, 'utf8'));
+              pkg.version = process.argv[1];
+              fs.writeFileSync(f, JSON.stringify(pkg, null, 2) + '\n');
+            }
+          " "$VERSION"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="chore/version-bump-${VERSION}"
+          git checkout -b "$BRANCH"
+          git add package.json .claude-plugin/plugin.json
+          git commit -m "chore(release): ${VERSION} [skip ci]"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore(release): ${VERSION}" \
+            --body "Auto-generated version bump from release v${VERSION}." \
+            --label "released"
