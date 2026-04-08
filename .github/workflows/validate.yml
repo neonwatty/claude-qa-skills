@@ -77,7 +77,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
 
       - uses: actions/setup-node@v4
         with:
@@ -90,37 +89,3 @@ jobs:
         run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Bump version files if release was created
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LATEST_TAG" ]; then exit 0; fi
-          VERSION="${LATEST_TAG#v}"
-          CURRENT=$(node -e "console.log(require('./package.json').version)")
-          if [ "$VERSION" = "$CURRENT" ]; then
-            echo "Version files already match $VERSION — no bump needed."
-            exit 0
-          fi
-
-          node -e "
-            const fs = require('fs');
-            for (const f of ['package.json', '.claude-plugin/plugin.json']) {
-              const pkg = JSON.parse(fs.readFileSync(f, 'utf8'));
-              pkg.version = process.argv[1];
-              fs.writeFileSync(f, JSON.stringify(pkg, null, 2) + '\n');
-            }
-          " "$VERSION"
-
-          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -b "chore/version-bump-$VERSION"
-          git add package.json .claude-plugin/plugin.json
-          git commit -m "chore(release): bump version to $VERSION"
-          git push origin "chore/version-bump-$VERSION"
-          gh pr create \
-            --title "chore(release): bump version to $VERSION" \
-            --body "Auto-generated version bump from release v$VERSION."
