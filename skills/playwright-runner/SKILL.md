@@ -258,6 +258,16 @@ playwright-cli -s={session} snapshot
 
 If expiry is detected, inform the user and suggest running `/setup-profiles` to refresh it.
 
+**Step 2.5: Load test data context**
+
+After loading a profile, check if it has a `files` array and/or `acceptance` object in `profiles.json`. If present, store this context for use during Phase 3 execution:
+
+- **Files list**: available test fixtures for this profile
+- **Profile-level acceptance**: default verification criteria
+- **Per-file overrides**: file-specific acceptance criteria that override profile defaults
+
+This context is used automatically when the runner encounters `Upload` steps during workflow execution.
+
 **If profiles are configured but storageState files are missing**, inform the user:
 
 ```
@@ -823,6 +833,48 @@ All commands below are run via the Bash tool. `{session}` is the named session (
 | Workflow Language | CLI Command (via Bash) |
 |---|---|
 | Upload "[filename]" | `playwright-cli -s={session} upload "[absolute-path]"` |
+
+#### Test Data File Resolution
+
+When executing an `Upload` step, resolve the file to upload using this priority:
+
+1. **Workflow specifies a path**: If the Upload step names a specific file (e.g., `Upload "test-fixtures/valid-deck.pptx"`), use that path directly. Convert relative paths to absolute paths from the project root.
+2. **Profile has matching file**: If the Upload step names a filename without a path (e.g., `Upload "valid-deck.pptx"`), check the loaded profile's `files` array for a matching entry by filename. If found, use its `path` or download from its `url`.
+3. **Profile has files, step is generic**: If the Upload step uses a generic description (e.g., `Upload a file to the dropzone`) and the profile has `files`, present the available files to the user and ask which one to use.
+4. **No profile files**: Execute the Upload step as-is — the user provides the file interactively.
+
+#### Acceptance Criteria Verification
+
+After an `Upload` step completes, if the loaded profile has `acceptance` criteria (and/or the selected file has overrides), automatically verify each applicable criterion:
+
+1. **Compute effective criteria**: Shallow-merge the file-level `acceptance` (if any) over the profile-level `acceptance`:
+   ```
+   effective = { ...profile.acceptance, ...file.acceptance }
+   ```
+
+2. **Verify each criterion** by inspecting the current page state via snapshot:
+
+   | Criterion | Verification Method |
+   |-----------|-------------------|
+   | `uploadAccepted: true` | Snapshot shows no error toast/message/validation error after upload |
+   | `uploadAccepted: false` | Snapshot shows an error message or validation error |
+   | `processingCompletes: true` | Poll snapshots until a processing indicator resolves to a terminal state (max 60s) |
+   | `resultDownloadable: true` | Snapshot shows a download button, link, or "completed" indicator |
+   | `errorExpected: true` | Snapshot shows an error message and app is still functional (not crashed) |
+   | `expectedStatus: "X"` | Snapshot contains text matching "X" in a status badge/indicator area |
+
+3. **Record results** in the execution output:
+
+   ```
+   Upload acceptance verification:
+     ✓ uploadAccepted: PASS (no error message displayed)
+     ✓ processingCompletes: PASS (status reached "clear" after 12s)
+     ○ resultDownloadable: INCONCLUSIVE (no clear download indicator found)
+   ```
+
+   Use ✓ for PASS, ✗ for FAIL, ○ for INCONCLUSIVE (criterion could not be conclusively verified from the snapshot).
+
+4. **Do not block on failures**: Record the result and continue execution. Acceptance verification is observational, not a gate.
 
 ### Session Management (Multi-User)
 

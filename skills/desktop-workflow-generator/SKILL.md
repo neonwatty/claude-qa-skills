@@ -561,6 +561,14 @@ Navigate to the base URL and verify the session is still valid:
 
 If expiry is detected, inform the user and suggest running `/setup-profiles` to refresh it.
 
+**Step 1.5: Surface test data files**
+
+After loading a profile, check if it has a `files` array in `profiles.json`. If it does, note the available test files for use during the walkthrough — they will be offered when file upload interactions are encountered in Phase 5.
+
+If the profile also has an `acceptance` object, note the criteria for later verification.
+
+Do not act on this information yet — just store it for Phase 5.
+
 **If profiles are configured but storageState files are missing**, inform the user:
 
 ```
@@ -1087,6 +1095,40 @@ Use these exact verb forms and patterns when writing workflow steps. Consistency
 | Drag | Drag "[source]" to "[target]" | Drag "Task A" to the "Done" column |
 | Press | Press [key/shortcut] | Press Escape to close the modal |
 | Refresh | Refresh the page | Refresh the page and verify data persists |
+
+### Test Data File Selection at Upload Steps
+
+When writing an `Upload` step during the Phase 5 walkthrough, check whether the loaded profile has `files` configured. If it does:
+
+1. Present the available test files to the user:
+
+   ```
+   This profile has test data files available:
+   
+   1. valid-deck.pptx — Clean deck, passes all checks
+   2. corrupted.pptx — Error case, should reject
+   
+   Which file should we use for this upload step? (number, "skip" to use a different file, or "none" to write the step without a specific file)
+   ```
+
+2. If the user selects a file:
+   - For `path` entries: use the path relative to the project root in the Upload step (e.g., `Upload "test-fixtures/valid-deck.pptx" to the file dropzone`)
+   - For `url` entries: note the URL in a comment above the Upload step (e.g., `<!-- test file: https://storage.example.com/large.pptx -->`) and write the Upload step with the filename only
+
+3. After the upload step completes in the live walkthrough, if `acceptance` criteria exist (profile-level merged with any file-level overrides via shallow merge), add Verify steps for each applicable criterion:
+
+   | Criterion | Generated Verify Step |
+   |-----------|----------------------|
+   | `uploadAccepted: true` | `Verify no error message or validation error is displayed` |
+   | `uploadAccepted: false` | `Verify an error message or validation error is displayed` |
+   | `processingCompletes: true` | `Verify the processing indicator resolves to a terminal state` |
+   | `resultDownloadable: true` | `Verify a download button or link is available` |
+   | `errorExpected: true` | `Verify an error message is displayed and the app remains functional` |
+   | `expectedStatus: "X"` | `Verify the status shows "X"` |
+
+   These Verify steps are added to the workflow output as part of the normal walkthrough. Confirm each with the user via snapshot inspection before recording.
+
+4. If the user selects "skip" or "none", write the Upload step as normal without test data integration.
 
 ---
 

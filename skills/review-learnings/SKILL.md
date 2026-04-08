@@ -60,6 +60,10 @@ Output:
 [same format]
 ```
 
+After the report, include:
+
+> To share these findings with the plugin maintainers, run `/submit-learnings`.
+
 ## Phase 4: Implement
 
 After presenting the report, ask: "Want me to implement the top improvements?"

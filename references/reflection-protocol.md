@@ -20,5 +20,13 @@ Replace `[SOURCE]` with the agent or skill name you were invoked as.
 
 If you have zero observations, append nothing and say nothing about it.
 
-If you recorded any observations, include a single line in your output:
-`[N] observation(s) recorded to .qa-learnings/ledger.md`
+If you recorded any observations, include this line in your output:
+`[N] observation(s) recorded to .qa-learnings/ledger.md — run /review-learnings to synthesize, or /submit-learnings to share upstream.`
+
+### Threshold Nudge
+
+After recording observations (or if you recorded none), check whether `.qa-learnings/ledger.md` exists. If it does not, skip this check. If it does, count the total entries and unique sources by scanning for `## ` entry headers. If the ledger has **5 or more entries** OR **3 or more unique sources**, append an additional line:
+
+`The learnings ledger has [N] entries from [M] sources. Consider running /submit-learnings to share with plugin maintainers.`
+
+This nudge repeats every run until the user submits or clears the ledger.
