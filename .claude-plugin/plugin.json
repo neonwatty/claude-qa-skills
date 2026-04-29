@@ -1,7 +1,7 @@
 {
   "name": "qa-skills",
-  "version": "1.13.3",
-  "description": "QA testing pipeline with 6 personas (smoke, UX, adversarial, security, performance, mobile) — generate workflow docs, convert to Playwright E2E tests, run interactively or in CI. Supports quantified UX scoring with before/after binary scorecards, Next.js performance profiling, and mobile UX auditing against iOS HIG and Material Design 3 standards.",
+  "version": "2.0.0",
+  "description": "QA testing pipeline with 6 personas (smoke, UX, adversarial, security, performance, mobile) — generate workflow docs, convert to Playwright E2E tests, run interactively or in CI. Supports per-project role profiles, global authenticated browsing for external services, quantified UX scoring, Next.js performance profiling, and mobile UX auditing.",
   "author": {
     "name": "Jeremy Watt",
     "url": "https://github.com/neonwatty"
@@ -15,6 +15,8 @@
     "mobile",
     "multi-user",
     "authentication",
+    "auth-browse",
+    "profiles",
     "ci",
     "performance",
     "web-vitals",

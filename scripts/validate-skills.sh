@@ -18,13 +18,19 @@ validate_frontmatter_yaml() {
         return 1
     fi
 
-    echo "$frontmatter" | python3 -c "
-import sys, yaml
-try:
-    yaml.safe_load(sys.stdin.read())
-except yaml.YAMLError as e:
-    print(f'  YAML parse error: {e}')
-    sys.exit(1)
+    echo "$frontmatter" | node -e "
+const yaml = require('js-yaml');
+let input = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => input += chunk);
+process.stdin.on('end', () => {
+  try {
+    yaml.load(input);
+  } catch (error) {
+    console.log('  YAML parse error: ' + error.message);
+    process.exit(1);
+  }
+});
 " 2>&1
 }
 

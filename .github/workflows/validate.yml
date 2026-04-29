@@ -51,9 +51,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Ensure PyYAML is available for frontmatter validation
-        run: python3 -c "import yaml" || pip install pyyaml
-
       - name: Lint markdown files
         run: npm run validate:md
 
@@ -64,10 +61,51 @@ jobs:
         run: npm run validate:links
         continue-on-error: true
 
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate merged plugin surface
+        run: npm run validate:plugin:local
+
+      - name: Run unit tests
+        run: npm test
+
+  auth-tests-macos:
+    name: Auth/Profile Tests (macOS)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run auth/profile tests
+        run: npm test
+
   release:
     name: Release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [validate-plugin, validate-markdown]
+    needs: [validate-plugin, validate-markdown, unit-tests, auth-tests-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
