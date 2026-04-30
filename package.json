@@ -1,14 +1,18 @@
 {
   "name": "qa-skills",
-  "version": "1.13.3",
+  "version": "2.0.0",
   "private": true,
   "description": "Claude Code QA testing pipeline — generate workflows, execute them, convert to Playwright CI tests",
   "scripts": {
     "prepare": "husky",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "ci": "npm run validate:plugin:local && npm test && npm run validate",
     "validate": "npm run validate:md && npm run validate:skills && npm run validate:links",
     "validate:md": "npx markdownlint-cli2 'skills/**/*.md' 'agents/*.md' 'commands/*.md' 'README.md'",
     "validate:skills": "./scripts/validate-skills.sh",
     "validate:links": "npx markdown-link-check -q skills/*/SKILL.md agents/*.md commands/*.md README.md || true",
+    "validate:plugin:local": "vitest run tests/validate-plugin.test.mjs",
     "validate:plugin": "claude plugin validate .",
     "validate:workflows": "./scripts/validate-workflows.sh"
   },
@@ -21,6 +25,7 @@
     "husky": "^9.1.7",
     "markdown-link-check": "^3.14.2",
     "markdownlint-cli2": "^0.14.0",
-    "semantic-release": "^24.2.9"
+    "semantic-release": "^24.2.9",
+    "vitest": "^4.1.5"
   }
 }

@@ -1,6 +1,6 @@
 # Claude QA Skills
 
-QA testing pipeline for [Claude Code](https://claude.ai/code) — generate workflow docs, convert to Playwright E2E tests, run interactively or in CI, and audit apps with six specialized QA agents. Supports desktop, mobile, and multi-user flows with profile-based authentication.
+QA testing pipeline for [Claude Code](https://claude.ai/code) — generate workflow docs, convert to Playwright E2E tests, run interactively or in CI, and audit apps with six specialized QA agents. Supports desktop, mobile, and multi-user flows with per-project role profiles plus global authenticated browsing for external services.
 
 > **Full walkthrough:** [Claude Code Browser Testing and iOS Automation with MCP Workflows](https://neonwatty.com/posts/claude-code-workflow-testing-mcp/)
 
@@ -20,9 +20,14 @@ playwright-cli install
 
 # 2. Create auth profiles for your app (one-time per project)
 /setup-profiles
+
+# 3. Optional: set up persistent auth for external services
+/setup-auth-browse
 ```
 
 `/setup-profiles` opens a headed browser for each user role. You log in manually (handles OAuth, 2FA, etc.) and the session state is saved to `.playwright/profiles/`. Profiles can also include optional test data files (local fixtures or cloud URLs) and acceptance criteria for file-processing workflows. All generators, agents, and the runner load these profiles automatically.
+
+`/setup-auth-browse` installs the bundled `sign-in.mjs` helper for global service auth in `~/.playwright-cli/`. Use it for dashboards such as GitHub, Cloudflare, Vercel, Sentry, PostHog, Supabase, AWS, Netlify, Railway, and Render, or register custom apps through the `capture-auth` skill.
 
 ## The Pipeline
 
@@ -37,11 +42,12 @@ playwright-cli install
 | Command | Description |
 |---------|-------------|
 | `/setup-profiles` | Create or refresh Playwright auth profiles, optionally define test data files and acceptance criteria |
+| `/setup-auth-browse` | Install the global authenticated browsing helper for external services and custom apps |
 | `/run-qa [smoke\|ux\|adversarial\|all]` | Discover screens, confirm manifest, dispatch QA agents |
 
 > **Framework support:** Route discovery is optimized for **Next.js** (App Router and Pages Router), with support for React Router, Remix, and SvelteKit. Other frameworks fall back to generic route-pattern matching.
 
-## Skills (14)
+## Skills (16)
 
 ### Generators
 
@@ -81,6 +87,8 @@ playwright-cli install
 | Skill | Trigger | Description |
 |-------|---------|-------------|
 | **use-profiles** | Automatic | Loads saved auth profiles and surfaces test data files before browser automation |
+| **auth-browse** | "browse Sentry authenticated", "open Supabase dashboard" | Uses global persistent auth for external dashboards |
+| **capture-auth** | "capture auth for my app", "save login for staging" | Registers custom apps and reusable authenticated sessions |
 
 ## Agents (6)
 
@@ -114,7 +122,11 @@ e2e/<platform>/
 
 ## Authentication
 
-**Local:** `/setup-profiles` saves `storageState` per role. Config is committed (`.playwright/profiles.json`), auth data is gitignored (`.playwright/profiles/*.json`). Profiles optionally include `files` (test fixtures) and `acceptance` (verification criteria) for file-processing workflows — generators offer file selection at upload steps and verify acceptance criteria automatically.
+**Per-project app roles:** `/setup-profiles` saves `storageState` per role. Config is committed (`.playwright/profiles.json`), auth data is gitignored (`.playwright/profiles/*.json`). Profiles optionally include `files` (test fixtures) and `acceptance` (verification criteria) for file-processing workflows — generators offer file selection at upload steps and verify acceptance criteria automatically.
+
+**Global external services:** `/setup-auth-browse` installs `~/.playwright-cli/sign-in.mjs` and `cookie-analysis.mjs`. Auth snapshots and persistent Chrome profiles stay in `~/.playwright-cli/` and are never committed.
+
+Set `PLAYWRIGHT_CLI_HOME` to use a different global auth directory for tests, isolated projects, or temporary sessions.
 
 **CI:** Converters generate `auth.setup.ts` with `process.env` credential references. Uses GitHub secrets for credentials and Vercel deployment protection bypass.
 
@@ -126,5 +138,6 @@ claude --plugin-dir /path/to/qa-skills
 
 ## Related Plugins
 
+- [playwright-profiles](https://github.com/neonwatty/playwright-profiles) — Canonical auth-only implementation vendored into this plugin
 - [claude-dev-skills](https://github.com/neonwatty/claude-dev-skills) — Developer workflow automation
 - [claude-interview-skills](https://github.com/neonwatty/claude-interview-skills) — Structured interviews for feature planning
